@@ -35,7 +35,7 @@ export class ConnectionUtils {
   ): Promise<void> {
     const newMetadata = { ...notebook.metadata, ...updates };
     const edit = new vscode.WorkspaceEdit();
-    edit.set(notebook.uri, [vscode.NotebookEdit.updateNotebookMetadata(newMetadata)]);
+    edit.set(notebook.uri, [vscode.NotebookEdit?.updateNotebookMetadata(newMetadata)]);
     await vscode.workspace.applyEdit(edit);
   }
 
