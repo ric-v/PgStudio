@@ -351,62 +351,43 @@ export class ConnectionManager {
     forceDisableSSL: boolean = false,
   ): Promise<ClientConfig> {
     let password: string | undefined;
-    if (config.username) {
-      password = await SecretStorageService.getInstance().getPassword(
-        config.id,
-      );
+
+    // 1) Primary: password stored in VSCode SecretStorage (set during connection setup)
+    if (config.username && config.id) {
+      password = await SecretStorageService.getInstance().getPassword(config.id);
     }
 
-    // ── Explicit pgpass resolution ─────────────────────────────────────────
-    // When no password is stored in SecretStorage (the user relies on a pgpass
-    // file), the pg library's *internal* pgpass lookup can silently fail —
-    // most commonly on Windows where the expected file path is
-    //   %APPDATA%\postgresql\pgpass.conf
-    // rather than ~/.pgpass.  If that lookup returns undefined, pg keeps the
-    // password as null and SCRAM authentication throws:
-    //   "SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string"
-    //
-    // By resolving the pgpass password ourselves and passing it explicitly we
-    // bypass pg's internal lookup entirely and maintain consistent behaviour
-    // across all platforms.
+    // 2) Fallback: password stored inline in settings (legacy or manually specified)
+    if (!password && (config as any).password) {
+      password = (config as any).password;
+    }
+
+    // 3) Secondary fallback: resolve from .pgpass file
+    //    Only attempt this when the user has explicitly configured a username.
+    //    We do NOT use the OS default username here, because that would silently
+    //    resolve a wrong .pgpass entry for connections that rely on trust auth.
     if (!password && config.username) {
-      const targetDb = config.database || "postgres";
-      const pgpassPassword = resolvePgPassPassword(
-        config.host,
-        config.port,
-        targetDb,
-        config.username,
+      const targetDb = config.database || 'postgres';
+      const pgpassPwd = resolvePgPassPassword(
+        config.host, config.port, targetDb, config.username,
       );
-      if (pgpassPassword !== undefined) {
-        password = pgpassPassword;
-        console.log(
-          `[ConnectionManager] Password resolved from pgpass file for ${config.username}@${config.host}:${config.port}/${targetDb}`,
-        );
-      } else if (targetDb !== "postgres") {
-        // Also try the postgres database in case the entry uses that as the
-        // database field (e.g. when the target database doesn't exist yet).
+      if (pgpassPwd !== undefined) {
+        password = pgpassPwd;
+        console.log(`[ConnectionManager] Password resolved from .pgpass for ${config.username}@${config.host}:${config.port}/${targetDb}`);
+      } else if (targetDb !== 'postgres') {
         const fallback = resolvePgPassPassword(
-          config.host,
-          config.port,
-          "postgres",
-          config.username,
+          config.host, config.port, 'postgres', config.username,
         );
         if (fallback !== undefined) {
           password = fallback;
-          console.log(
-            `[ConnectionManager] Password resolved from pgpass file (postgres fallback) for ${config.username}@${config.host}:${config.port}`,
-          );
+          console.log(`[ConnectionManager] Password resolved from .pgpass (postgres fallback) for ${config.username}@${config.host}:${config.port}`);
         }
       }
-
       if (!password) {
-        console.warn(
-          `[ConnectionManager] No password found in SecretStorage or pgpass for ` +
-            `${config.username}@${config.host}:${config.port}/${targetDb}. ` +
-            `Expected pgpass file location: ${pgPassFileDescription()}`,
-        );
+        console.log(`[ConnectionManager] No password found in SecretStorage or .pgpass for ${config.username}@${config.host}. Expected: ${pgPassFileDescription()}`);
       }
     }
+
 
     let sslConfig: boolean | any = false;
     // Default to 'prefer' if empty/undefined.

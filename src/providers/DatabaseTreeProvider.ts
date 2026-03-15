@@ -197,6 +197,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
    */
   public async getDbObjectsForConnection(connection: any): Promise<Array<{ type: string, schema: string, name: string, columns?: string[] }>> {
     const client = await ConnectionManager.getInstance().getPooledClient({
+      ...connection,
       id: connection.id,
       host: connection.host,
       port: connection.port,
@@ -440,13 +441,10 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
       const dbName = element.databaseName || connection.database || 'postgres';
 
       client = await ConnectionManager.getInstance().getPooledClient({
-        id: connection.id,
-        host: connection.host,
-        port: connection.port,
-        username: connection.username,
+        ...connection,
         database: dbName,
-        name: connection.name
       });
+
 
       switch (element.type) {
         case 'connection':

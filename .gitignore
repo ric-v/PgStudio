@@ -9,3 +9,7 @@ pat-open-vsx
 .nyc_output/
 coverage/
 out_test/
+test_*
+mock_ai_server.js
+*.pgpass
+src/test/unit/PgPassSupport.test.ts

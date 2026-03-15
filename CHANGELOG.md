@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.6...0.8.7] - 2026-03-15
+
+### Added
+- **.pgpass support**: Native backwards-compatible support with explicit resolvers parsing standard `.pgpass` (and Windows `%APPDATA%\postgresql\pgpass.conf`) secret files.
+
+### Fixed
+- **Authentication Resilience**: Resolved standard connection `password authentication failed` issues that fell back to implicit OS defaults incorrectly. 
+- **SSL Fallback Reliability**: Fixed `DatabaseTreeProvider` stripping configuration details (such as direct inline passwords and sslmode) during fallback client re-trigger calculations.
+- **.pgpass lookup scope**: Avoided resolving implicit machine name environments by strictly isolating parsing searches for explicit username options, fixing backward compatibility for local `trust` authentications.
+
+---
+
 ## [0.8.4...0.8.5] - 2026-02-19
     
 ### Added
