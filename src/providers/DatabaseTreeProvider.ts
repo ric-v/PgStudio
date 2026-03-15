@@ -437,7 +437,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
 
     let client: PoolClient | undefined;
     try {
-      const dbName = element.type === 'connection' ? 'postgres' : element.databaseName;
+      const dbName = element.databaseName || connection.database || 'postgres';
 
       client = await ConnectionManager.getInstance().getPooledClient({
         id: connection.id,
@@ -471,7 +471,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
 
         case 'databases-group':
           // Fetch databases with size
-          const cacheKey = SchemaCache.buildKey(element.connectionId!, 'postgres', undefined, 'databases');
+          const cacheKey = SchemaCache.buildKey(element.connectionId!, dbName, undefined, 'databases');
           const dbResult = await this._cache.getOrFetch(cacheKey, async () => {
             return await client!.query(`
               SELECT datname, pg_size_pretty(pg_database_size(datname)) as size 

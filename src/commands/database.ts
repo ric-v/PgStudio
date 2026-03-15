@@ -534,7 +534,7 @@ DROP DATABASE IF EXISTS "${item.label}";`)
 
 export async function cmdBackupDatabase(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   try {
-    const connectionConfig = await getConnectionWithPassword(item.connectionId!);
+    const connectionConfig = await getConnectionWithPassword(item.connectionId!, item.databaseName);
 
     // 1. Prompt for save location
     const uri = await vscode.window.showSaveDialog({
@@ -599,7 +599,7 @@ export async function cmdBackupDatabase(item: DatabaseTreeItem, context: vscode.
 
 export async function cmdRestoreDatabase(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   try {
-    const connectionConfig = await getConnectionWithPassword(item.connectionId!);
+    const connectionConfig = await getConnectionWithPassword(item.connectionId!, item.databaseName);
 
     // 1. Prompt for source file
     const uris = await vscode.window.showOpenDialog({
@@ -780,7 +780,7 @@ SELECT 1;`)
 
 export async function cmdPsqlTool(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   try {
-    const connectionConfig = await getConnectionWithPassword(item.connectionId!);
+    const connectionConfig = await getConnectionWithPassword(item.connectionId!, item.databaseName);
 
     const terminal = vscode.window.createTerminal(`PSQL: ${item.label}`);
     terminal.show();

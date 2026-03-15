@@ -8,3 +8,4 @@ dist
 pat-open-vsx
 .nyc_output/
 coverage/
+out_test/

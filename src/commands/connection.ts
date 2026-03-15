@@ -4,6 +4,7 @@ import { PostgresMetadata } from '../common/types';
 import { DatabaseTreeItem, DatabaseTreeProvider } from '../providers/DatabaseTreeProvider';
 import { ConnectionManager } from '../services/ConnectionManager';
 import { SecretStorageService } from '../services/SecretStorageService';
+import { resolvePgPassPassword } from '../utils/pgPassUtils';
 import { ErrorHandlers } from './helper';
 
 /**
@@ -73,7 +74,7 @@ export function validateCategoryItem(item: DatabaseTreeItem): asserts item is Da
 /**
  * getConnectionWithPassword - Retrieves the connection details and password for the specified connection ID.
  */
-export async function getConnectionWithPassword(connectionId: string): Promise<any> {
+export async function getConnectionWithPassword(connectionId: string, databaseName?: string): Promise<any> {
     const connections = vscode.workspace.getConfiguration().get<any[]>('postgresExplorer.connections') || [];
     const connection = connections.find(c => c.id === connectionId);
 
@@ -81,9 +82,18 @@ export async function getConnectionWithPassword(connectionId: string): Promise<a
         throw new Error('Connection not found');
     }
 
-    const password = await SecretStorageService.getInstance().getPassword(connectionId);
+    let password = await SecretStorageService.getInstance().getPassword(connectionId);
+    if (!password && connection.username) {
+        password = resolvePgPassPassword(
+            connection.host,
+            connection.port,
+            databaseName || connection.database || 'postgres',
+            connection.username
+        );
+    }
+
     if (!password) {
-        throw new Error('Password not found in secure storage');
+        throw new Error('Password not found in secure storage or .pgpass');
     }
 
     return {

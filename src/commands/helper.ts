@@ -12,7 +12,7 @@ export { validateItem, validateCategoryItem, validateRoleItem };
 /** Get database connection and metadata for tree item operations */
 export async function getDatabaseConnection(item: DatabaseTreeItem, validateFn: (item: DatabaseTreeItem) => void = validateItem) {
   validateFn(item);
-  const connection = await getConnectionWithPassword(item.connectionId!);
+  const connection = await getConnectionWithPassword(item.connectionId!, item.databaseName);
   const client = await ConnectionManager.getInstance().getPooledClient({
     id: connection.id,
     host: connection.host,
