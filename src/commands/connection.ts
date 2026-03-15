@@ -83,22 +83,36 @@ export async function getConnectionWithPassword(connectionId: string, databaseNa
     }
 
     let password = await SecretStorageService.getInstance().getPassword(connectionId);
-    if (!password && connection.username) {
+    if (!password && connection.password) {
+        password = connection.password;
+    }
+
+    const defaultUsername = process.env.PGUSER || process.env.USER || process.env.USERNAME || require('os').userInfo().username || 'postgres';
+    const actualUsername = connection.username || defaultUsername;
+
+    if (!password && actualUsername) {
         password = resolvePgPassPassword(
             connection.host,
             connection.port,
             databaseName || connection.database || 'postgres',
-            connection.username
+            actualUsername
         );
+        if (!password && (databaseName || connection.database) !== 'postgres') {
+            password = resolvePgPassPassword(
+                connection.host,
+                connection.port,
+                'postgres',
+                actualUsername
+            );
+        }
     }
 
-    if (!password) {
-        throw new Error('Password not found in secure storage or .pgpass');
-    }
-
+    // Do NOT throw if !password here, because pg library supports trust auth 
+    // without passwords, and SCRAM throws its own clean error downstream.
+    
     return {
         ...connection,
-        password
+        password: password || undefined
     };
 }
 
