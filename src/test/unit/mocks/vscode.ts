@@ -55,6 +55,7 @@ export class Disposable { dispose() { } }
 export const env = { clipboard: { writeText: async (_s: string) => { } } } as any;
 
 export const window = {
+  activeNotebookEditor: undefined as any,
   createOutputChannel: (_name?: string) => new OutputChannel(),
   showErrorMessage: async (_msg?: string) => undefined,
   showInformationMessage: async (_msg?: string) => undefined,
@@ -78,11 +79,38 @@ export type NotebookCellKind = typeof NotebookCellKind[keyof typeof NotebookCell
 
 export class NotebookCellData { constructor(public kind: NotebookCellKind, public value: string, public language?: string) { } }
 export class NotebookRange { constructor(public start: number, public end: number) { } }
-export class NotebookEdit { constructor(public range: NotebookRange, public cells: NotebookCellData[]) { } }
+export class NotebookEdit {
+  newCells: NotebookCellData[];
+  constructor(public range: NotebookRange, newCells: NotebookCellData[]) {
+    this.newCells = newCells;
+  }
+  static replaceCells(range: NotebookRange, newCells: NotebookCellData[]) {
+    return new NotebookEdit(range, newCells);
+  }
+  static insertCells(index: number, newCells: NotebookCellData[]) {
+    return new NotebookEdit(new NotebookRange(index, index), newCells);
+  }
+  static updateNotebookMetadata(metadata: Record<string, unknown>) {
+    const e = new NotebookEdit(new NotebookRange(0, 0), []);
+    (e as NotebookEdit & { notebookMetadata?: Record<string, unknown> }).notebookMetadata = metadata;
+    return e;
+  }
+}
 export class WorkspaceEdit { private map = new Map<any, any[]>(); set(uri: Uri, edits: any[]) { this.map.set(uri.toString(), edits); } }
 
 export class NotebookCellOutput { constructor(public items: any[], public metadata?: any) { } }
-export class NotebookCellOutputItem { constructor(public data: any, public mime: string) { } static text(v: string, m?: string) { return new NotebookCellOutputItem(v, m || 'text/plain'); } static json(o: any, m?: string) { return new NotebookCellOutputItem(JSON.stringify(o), m || 'application/json'); } static error(e: any) { return new NotebookCellOutputItem(String(e), 'application/vnd.code.notebook.error'); } }
+export class NotebookCellOutputItem {
+  constructor(public data: Uint8Array | string, public mime: string) { }
+  static text(v: string, m?: string) {
+    return new NotebookCellOutputItem(Buffer.from(v, 'utf8'), m || 'text/plain');
+  }
+  static json(o: any, m?: string) {
+    return new NotebookCellOutputItem(Buffer.from(JSON.stringify(o), 'utf8'), m || 'application/json');
+  }
+  static error(e: any) {
+    return new NotebookCellOutputItem(Buffer.from(String(e), 'utf8'), 'application/vnd.code.notebook.error');
+  }
+}
 
 export class NotebookDocument { uri?: Uri; metadata?: any; constructor(uri?: Uri, metadata?: any) { this.uri = uri; this.metadata = metadata || {}; } }
 export class NotebookEditor { notebook: NotebookDocument = new NotebookDocument(new Uri('/tmp/mock')); selection?: NotebookRange; }
@@ -102,8 +130,6 @@ export interface CompletionItemProvider { provideCompletionItems(document: TextD
 
 export class NotebookCell { outputs: NotebookCellOutput[] = []; constructor(public document: NotebookDocument, public index: number, public kind?: NotebookCellKind) { } }
 export class NotebookController { createNotebookCellExecution(_cell: NotebookCell) { return { start: () => { }, end: () => { }, replaceOutput: () => { }, clearOutput: () => { } }; } }
-
-export class NotebookCellOutputItem { /* static helpers above */ }
 
 export class Uri { constructor(public fsPath: string) { } toString() { return this.fsPath; } static file(path: string) { return new Uri(path); } static parse(s: string) { return new Uri(s); } static joinPath(base: Uri, ...segments: string[]) { return new Uri([base.fsPath, ...segments].join('/')); } }
 

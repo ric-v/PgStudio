@@ -1,5 +1,6 @@
 
 import * as vscode from 'vscode';
+import { NotebookCellOutput, NotebookCellOutputItem } from 'vscode';
 import { ConnectionManager } from '../../services/ConnectionManager';
 import { TelemetryService, SpanNames } from '../../services/TelemetryService';
 import { PostgresMetadata, QueryResults } from '../../common/types';
@@ -284,8 +285,8 @@ export class SqlExecutor {
           // Clear notices for next statement
           notices.length = 0;
 
-          await execution.appendOutput(new vscode.NotebookCellOutput([
-            vscode.NotebookCellOutputItem.json(outputData, 'application/vnd.postgres-notebook.result')
+          await execution.appendOutput(new NotebookCellOutput([
+            new NotebookCellOutputItem(Buffer.from(JSON.stringify(outputData), 'utf8'), 'application/vnd.postgres-notebook.result')
           ]));
 
           // Log to history
@@ -327,8 +328,8 @@ export class SqlExecutor {
             canExplain: true
           };
 
-          await execution.appendOutput(new vscode.NotebookCellOutput([
-            vscode.NotebookCellOutputItem.json(errorData, 'application/vnd.postgres-notebook.error')
+          await execution.appendOutput(new NotebookCellOutput([
+            new NotebookCellOutputItem(Buffer.from(JSON.stringify(errorData), 'utf8'), 'application/vnd.postgres-notebook.error')
           ]));
 
           // Log to history
@@ -351,8 +352,8 @@ export class SqlExecutor {
 
     } catch (err: any) {
       console.error('SqlExecutor: Execution failed:', err);
-      await execution.replaceOutput(new vscode.NotebookCellOutput([
-        vscode.NotebookCellOutputItem.error(err)
+      await execution.replaceOutput(new NotebookCellOutput([
+        new NotebookCellOutputItem(Buffer.from(String(err), 'utf8'), 'application/vnd.code.notebook.error')
       ]));
       execution.end(false, Date.now());
     }

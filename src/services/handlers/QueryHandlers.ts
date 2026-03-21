@@ -99,8 +99,8 @@ export class ExecuteUpdateHandler implements IMessageHandler {
   }
 
   private async insertCell(notebook: vscode.NotebookDocument, index: number, content: string) {
-    const newCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, content, 'sql');
-    const edit = new vscode.NotebookEdit(new vscode.NotebookRange(index, index), [newCell]);
+    const newCell = { kind: vscode.NotebookCellKind.Code, value: content, languageId: 'sql' } as vscode.NotebookCellData;
+    const edit = vscode.NotebookEdit.insertCells(index, [newCell]);
     const workspaceEdit = new vscode.WorkspaceEdit();
     workspaceEdit.set(notebook.uri, [edit]);
     await vscode.workspace.applyEdit(workspaceEdit);
@@ -217,16 +217,9 @@ export class ScriptDeleteHandler implements IMessageHandler {
 
       // Insert new cell with the query
       const targetIndex = cellIndex + 1;
-      const newCell = new vscode.NotebookCellData(
-        vscode.NotebookCellKind.Code,
-        query,
-        'sql'
-      );
+      const newCell = { kind: vscode.NotebookCellKind.Code, value: query, languageId: 'sql' } as vscode.NotebookCellData;
 
-      const edit = new vscode.NotebookEdit(
-        new vscode.NotebookRange(targetIndex, targetIndex),
-        [newCell]
-      );
+      const edit = vscode.NotebookEdit.insertCells(targetIndex, [newCell]);
 
       const workspaceEdit = new vscode.WorkspaceEdit();
       workspaceEdit.set(notebook.uri, [edit]);

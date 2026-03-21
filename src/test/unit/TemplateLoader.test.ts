@@ -1,7 +1,14 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
-import { loadTemplate, loadCompleteTemplate, getNonce } from '../../lib/template-loader';
+import {
+  loadTemplate,
+  loadCompleteTemplate,
+  getNonce,
+  getWebviewUri,
+  getWebviewOptions,
+  buildCsp
+} from '../../lib/template-loader';
 
 describe('TemplateLoader', () => {
   let sandbox: sinon.SinonSandbox;
@@ -112,6 +119,61 @@ describe('TemplateLoader', () => {
       const result = await loadTemplate(extensionUri, 'test', { folder: 'views' });
 
       expect(result).to.equal('<div>Content</div>');
+    });
+
+    it('returns empty string when readFile fails', async () => {
+      readFileStub.rejects(new Error('ENOENT'));
+
+      const result = await loadTemplate(extensionUri, 'test', { folder: 'views' });
+
+      expect(result).to.equal('');
+    });
+  });
+
+  describe('loadCompleteTemplate', () => {
+    const extensionUri = { fsPath: '/ext' } as vscode.Uri;
+
+    it('loads index.html with styles.css and scripts.js', async () => {
+      readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/panel/index.html'))
+        .resolves(new TextEncoder().encode('<html>{{STYLES}}{{SCRIPTS}}</html>'));
+      readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/panel/styles.css'))
+        .resolves(new TextEncoder().encode('body{}'));
+      readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/panel/scripts.js'))
+        .resolves(new TextEncoder().encode('void 0;'));
+
+      const result = await loadCompleteTemplate(extensionUri, 'panel', { title: 'T' });
+
+      expect(result).to.contain('<style>');
+      expect(result).to.contain('<script>');
+      expect(result).to.contain('body{}');
+    });
+  });
+
+  describe('webview helpers', () => {
+    it('getWebviewUri delegates to webview.asWebviewUri', () => {
+      const extensionUri = { fsPath: '/ext' } as vscode.Uri;
+      const expected = { fsPath: 'webview:/joined' } as vscode.Uri;
+      const asWebviewUri = sinon.stub().returns(expected);
+      const webview = { asWebviewUri } as unknown as vscode.Webview;
+
+      const out = getWebviewUri(webview, extensionUri, ['templates', 'x.css']);
+
+      expect(out).to.equal(expected);
+      expect(asWebviewUri.calledOnce).to.be.true;
+    });
+
+    it('getWebviewOptions enables scripts and roots extensionUri', () => {
+      const extensionUri = { fsPath: '/ext' } as vscode.Uri;
+      const opts = getWebviewOptions(extensionUri);
+      expect(opts.enableScripts).to.be.true;
+      expect(opts.localResourceRoots).to.deep.equal([extensionUri]);
+    });
+
+    it('buildCsp references cspSource and nonce', () => {
+      const webview = { cspSource: 'https://vscode-resource.example/' } as vscode.Webview;
+      const csp = buildCsp(webview, 'n1');
+      expect(csp).to.include('nonce-n1');
+      expect(csp).to.include('https://vscode-resource.example/');
     });
   });
 });

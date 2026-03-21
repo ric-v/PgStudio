@@ -8,6 +8,7 @@ dist
 pat-open-vsx
 .nyc_output/
 coverage/
+test-results/
 out_test/
 test_*
 mock_ai_server.js

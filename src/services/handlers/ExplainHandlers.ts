@@ -1,7 +1,13 @@
 import * as vscode from 'vscode';
+import type { Pool, PoolConfig } from 'pg';
+
+/** Matches vscode.ProgressLocation.Notification (mock-safe under tsconfig-paths). */
+const PROGRESS_NOTIFICATION = 1;
 import { IMessageHandler } from '../MessageHandler';
 import { ChatViewProvider } from '../../providers/ChatViewProvider';
 import { ExplainProvider } from '../../providers/ExplainProvider';
+import { SecretStorageService } from '../../services/SecretStorageService';
+import { PostgresMetadata } from '../../common/types';
 
 export class ExplainErrorHandler implements IMessageHandler {
   constructor(private chatViewProvider: ChatViewProvider | undefined) { }
@@ -62,11 +68,14 @@ export class ShowExplainPlanHandler implements IMessageHandler {
   }
 }
 
-import { SecretStorageService } from '../../services/SecretStorageService';
-import { PostgresMetadata } from '../../common/types';
-
 export class ConvertExplainHandler implements IMessageHandler {
-  constructor(private context: vscode.ExtensionContext) { }
+  constructor(
+    private context: vscode.ExtensionContext,
+    private createPool: (config: PoolConfig) => Pool = (config) => {
+      const pg = require('pg') as typeof import('pg');
+      return new pg.Pool(config);
+    }
+  ) { }
 
   async handle(message: any, context: { editor: vscode.NotebookEditor }) {
     if (!context.editor) return;
@@ -108,12 +117,11 @@ export class ConvertExplainHandler implements IMessageHandler {
 
       // Show progress
       await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
+        location: PROGRESS_NOTIFICATION,
         title: 'Converting EXPLAIN to JSON format...',
         cancellable: false
       }, async () => {
-        const { Pool } = await import('pg');
-        const client = new Pool({
+        const client = this.createPool({
           host: connection.host,
           port: connection.port,
           user: connection.username,

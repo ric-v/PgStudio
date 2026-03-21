@@ -121,13 +121,6 @@ export class ImportRequestHandler implements IMessageHandler {
       client.release();
     }
   }
-
-  private rowsToCsv(rows: any[], columns: string[]): string {
-    // ... imported from somewhere else? or duplicate?
-    // Accessing private method from another class is impossible.
-    // ExportRequestHandler has rowsToCsv. ImportRequestHandler doesn't need it.
-    return '';
-  }
 }
 
 export class ExportRequestHandler implements IMessageHandler {

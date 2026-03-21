@@ -1,5 +1,3 @@
-import * as sinon from 'sinon';
-
 export const workspace = {
   getConfiguration: () => ({
     get: () => [],
@@ -11,6 +9,7 @@ export const workspace = {
   onDidSaveNotebookDocument: () => ({ dispose: () => { } }),
   onDidChangeNotebookDocument: () => ({ dispose: () => { } }),
   onDidCloseNotebookDocument: () => ({ dispose: () => { } }),
+  applyEdit: async () => true,
   fs: {
     readFile: async () => new Uint8Array(),
     writeFile: async () => { }
@@ -18,6 +17,7 @@ export const workspace = {
 };
 
 export const window = {
+  activeNotebookEditor: undefined,
   createOutputChannel: () => ({
     appendLine: () => { },
     show: () => { },
@@ -25,9 +25,13 @@ export const window = {
   }),
   showErrorMessage: async () => { },
   showInformationMessage: async () => { },
+  showWarningMessage: async () => { },
+  showQuickPick: async () => { },
+  showSaveDialog: async () => { },
   createTreeView: () => ({
     reveal: async () => { }
   }),
+  withProgress: async (_opt, cb) => await cb({ report: () => { } }),
   registerTreeDataProvider: () => ({ dispose: () => { } })
 };
 
@@ -127,6 +131,72 @@ export const NotebookCellKind = {
   Markup: 1,
   Code: 2
 };
+
+export class NotebookCellData {
+  constructor(kind, value, language) {
+    this.kind = kind;
+    this.value = value;
+    this.language = language;
+  }
+}
+
+export class NotebookRange {
+  constructor(start, end) {
+    this.start = start;
+    this.end = end;
+  }
+}
+
+export class NotebookEdit {
+  constructor(range, newCells) {
+    this.range = range;
+    this.newCells = newCells;
+  }
+
+  static replaceCells(range, newCells) {
+    return new NotebookEdit(range, newCells);
+  }
+
+  static insertCells(index, newCells) {
+    return new NotebookEdit(new NotebookRange(index, index), newCells);
+  }
+
+  static updateNotebookMetadata(metadata) {
+    const e = new NotebookEdit(new NotebookRange(0, 0), []);
+    e.notebookMetadata = metadata;
+    return e;
+  }
+}
+
+export class WorkspaceEdit {
+  constructor() {
+    this._map = new Map();
+  }
+
+  set(uri, edits) {
+    this._map.set(uri.toString(), edits);
+  }
+}
+
+export class NotebookDocument {
+  constructor(uri, metadata) {
+    this.uri = uri;
+    this.metadata = metadata || {};
+  }
+}
+
+export class NotebookEditor {
+  constructor() {
+    this.notebook = new NotebookDocument(new Uri('/tmp/mock'));
+    this.selection = undefined;
+  }
+}
+
+export const env = {
+  clipboard: { writeText: async () => { } }
+};
+
+export const ViewColumn = { One: 1, Two: 2, Three: 3 };
 
 export const CompletionItemKind = {
   Text: 0,
