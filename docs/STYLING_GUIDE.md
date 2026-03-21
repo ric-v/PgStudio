@@ -242,3 +242,33 @@ For questions or issues with the styling system, refer to:
 - `src/common/htmlStyles.ts` - Style definitions
 - `src/common/notebookTemplates.ts` - Notebook templates
 - `src/common/rendererUtils.ts` - Renderer utilities
+
+---
+
+## Quick Reference Appendix
+
+### Primary Modules
+
+- `htmlStyles.ts`: Theme variables, common styles, markdown/html builders
+- `notebookTemplates.ts`: Standard notebook templates + builder API
+- `rendererUtils.ts`: Reusable renderer UI + export helpers
+
+### Fast Migration Checklist
+
+1. Import from `src/common/*` utilities.
+2. Replace inline style literals with `COMMON_STYLES` or `CSS_VARIABLES`.
+3. Replace manual markdown HTML with `MarkdownBuilder`.
+4. Use `CommonNotebookTemplates` for standard SQL notebook actions.
+5. Use `NotebookCellBuilder` for custom notebook workflows.
+6. Test both light and dark themes before merging.
+
+### Refactoring Pattern (Before/After)
+
+**Before**
+- Large inline markdown blocks with repeated `<div style="...">`.
+- Repeated button styling in renderer code.
+
+**After**
+- `CommonNotebookTemplates.selectQuery(...)` for standard query notebooks.
+- `MarkdownBuilder.infoBox(...)` and `MarkdownBuilder.table(...)` for reusable markdown.
+- `createButton('Export', 'primary')` and other shared renderer helpers.

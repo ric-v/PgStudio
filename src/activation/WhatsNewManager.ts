@@ -3,8 +3,10 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
-export class WhatsNewManager implements vscode.WebviewViewProvider {
-  private static readonly viewType = 'postgresExplorer.whatsNew';
+/** Internal id for {@link vscode.window.createWebviewPanel} (not a sidebar view). */
+const WHATS_NEW_PANEL_VIEW_TYPE = 'postgresExplorer.whatsNew';
+
+export class WhatsNewManager {
   private static readonly globalStateKey = 'postgres-explorer.lastRunVersion';
 
   constructor(
@@ -12,60 +14,42 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri
   ) { }
 
-  public async resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
-  ) {
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this.extensionUri, 'resources'),
-        vscode.Uri.joinPath(this.extensionUri, 'out')
-      ]
-    };
-
-    const currentVersion = this.context.extension.packageJSON.version;
-    webviewView.webview.html = await this.getWebviewContent(webviewView.webview, currentVersion, true);
-  }
-
   public async checkAndShow(manual: boolean = false): Promise<void> {
     const currentVersion = this.context.extension.packageJSON.version;
     const lastRunVersion = this.context.globalState.get<string>(WhatsNewManager.globalStateKey);
 
     if (manual || currentVersion !== lastRunVersion) {
-      this.showWhatsNew(currentVersion);
+      await this.showWhatsNew(currentVersion);
       await this.context.globalState.update(WhatsNewManager.globalStateKey, currentVersion);
     }
   }
 
-  private async showWhatsNew(version: string) {
+  private async showWhatsNew(version: string): Promise<void> {
     const column = vscode.window.activeTextEditor
       ? vscode.ViewColumn.Beside
       : vscode.ViewColumn.One;
 
     const panel = vscode.window.createWebviewPanel(
-      WhatsNewManager.viewType,
+      WHATS_NEW_PANEL_VIEW_TYPE,
       `What's New in PgStudio ${version}`,
       column,
       {
         enableScripts: true,
         localResourceRoots: [
           vscode.Uri.joinPath(this.extensionUri, 'resources'),
-          vscode.Uri.joinPath(this.extensionUri, 'out') // In case we need scripts
+          vscode.Uri.joinPath(this.extensionUri, 'out')
         ]
       }
     );
 
-    panel.webview.html = await this.getWebviewContent(panel.webview, version, false);
+    panel.webview.html = await this.getWebviewContent(panel.webview, version);
   }
 
-  private async getWebviewContent(webview: vscode.Webview, version: string, isSidebar: boolean): Promise<string> {
+  private async getWebviewContent(webview: vscode.Webview, version: string): Promise<string> {
     const changelogContent = await this.getChangelogContent();
     const logoPath = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'resources', 'postgres-explorer.png'));
     const markedUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'resources', 'marked.min.js'));
 
-    // Encode content to avoid script injection issues
     const encodedChangelog = Buffer.from(changelogContent).toString('base64');
 
     return `
@@ -79,37 +63,37 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
         <style>
           body {
             font-family: var(--vscode-font-family);
-            padding: ${isSidebar ? '10px' : '20px'};
+            padding: 20px;
             line-height: 1.6;
-            max-width: ${isSidebar ? '100%' : '800px'};
+            max-width: 800px;
             margin: 0 auto;
             color: var(--vscode-editor-foreground);
             background-color: var(--vscode-editor-background);
-            font-size: ${isSidebar ? '0.9em' : '1em'};
+            font-size: 1em;
           }
           h1, h2, h3 {
             color: var(--vscode-textLink-foreground);
             border-bottom: 1px solid var(--vscode-widget-border);
             padding-bottom: 0.3em;
           }
-          h1 { font-size: ${isSidebar ? '1.5em' : '2em'}; margin-top: 0; }
-          h2 { font-size: ${isSidebar ? '1.2em' : '1.5em'}; margin-top: 1.5em; }
-          h3 { font-size: ${isSidebar ? '1.1em' : '1.25em'}; margin-top: 1em; color: var(--vscode-editor-foreground); border-bottom: none; }
-          
+          h1 { font-size: 2em; margin-top: 0; }
+          h2 { font-size: 1.5em; margin-top: 1.5em; }
+          h3 { font-size: 1.25em; margin-top: 1em; color: var(--vscode-editor-foreground); border-bottom: none; }
+
           .header {
             display: flex;
             align-items: center;
-            margin-bottom: ${isSidebar ? '1rem' : '2rem'};
+            margin-bottom: 2rem;
             border-bottom: 1px solid var(--vscode-widget-border);
-            padding-bottom: ${isSidebar ? '0.5rem' : '1rem'};
-            flex-direction: ${isSidebar ? 'column' : 'row'};
-            text-align: ${isSidebar ? 'center' : 'left'};
+            padding-bottom: 1rem;
+            flex-direction: row;
+            text-align: left;
           }
           .logo {
-            width: ${isSidebar ? '48px' : '64px'};
-            height: ${isSidebar ? '48px' : '64px'};
-            margin-right: ${isSidebar ? '0' : '1.5rem'};
-            margin-bottom: ${isSidebar ? '0.5rem' : '0'};
+            width: 64px;
+            height: 64px;
+            margin-right: 1.5rem;
+            margin-bottom: 0;
           }
           .version-badge {
             background-color: var(--vscode-badge-background);
@@ -117,11 +101,10 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
             padding: 0.2rem 0.5rem;
             border-radius: 4px;
             font-size: 0.9em;
-            margin-left: ${isSidebar ? '0.5rem' : '1rem'};
+            margin-left: 1rem;
             vertical-align: middle;
           }
-          
-          /* Markdown Content Styling */
+
           .content {
             margin-top: 1rem;
           }
@@ -155,7 +138,7 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
             color: var(--vscode-descriptionForeground);
           }
           .content ul, .content ol {
-            padding-left: ${isSidebar ? '1.2rem' : '2rem'};
+            padding-left: 2rem;
           }
           .content li {
             margin-bottom: 0.5rem;
@@ -176,7 +159,7 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
           <img src="${logoPath}" alt="PgStudio Logo" class="logo">
           <div>
             <h1>PgStudio <span class="version-badge">v${version}</span></h1>
-            ${isSidebar ? '' : '<p>Thanks for using PgStudio! Here are the latest updates.</p>'}
+            <p>Thanks for using PgStudio! Here are the latest updates.</p>
           </div>
         </div>
 
@@ -184,19 +167,14 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
 
         <div class="footer">
           <p>
-            <a href="https://github.com/dev-asterix/PgStudio/issues">Report Issue</a> | 
+            <a href="https://github.com/dev-asterix/PgStudio/issues">Report Issue</a> |
             <a href="https://github.com/dev-asterix/PgStudio">GitHub Repository</a>
           </p>
         </div>
 
         <script>
-          const vscode = acquireVsCodeApi();
           const rawContent = "${encodedChangelog}";
-          
-          // Decode base64
           const decodedContent = atob(rawContent);
-
-          // Render Markdown
           document.getElementById('markdown-content').innerHTML = marked.parse(decodedContent);
         </script>
       </body>
@@ -216,7 +194,6 @@ export class WhatsNewManager implements vscode.WebviewViewProvider {
       }
     }
 
-    // List what files actually exist in extension root for debugging
     let files: string[] = [];
     try {
       files = await fs.promises.readdir(this.extensionUri.fsPath);

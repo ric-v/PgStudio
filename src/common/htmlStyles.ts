@@ -28,6 +28,7 @@ export const CSS_VARIABLES = {
     menuSelectionBackground: 'var(--vscode-menu-selectionBackground)',
     descriptionForeground: 'var(--vscode-descriptionForeground)',
     textLinkForeground: 'var(--vscode-textLink-foreground)',
+    focusBorder: 'var(--vscode-focusBorder)',
     
     // Fonts
     fontFamily: 'var(--vscode-font-family)',
@@ -43,6 +44,7 @@ export const COMMON_STYLES = {
         fontSize: '13px',
         color: CSS_VARIABLES.editorForeground,
         border: `1px solid ${CSS_VARIABLES.widgetBorder}`,
+        borderTop: `2px solid ${CSS_VARIABLES.textLinkForeground}`,
         borderRadius: '4px',
         overflow: 'hidden',
         marginBottom: '8px',
@@ -132,7 +134,7 @@ export class MarkdownBuilder {
      * Create an info box with icon and message
      */
     static infoBox(message: string, title: string = 'Note'): string {
-        return `<div style="font-size: 12px; background-color: rgba(52, 152, 219, 0.1); border-left: 3px solid #3498db; padding: 6px 10px; margin-bottom: 15px; border-radius: 3px; color: var(--vscode-editor-foreground);">
+        return `<div style="font-size: 12px; background-color: color-mix(in srgb, ${CSS_VARIABLES.textLinkForeground} 14%, transparent); border-left: 3px solid ${CSS_VARIABLES.textLinkForeground}; padding: 6px 10px; margin-bottom: 15px; border-radius: 3px; color: var(--vscode-editor-foreground);">
     <strong>ℹ️ ${title}:</strong> ${message}
 </div>`;
     }

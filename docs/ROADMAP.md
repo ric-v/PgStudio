@@ -1,184 +1,204 @@
-# PgStudio Improvement Roadmap
+# PgStudio Roadmap
 
-> Last Updated: December 2025
-
----
-
-## ✅ Phase 1: Connection Management UX (COMPLETE)
-
-- [x] SSL mode dropdown (disable, allow, prefer, require, verify-ca, verify-full)
-- [x] SSL certificate paths (CA, client cert, client key)
-- [x] Connection timeout setting
-- [x] Statement timeout setting
-- [x] Application name (shown in `pg_stat_activity`)
-- [x] Raw options field (`-c search_path=myschema`)
+> Last Updated: March 2026
+> Scope: Active pipeline only (completed items removed)
 
 ---
 
-## 🎯 Phase 2: UX Enhancements
+## Guiding Rule
 
-### 2A: Tree View Improvements ✅ COMPLETE
-- [x] Quick filter input for searching objects (toggle icon, schema filtering)
-- [x] Favorites (star frequently-used tables/views)  
-- [x] ⭐ Favorites section under connection
-- [x] Context menu preserved for favorited items
-- [x] 🕒 Recent items tracking (max 10 items)
-- [x] Object count badges on category nodes (right-aligned, muted)
-
-### 2B: Notebook Experience ✅ COMPLETE
-- [x] Sticky headers (already implemented)
-- [x] Query cancellation backend infrastructure
-- [x] Column resizing  
-- [x] Infinite scrolling (200 rows/chunk with IntersectionObserver)
-- [x] Result truncation (10k row limit to prevent crashes)
-- [x] Stop generation button UI (integrated with chat)
-
-### 2C: AI Assistant ✅ COMPLETE
-- [x] Schema context caching
-- [x] Query history in AI context
-- [x] "Explain this error" feature
-- [x] Data Analysis (with file attachment)
-- [x] Query optimization & suggest indexes
-- [x] "Send results to Chat" integration
+Reduce fear. Increase speed. Everything else waits.
 
 ---
 
-## 🏗️ Phase 3: Architecture Refactoring ✅ COMPLETE
+## Phase A: Reliability and Developer Confidence
 
-### Code Organization
-- [x] Split `extension.ts` → `commands/`, `providers/`, `services/`
-- [x] Split `renderer_v2.ts` into modular components (`renderer/components/`, `renderer/features/`)
-- [x] Split `tables.ts` (51KB) → `operations.ts`, `scripts.ts`, `maintenance.ts`
+### A1. End-to-End Notebook Flow Tests
+- **What**: Add E2E tests that validate notebook -> renderer -> extension-host message flow, including query run, inline edit save, and delete actions.
+- **Why this helps**: Prevents regressions in the core workflow users rely on every day.
+- **Implementation notes**:
+  - Use `@vscode/test-electron` or Playwright-based VS Code extension testing.
+  - Start with one smoke suite and one failure-path suite.
+  - Reuse current test fixtures in `src/test/integration`.
+- **Definition of done**:
+  - CI runs E2E tests in a dedicated job.
+  - Test covers success and error rendering.
+  - At least one test validates renderer message routing and save/delete roundtrip.
+- **Suggested files**:
+  - `src/test/integration/NotebookRendererFlow.test.ts` (extend)
+  - `.github/workflows/test.yml`
+  - `package.json` test scripts
 
-### Service Layer ✅ COMPLETE
-- [x] Hybrid connection pooling (`pg.Pool` for ephemeral, `pg.Client` for sessions)
-- [x] Command pattern for CRUD operations
-- [x] Query history service
-- [x] Centralized error handling (`ErrorService`)
-- [x] Strict typing (removed `any` from core services)
-- [x] Legacy code removal (`getConnection` deprecated)
-
-### Performance Optimizations ✅ COMPLETE
-- [x] Backend result truncation (10k row limit)
-- [x] Frontend infinite scrolling (200 rows/chunk)
-- [x] Connection leak prevention (try/finally patterns)
-- [x] Query result streaming (cursor-based batching)
-- [x] Distributed tracing (TelemetryService)
-
----
-
-## 📚 Phase 4: Documentation ✅ COMPLETE
-
-- [x] `ARCHITECTURE.md` with system diagrams
-- [x] `CONTRIBUTING.md` with code style guide
-- [x] Troubleshooting section in README
-- [x] Feature comparison vs pgAdmin/DBeaver/TablePlus
-
----
-
-## 🛡️ Phase 5: Safety & Confidence ✅ COMPLETE
-
-### Safety & Trust ✅ COMPLETE
-- [x] **Prod-aware write query confirmation**
-  - Implementation: QueryAnalyzer service detects dangerous operations (DROP, TRUNCATE, DELETE/UPDATE without WHERE, ALTER, INSERT, CREATE) with risk scoring based on environment. Shows modal warnings with "Execute", "Execute in Transaction", or Cancel options.
-- [x] **Read-only / Safe mode per connection**
-  - Implementation: `readOnlyMode` boolean field enforces `SET default_transaction_read_only = ON` on connection. Blocks all write operations at query execution level.
-- [x] **Missing `WHERE` / large-table warnings**
-  - Implementation: QueryAnalyzer uses regex detection to identify DELETE/UPDATE without WHERE clause. Flagged as critical/high severity with confirmation required on production.
-
-### Context & Navigation ✅ COMPLETE
-- [x] **Actionable breadcrumbs (click to switch)**
-- [x] **Status-bar risk indicator**
-  - Implementation: Third status bar item shows color-coded environment badges (🔴 PROD, 🟡 STAGING, 🟢 DEV, 🔒 READ-ONLY) with appropriate background colors. Clickable to show connection safety details.
-- [x] **Reveal current object in explorer**
-  - Implementation: `revealItem()` method in DatabaseTreeProvider with `revealInExplorer` command. Uses VS Code Tree View API to focus and expand tree items.
+### A2. Message Handler Modularization Completion
+- **What**: Continue splitting large handler logic into smaller handler classes with explicit input/output contracts.
+- **Why this helps**: Makes debugging and onboarding easier; reduces risk of side effects when adding features.
+- **Implementation notes**:
+  - Keep `MessageHandlerRegistry` as the central router.
+  - Ensure each handler has one responsibility and unit tests.
+  - Introduce lightweight typing for message payloads.
+- **Definition of done**:
+  - No new large switch/case blocks for messages.
+  - Handler files stay small and focused.
+  - Critical handlers have direct unit tests.
+- **Suggested files**:
+  - `src/services/handlers/*.ts`
+  - `src/services/MessageHandler.ts`
+  - `src/providers/NotebookKernel.ts`
+  - `src/extension.ts`
 
 ---
 
-## 🧠 Phase 6: Data Intelligence & Productivity ✅ COMPLETE
+## Phase B: AI and Performance Intelligence
 
-### Query Productivity ✅ COMPLETE
-- [x] **Auto `LIMIT` / sampling for SELECT**
-  - Implementation: Automatically append `LIMIT 1000` (configurable) if not present. Smart detection skips queries with existing LIMIT/OFFSET. Auto-disabled in read-only mode.
-- [x] **One-click `EXPLAIN` / `EXPLAIN ANALYZE`**
-  - Implementation: CodeLens buttons on all SQL queries to wrap in `EXPLAIN` or `EXPLAIN ANALYZE`. Results inserted as new notebook cell for seamless workflow.
+### B1. Safer AI Suggestions on Production Connections
+- **What**: Force safe-by-default AI behavior for production-like contexts (read-first guidance, transaction templates, WHERE guards).
+- **Why this helps**: Reduces risk of accidental destructive SQL in high-risk environments.
+- **Implementation notes**:
+  - Extend system prompt and per-request context with environment metadata.
+  - Add clear warning banner in chat UI when connection is production.
+  - Validate generated write SQL includes rollback-friendly structure.
+- **Definition of done**:
+  - Production context changes AI output behavior measurably.
+  - UI warns users before risky AI-generated SQL.
+  - Tests assert prompt rules and guardrail formatting.
+- **Suggested files**:
+  - `src/providers/chat/AiService.ts`
+  - `src/providers/ChatViewProvider.ts`
+  - `src/providers/chat/webviewHtml.ts`
 
-### Table Intelligence ✅ COMPLETE
-- [x] **Table profile**
-  - Implementation: Comprehensive statistics including approximate row count, storage size breakdown (table/indexes/TOAST), column-level stats (null %, distinct values, correlation), and complete column definitions.
-- [x] **Quick stats & recent activity**
-  - Implementation: Real-time insights from `pg_stat_user_tables` showing access patterns (sequential/index scans), data modifications (inserts/updates/deletes/HOT updates), table health metrics (live/dead rows, bloat ratio), and maintenance history (VACUUM/ANALYZE timestamps).
-- [x] **Index usage analytics**
-  - Implementation: Performance insights for all indexes including usage statistics (scans, tuples read/fetched), index definitions with DDL and size, automatic detection of unused indexes with recommendations.
-- [x] **Open definition / indexes / constraints**
-  - Implementation: Complete table structure viewer with generated CREATE TABLE DDL, all constraints (PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK), complete index definitions, and incoming foreign key relationships.
+### B2. Query Baseline Quality Upgrade
+- **What**: Improve performance baseline model beyond simple averages (variance/std dev, outlier handling, minimum sample confidence).
+- **Why this helps**: Makes "query got slower" alerts more trustworthy and less noisy.
+- **Implementation notes**:
+  - Replace placeholder `stdDev` with real rolling variance calculation.
+  - Add sample-count confidence thresholds before showing degradation warnings.
+  - Persist metadata version for future migrations.
+- **Definition of done**:
+  - Degradation alerts use confidence thresholds.
+  - Baseline model handles outliers without major false positives.
+  - Unit tests cover calculation correctness.
+- **Suggested files**:
+  - `src/services/QueryPerformanceService.ts`
+  - `src/services/QueryAnalyzer.ts`
+  - `src/providers/kernel/SqlExecutor.ts`
 
----
+### B3. Explain Plan UX Polish
+- **What**: Improve explain visualizer readability with better hierarchy cues, clear hotspot emphasis, and optional export/copy actions.
+- **Why this helps**: Helps developers quickly identify bottlenecks without reading raw JSON/text plans.
+- **Implementation notes**:
+  - Add collapsible subtree controls and sticky plan summary.
+  - Improve node badges for cardinality mismatch and high-cost scans.
+  - Support "copy top bottlenecks" action.
+- **Definition of done**:
+  - Complex plans are understandable without scrolling raw JSON.
+  - Expensive nodes are obvious at a glance.
+  - UX validated with real sample plans.
+- **Suggested files**:
+  - `src/renderer/components/ExplainVisualizer.ts`
+  - `src/renderer_v2.ts`
 
-## ⚡ Phase 7: Advanced Power User & AI
-- [x] **Inject schema + breadcrumb into AI context**
-- [ ] **“Why slow?” Performance Tracking**
-  - Implementation: Persistence layer for query performance baselines. Compare current execution vs historical average.
-- [ ] **Visual Explain Plan**
-  - Implementation: React-based tree/flowchart visualization for `EXPLAIN (FORMAT JSON)` results.
-- [ ] **Safer AI suggestions on prod connections**
-  - Implementation: Prompt engineering to warn AI about production contexts.
-
-### Power-User Extras
-- [ ] **Connection profiles**
-  - Implementation: Profiles for "Read-Only Analyst", "DB Admin", etc., with preset safety settings.
-- [ ] **Saved queries**
-  - Implementation: VS Code level storage for snippet library, distinct from DB views.
-- [ ] **Lightweight schema diff**
-  - Implementation: Compare structure of two schemas/DBs and generate diff script.
-
----
-
-## 🎨 Phase 8: Visual Editors & Intelligence ✅ COMPLETE
-    
-- [x] **Visual Table Designer**
-  - Robust UI for creating/editing tables, columns, constraints, and foreign keys without SQL.
-- [x] **Visual Index & Constraint Manager**
-  - Dedicated UI for managing indexes and constraints, seeing usage stats, and dropping unused objects.
-- [x] **Smart Paste**
-  - Intelligent clipboard handling: detects CSV/JSON/SQL usage and offers context-aware actions (Insert Rows, Format).
-- [x] **Dashboard Diagnostics**
-  - Visual Lock Viewer (Tree view of blocking chains).
-  - Enhanced metrics (IO/Checkpoints/Temp Files).
-    
----
-
-## 🛠️ Phase 9: Technical Health (Security & Refactoring)
-
-### Security Hardening
-- [ ] **Parameterize SQL Generation**
-  - Fix: Refactor `handleSaveChanges` and `handleDeleteRows` to use generic parameterized queries (`$1`, `$2`) instead of string interpolation to prevent SQL injection risks.
-- [ ] **Atomic Batch Operations**
-  - Fix: Wrap batch updates/deletes in explicit transactions to ensure all-or-nothing execution.
-
-### Architectural Improvements
-- [ ] **Refactor Message Handling**
-  - Fix: Extract `rendererMessaging.onDidReceiveMessage` logic into a dedicated `MessageHandler` registry or Command Pattern to reduce bloat in `extension.ts` and `NotebookKernel.ts`.
-- [ ] **End-to-End Testing**
-  - Fix: Setup Playwright/Selenium suite to verify Notebook UI interactions and Renderer communication.
+### B4. AI Schema Context Relevance (RAG-lite)
+- **What**: Improve AI context assembly so only relevant schema objects are sent to the model for each prompt.
+- **Why this helps**: Reduces token waste, improves answer quality, and avoids model confusion on large databases.
+- **Implementation notes**:
+  - Rank schema objects by mention match, recent query usage, and table relationship proximity.
+  - Cap context size and include a deterministic truncation strategy.
+  - Add debug metadata for what objects were selected and why.
+- **Definition of done**:
+  - Large-schema prompts no longer include broad unrelated schema dumps.
+  - AI responses reference the expected objects more consistently.
+  - Tests validate context selection and truncation behavior.
+- **Suggested files**:
+  - `src/providers/ChatViewProvider.ts`
+  - `src/providers/chat/DbObjectService.ts`
+  - `src/providers/chat/AiService.ts`
 
 ---
 
-## 🚀 Phase 10: Future & Collaboration
+## Phase C: Power User Workflows
 
-- [ ] **Team Collaboration Features** (Shared queries, comments)
-- [ ] **Visual Database Designer** (ERD manipulation)
-- [ ] **Cloud Sync** (Settings/Connection profiles sync)
+### C1. Connection Profiles (Role-Based Presets)
+- **What**: Preset connection behaviors like "Read-Only Analyst", "App Dev", and "DB Admin" with safety and UX defaults.
+- **Why this helps**: Reduces setup friction and ensures safer defaults for different user types.
+- **Implementation notes**:
+  - Each profile controls limits, read-only mode, warning strictness, and AI behavior hints.
+  - Provide profile selector and migration path for existing connections.
+- **Definition of done**:
+  - New and existing connections can apply profiles.
+  - Profile state persists and updates status bar indicators.
+  - Defaults are documented in UI.
+- **Suggested files**:
+  - `src/services/ProfileManager.ts`
+  - `src/common/types.ts`
+  - `src/connectionForm.ts`
+  - `src/activation/statusBar.ts`
+
+### C2. Schema Diff (From Initial to Actionable)
+- **What**: Upgrade existing schema diff into an actionable workflow with clear object-level changes and SQL patch preview.
+- **Why this helps**: Makes schema comparison useful for real migration planning instead of just visual inspection.
+- **Implementation notes**:
+  - Categorize diff by tables/columns/indexes/constraints.
+  - Provide generated patch SQL as editable preview.
+  - Add safety warnings for destructive changes.
+- **Definition of done**:
+  - Users can inspect and copy migration-ready SQL.
+  - Diff report is structured and sortable.
+  - Destructive operations are clearly flagged.
+- **Suggested files**:
+  - `src/schemaDesigner/SchemaDiffPanel.ts`
+  - `src/commands/schemaDesigner.ts`
 
 ---
 
-## ❌ Intentionally Not Now
+## Phase D: Collaboration and Ecosystem
 
-- [ ] Full Visual Query Builder (complex UI burden)
-- [ ] User/Role Management UI (admin focus, low priority)
+**Execution gate**: Begin only after Phase A and B are stable in CI and one release cycle in production.
+
+### D1. Team Shared Query Library
+- **What**: Shared saved queries with tags, ownership metadata, and optional review comments.
+- **Why this helps**: Teams reuse proven SQL and reduce duplicated effort.
+- **Implementation notes**:
+  - Keep local-first storage; add optional sync adapter interface.
+  - Support import/export of query bundles.
+- **Definition of done**:
+  - Queries can be shared and re-imported between environments.
+  - Metadata (author, tags, updated time) is visible in UI.
+- **Suggested files**:
+  - `src/services/SavedQueriesService.ts`
+  - `src/providers/Phase7TreeProviders.ts`
+
+### D2. Visual Database Designer (ERD Interaction)
+- **What**: Interactive ERD-style designer for relationship navigation and table structure edits.
+- **Why this helps**: Improves discoverability of schema relationships for onboarding and refactoring.
+- **Implementation notes**:
+  - Start read-only ERD view, then add controlled edit actions.
+  - Support export as image/SQL documentation snippet.
+- **Definition of done**:
+  - ERD loads for medium schemas with acceptable performance.
+  - Users can inspect links and jump to object definitions.
+- **Suggested files**:
+  - `src/schemaDesigner/*`
+  - `src/commands/schemaDesigner.ts`
+
+### D3. Cloud Sync for Profiles and Preferences
+- **What**: Optional sync of profiles, query favorites, and selected settings across developer machines.
+- **Why this helps**: Improves setup speed and consistency across teams.
+- **Implementation notes**:
+  - Keep secret material in secure storage; never sync plaintext credentials.
+  - Add conflict resolution strategy (last-write-wins with manual compare option).
+- **Definition of done**:
+  - Settings sync works across two machines with conflict handling.
+  - Security review confirms no credential leakage.
+- **Suggested files**:
+  - `src/services/ProfileManager.ts`
+  - `src/services/SecretStorageService.ts`
+  - `src/services/SavedQueriesService.ts`
 
 ---
 
-### Guiding rule (tattoo this mentally):
+## Backlog Ideas (Not Scheduled Yet)
 
-> **Reduce fear. Increase speed. Everything else waits.**
+- TypeScript/Zod type generation from selected tables
+- Advanced import wizard (mapping + validation rules)
+- Query runbooks (multi-step operational scripts)
+- Observability integrations (OTel/Grafana linking)

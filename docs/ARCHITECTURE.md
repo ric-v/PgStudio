@@ -1,6 +1,6 @@
 # PgStudio Architecture
 
-> **Last Updated**: December 2025
+> **Last Updated**: March 2026
 
 This document provides a comprehensive overview of PgStudio's architecture, design decisions, and component interactions.
 
@@ -413,6 +413,19 @@ Default pool configuration:
 - Pools automatically release idle connections
 - Session clients closed on notebook disposal
 - Result truncation prevents OOM errors
+
+### Large Operation Optimizations
+
+- **Adaptive schema cache TTL** in `src/lib/schema-cache.ts`
+  - Hot entries expire faster, cold entries live longer.
+  - Balances freshness and query volume under large schemas.
+- **Connection pool metrics and idle cleanup** in `src/services/ConnectionManager.ts`
+  - Tracks pool health and closes idle pools after inactivity.
+  - Helps prevent pool exhaustion and stale resource usage.
+- **Debounced tree refresh** in `src/providers/DatabaseTreeProvider.ts`
+  - Batches rapid refresh triggers to reduce UI flicker and redundant renders.
+- **Large-tree prioritization**
+  - Prioritizes favorites/recent objects for faster perceived responsiveness on databases with many objects.
 
 ---
 

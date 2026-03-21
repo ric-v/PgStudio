@@ -1,7 +1,7 @@
 {
   "name": "postgres-explorer",
   "displayName": "PgStudio (PostgreSQL Explorer)",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "description": "PostgreSQL database explorer for VS Code with notebook support",
   "publisher": "ric-v",
   "private": false,
@@ -802,6 +802,18 @@
         "icon": "$(trash)"
       },
       {
+        "command": "postgres-explorer.pickQueryHistory",
+        "title": "Open Query from History",
+        "icon": "$(history)",
+        "category": "PgStudio: Queries"
+      },
+      {
+        "command": "postgres-explorer.showWhatsNew",
+        "title": "Show Release Notes / What's New",
+        "icon": "$(megaphone)",
+        "category": "PgStudio"
+      },
+      {
         "command": "postgres-explorer.copyQuery",
         "title": "Copy Query",
         "icon": "$(copy)"
@@ -885,7 +897,7 @@
       },
       {
         "command": "postgres-explorer.loadSavedQuery",
-        "title": "Load Saved Query",
+        "title": "Open Saved Query from Library",
         "icon": "$(folder-opened)",
         "category": "PgStudio: Queries"
       },
@@ -1021,12 +1033,6 @@
           "icon": "resources/postgres-vsc-icon.png"
         },
         {
-          "id": "postgresExplorer.savedQueries",
-          "name": "Saved Queries",
-          "contextualTitle": "PostgreSQL Explorer",
-          "icon": "$(save)"
-        },
-        {
           "id": "postgresExplorer.chatView",
           "name": "SQL Assistant",
           "type": "webview",
@@ -1034,17 +1040,18 @@
           "icon": "resources/ai-icon.png"
         },
         {
-          "id": "postgresExplorer.history",
-          "name": "Query History",
+          "id": "postgresExplorer.savedQueryLibrary",
+          "name": "Saved Queries",
           "contextualTitle": "PostgreSQL Explorer",
-          "icon": "$(history)"
+          "icon": "$(save)",
+          "visibility": "collapsed"
         },
         {
-          "id": "postgresExplorer.whatsNew",
-          "name": "What's New",
-          "type": "webview",
+          "id": "postgresExplorer.executedQueryHistory",
+          "name": "Query History",
           "contextualTitle": "PostgreSQL Explorer",
-          "icon": "resources/postgres-explorer.png"
+          "icon": "$(history)",
+          "visibility": "collapsed"
         }
       ]
     },
@@ -1258,7 +1265,7 @@
         },
         {
           "command": "postgres-explorer.clearHistory",
-          "when": "view == postgresExplorer.history",
+          "when": "view == postgresExplorer.executedQueryHistory",
           "group": "navigation"
         },
         {
@@ -1285,17 +1292,17 @@
       "view/item/context": [
         {
           "command": "postgres-explorer.copyQuery",
-          "when": "view == postgresExplorer.history",
+          "when": "view == postgresExplorer.executedQueryHistory",
           "group": "1_modification"
         },
         {
           "command": "postgres-explorer.openQuery",
-          "when": "view == postgresExplorer.history",
+          "when": "view == postgresExplorer.executedQueryHistory",
           "group": "1_modification"
         },
         {
           "command": "postgres-explorer.deleteHistoryItem",
-          "when": "view == postgresExplorer.history",
+          "when": "view == postgresExplorer.executedQueryHistory",
           "group": "2_destructive"
         },
         {
@@ -1883,22 +1890,22 @@
         },
         {
           "command": "postgres-explorer.copySavedQuery",
-          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
           "group": "1_actions@1"
         },
         {
           "command": "postgres-explorer.editSavedQuery",
-          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
           "group": "1_actions@2"
         },
         {
           "command": "postgres-explorer.openSavedQueryInNotebook",
-          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
           "group": "1_actions@3"
         },
         {
           "command": "postgres-explorer.deleteSavedQuery",
-          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
           "group": "2_delete@1"
         },
         {

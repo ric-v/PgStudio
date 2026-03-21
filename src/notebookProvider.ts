@@ -18,7 +18,8 @@ interface NotebookMetadata {
 interface Cell {
   value: string;
   kind?: 'markdown' | 'sql';
-  language?: 'markdown' | 'sql';
+  /** Legacy: older saves used "postgres"; normalized to sql on load. */
+  language?: 'markdown' | 'sql' | 'postgres';
 }
 
 export class PostgresNotebookProvider implements vscode.NotebookSerializer {
@@ -84,7 +85,7 @@ export class PostgresNotebookProvider implements vscode.NotebookSerializer {
     data: vscode.NotebookData,
     _token: vscode.CancellationToken
   ): Promise<Uint8Array> {
-    const cells: Cell[] = data.cells.map(cell => ({
+    const cells: Cell[] = data.cells.map((cell): Cell => ({
       value: cell.value,
       kind: cell.kind === vscode.NotebookCellKind.Markup ? 'markdown' : 'sql',
       language: cell.kind === vscode.NotebookCellKind.Markup ? 'markdown' : 'sql'

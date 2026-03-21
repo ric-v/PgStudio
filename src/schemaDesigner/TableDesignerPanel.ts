@@ -813,7 +813,7 @@ export class TableDesignerPanel {
       <table class="columns-table" id="columnsTable">
         <thead>
           <tr>
-            <th style="width:24px;"></th>
+            ${isCreate ? '<th style="width:28px;" title="Create mode: drag rows to set column order in CREATE TABLE"></th>' : ''}
             <th style="width:160px;">Column Name</th>
             <th style="width:150px;">Data Type</th>
             <th style="width:70px;">Not Null</th>
@@ -986,6 +986,8 @@ export class TableDesignerPanel {
     console.log('TableDesigner: Initializing...');
 
     const MODE = '${mode}';
+    const ALLOW_COL_REORDER = (MODE === 'create');
+    let columnDragSourceIndex = null;
     const SCHEMA = '${schema}';
     const TABLE_NAME = '${tableName}';
     const PG_TYPES = ${JSON.stringify(pgTypes)};
@@ -1021,6 +1023,44 @@ export class TableDesignerPanel {
       if (tabName === 'indexes') btns[2].classList.add('active');
     }
 
+    function columnDragStart(e) {
+      if (!ALLOW_COL_REORDER) return;
+      const h = e.target.closest('.drag-handle');
+      if (!h) return;
+      e.stopPropagation();
+      const idx = parseInt(h.getAttribute('data-col-idx'), 10);
+      if (Number.isNaN(idx)) return;
+      columnDragSourceIndex = idx;
+      e.dataTransfer.setData('text/plain', String(idx));
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function columnDragOver(e) {
+      if (!ALLOW_COL_REORDER) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function columnDrop(e, toIdx) {
+      if (!ALLOW_COL_REORDER) return;
+      e.preventDefault();
+      const from = columnDragSourceIndex;
+      if (from === null || from === undefined) return;
+      if (columns[from]._deleted || columns[toIdx]._deleted) return;
+      if (from === toIdx) return;
+      const [moved] = columns.splice(from, 1);
+      let dest = toIdx;
+      if (from < toIdx) dest = toIdx - 1;
+      columns.splice(dest, 0, moved);
+      columnDragSourceIndex = null;
+      renderColumns();
+      updateSQL();
+    }
+
+    function columnDragEnd() {
+      columnDragSourceIndex = null;
+    }
+
     function renderColumns() {
       const tbody = document.getElementById('columnRows');
       tbody.innerHTML = '';
@@ -1028,11 +1068,18 @@ export class TableDesignerPanel {
         if (col._deleted) {
           const tr = document.createElement('tr');
           tr.className = 'deleted';
-          tr.innerHTML = \`
+          if (ALLOW_COL_REORDER) {
+            tr.innerHTML = \`
             <td></td>
             <td colspan="7" style="padding:4px 8px;font-size:12px;">\${col.column_name} <em style="font-size:11px;">(will be dropped)</em></td>
             <td><button class="btn btn-secondary" style="padding:2px 6px;font-size:11px;" onclick="restoreColumn(\${idx})">Restore</button></td>
           \`;
+          } else {
+            tr.innerHTML = \`
+            <td colspan="8" style="padding:4px 8px;font-size:12px;">\${col.column_name} <em style="font-size:11px;">(will be dropped)</em></td>
+            <td><button class="btn btn-secondary" style="padding:2px 6px;font-size:11px;" onclick="restoreColumn(\${idx})">Restore</button></td>
+          \`;
+          }
           tbody.appendChild(tr);
           return;
         }
@@ -1043,8 +1090,10 @@ export class TableDesignerPanel {
 
         const tr = document.createElement('tr');
         tr.className = col._new ? 'new-row' : '';
-        tr.innerHTML = \`
-          <td><span class="drag-handle">⠿</span></td>
+        const dragCell = ALLOW_COL_REORDER
+          ? \`<td><span class="drag-handle" draggable="true" data-col-idx="\${idx}" ondragstart="columnDragStart(event)" ondragend="columnDragEnd(event)" title="Drag to reorder">⠿</span></td>\`
+          : '';
+        tr.innerHTML = dragCell + \`
           <td>
             <input class="col-input" type="text" value="\${col.column_name || ''}"
               onchange="updateCol(\${idx}, 'column_name', this.value)"
@@ -1082,6 +1131,10 @@ export class TableDesignerPanel {
             <button class="btn btn-danger" onclick="deleteColumn(\${idx})">✕</button>
           </td>
         \`;
+        if (ALLOW_COL_REORDER) {
+          tr.ondragover = columnDragOver;
+          tr.ondrop = function(ev) { columnDrop(ev, idx); };
+        }
         tbody.appendChild(tr);
       });
     }

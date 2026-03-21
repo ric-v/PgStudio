@@ -7,7 +7,7 @@
 [![Version](https://img.shields.io/visual-studio-marketplace/v/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=0066CC)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=2ECC71)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=F39C12)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
-[![Status](https://img.shields.io/badge/status-beta-blue?style=for-the-badge&logo=git&logoColor=white)](https://github.com/dev-asterix/yape)
+[![Status](https://img.shields.io/badge/status-beta-blue?style=for-the-badge&logo=git&logoColor=white)](https://github.com/dev-asterix/PgStudio)
 
 **PgStudio** (formerly YAPE) is a comprehensive PostgreSQL database management extension featuring interactive SQL notebooks, real-time monitoring dashboard, AI-powered assistance, and advanced database operations—all within VS Code.
 
@@ -121,10 +121,23 @@ Then: **PostgreSQL icon** → **Add Connection** → Enter details → **Connect
 
 ---
 
+## 📚 Documentation Map
+
+- `README.md` - Product overview, installation, development, and troubleshooting
+- `docs/ARCHITECTURE.md` - System architecture and component/data-flow details
+- `docs/STYLING_GUIDE.md` - Centralized styling/templates and UI refactoring patterns
+- `docs/ROADMAP.md` - Active pipeline and upcoming phases
+- `SECURITY.md` - Security policy and vulnerability reporting guidance
+- `CHANGELOG.md` - Release notes and what changed across versions
+
+**v0.8.8 (latest) —** Sidebar puts **Connections** and **SQL Assistant** first; **Saved Queries** and **Query History** start collapsed for fresh view state; **What’s New** is command-palette only. Notebook inline edits use **parameterized SQL inside transactions**. **Table Designer** adds **create-mode column reorder** and improved **SQL preview** styling. Details: `CHANGELOG.md`.
+
+---
+
 ## 🏗️ Project Structure
 
 ```
-yape/
+PgStudio/
 ├── src/
 │   ├── extension.ts          # Extension entry point
 │   ├── commands/             # Command implementations
@@ -243,8 +256,8 @@ Turn any query result into beautiful, interactive charts in seconds.
 
 ```bash
 # Clone the repository
-git clone https://github.com/dev-asterix/yape.git
-cd yape
+git clone https://github.com/dev-asterix/PgStudio.git
+cd PgStudio
 
 # Install dependencies
 npm install
@@ -349,14 +362,14 @@ PgStudio includes comprehensive testing infrastructure:
 - **Docker Containers**: PostgreSQL 12, 14, 15, 16, 17 for compatibility testing
 - **CI/CD Pipeline**: GitHub Actions with Matrix testing (Node 18-22, PostgreSQL 12-17)
 
-📖 **Full documentation**: See [TESTING.md](TESTING.md) and [TESTING_QUICKSTART.md](TESTING_QUICKSTART.md)
+📖 **Testing docs**: Use the scripts listed above and CI workflow in `.github/workflows/test.yml`.
 
 ---
 
 ## 🤝 Contributing
 
-- 🐛 [Report Bugs](https://github.com/dev-asterix/yape/issues/new?template=bug_report.md)
-- 💡 [Request Features](https://github.com/dev-asterix/yape/issues/new?template=feature_request.md)
+- 🐛 [Report Bugs](https://github.com/dev-asterix/PgStudio/issues/new?template=bug_report.md)
+- 💡 [Request Features](https://github.com/dev-asterix/PgStudio/issues/new?template=feature_request.md)
 - 🔧 Fork → Branch → PR
 - 🧪 Ensure all tests pass: `npm run test:all && npm run coverage`
 
@@ -410,7 +423,7 @@ Also on [Open VSX](https://open-vsx.org/extension/ric-v/postgres-explorer)
 
 ---
 
-## ???? Troubleshooting
+## 🔧 Troubleshooting
 
 ### Connection Issues
 

@@ -77,7 +77,6 @@ export async function activate(context: vscode.ExtensionContext) {
   registerAllCommands(context, databaseTreeProvider, chatView, outputChannel, savedQueriesTreeProvider);
 
   // Kernel initialization
-  // Kernel initialization
   const rendererMessaging = vscode.notebooks.createRendererMessaging('postgres-query-renderer');
 
   const kernel = new PostgresKernel(context, rendererMessaging, 'postgres-notebook', async (msg: { type: string; command: string; format?: string; content?: string; filename?: string }) => {
@@ -94,13 +93,8 @@ export async function activate(context: vscode.ExtensionContext) {
   // What's New / Welcome Screen
   const whatsNewManager = new WhatsNewManager(context, context.extensionUri);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('postgresExplorer.whatsNew', whatsNewManager)
-  );
-  await whatsNewManager.checkAndShow();
-
-  context.subscriptions.push(
     vscode.commands.registerCommand('postgres-explorer.showWhatsNew', () => {
-      whatsNewManager.checkAndShow(true);
+      void whatsNewManager.checkAndShow(true);
     })
   );
 
