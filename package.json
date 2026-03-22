@@ -2081,6 +2081,9 @@
     "test:all": "npm run compile && ts-mocha -p src/test/tsconfig.json -r ts-node/register -r tsconfig-paths/register -r src/test/setup.ts 'src/test/**/*.test.ts'",
     "build-tests": "tsc -p src/test/tsconfig.json --outDir out_test",
     "coverage": "npm run compile && nyc ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/**/*.test.ts' '!src/test/unit/PgPassSupport.test.ts'",
+    "coverage:phase-utils": "npm run compile && npx c8 --config .c8rc.phase-utils.json ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/pgPassUtils.test.ts' 'src/test/unit/connectionUtils.test.ts'",
+    "coverage:phase-handlers": "npm run compile && npx c8 --config .c8rc.phase-handlers.json ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/CoreHandlers.test.ts' 'src/test/unit/ExplainHandlers.test.ts' 'src/test/unit/TransactionHandlers.test.ts' 'src/test/unit/QueryHandlers.test.ts' 'src/test/unit/QueryHandlers.extended.test.ts'",
+    "coverage:phased": "npm run coverage:phase-utils && npm run coverage:phase-handlers && npm run coverage:report",
     "coverage:report": "nyc report --reporter=html --reporter=text"
   },
   "dependencies": {

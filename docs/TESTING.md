@@ -26,8 +26,11 @@ The `npm run coverage` script enforces thresholds on:
 | `npm test` | Unit tests (Mocha + ts-node ESM loader). |
 | `npm run test:unit` | Same tests via ts-mocha. |
 | `npm run test:integration` | PostgreSQL integration tests (needs DB env). |
-| `npm run coverage` | Alias for `coverage:unit` (Tier 1 c8 on unit tests only). |
-| `npm run coverage:unit` | Runs [`scripts/coverage-unit.sh`](scripts/coverage-unit.sh): one `ts-mocha` process with all unit files (no `xargs` split), Mocha `--exit` so c8 can finish the report. |
+| `npm run coverage` | Runs the full coverage suite (excludes `PgPassSupport.test.ts`). |
+| `npm run coverage:phase-utils` | Phase run for `src/utils` area (uses `.c8rc.phase-utils.json`). |
+| `npm run coverage:phase-handlers` | Phase run for `src/services/handlers` area (uses `.c8rc.phase-handlers.json`). |
+| `npm run coverage:phased` | Runs phased coverage (`coverage:phase-utils` then `coverage:phase-handlers`) and generates reports. |
+| `npm run coverage:unit` | Legacy alias retained for local debugging: runs the unit test c8 wrapper (see `package.json`). |
 | `npm run coverage:unit:instrument` | Same run with `COVERAGE_CHECK=0` (no threshold failure; use to verify c8 attribution). |
 | `npm run test:e2e` | VS Code extension smoke tests (`@vscode/test-electron`). |
 | `npm run coverage:e2e` | c8 wrapper around the E2E runner (collects host-side coverage where V8 attributes it; extension-host internals may be partial). |
@@ -38,6 +41,6 @@ UI automation for this product targets the **VS Code Extension Host**. Use **`@v
 
 ## CI
 
-- Unit job: `npm test`, `npm run coverage:unit`.
+- Unit job: `npm test`, `npm run coverage:phased` (phased per-area checks: utils → handlers). This provides a practical CI gate without requiring immediate repo-wide coverage for every file.
 - Integration job: `npm run test:integration` with Postgres service.
 - E2E job (optional / manual): `npm run test:e2e` under `xvfb-run` on Linux; artifacts include JUnit XML when `MOCHA_FILE` is set.
