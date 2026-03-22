@@ -1,7 +1,7 @@
 {
   "name": "postgres-explorer",
   "displayName": "PgStudio (PostgreSQL Explorer)",
-  "version": "0.8.8",
+  "version": "0.8.5",
   "description": "PostgreSQL database explorer for VS Code with notebook support",
   "publisher": "ric-v",
   "private": false,
@@ -802,18 +802,6 @@
         "icon": "$(trash)"
       },
       {
-        "command": "postgres-explorer.pickQueryHistory",
-        "title": "Open Query from History",
-        "icon": "$(history)",
-        "category": "PgStudio: Queries"
-      },
-      {
-        "command": "postgres-explorer.showWhatsNew",
-        "title": "Show Release Notes / What's New",
-        "icon": "$(megaphone)",
-        "category": "PgStudio"
-      },
-      {
         "command": "postgres-explorer.copyQuery",
         "title": "Copy Query",
         "icon": "$(copy)"
@@ -897,7 +885,7 @@
       },
       {
         "command": "postgres-explorer.loadSavedQuery",
-        "title": "Open Saved Query from Library",
+        "title": "Load Saved Query",
         "icon": "$(folder-opened)",
         "category": "PgStudio: Queries"
       },
@@ -1033,6 +1021,12 @@
           "icon": "resources/postgres-vsc-icon.png"
         },
         {
+          "id": "postgresExplorer.savedQueries",
+          "name": "Saved Queries",
+          "contextualTitle": "PostgreSQL Explorer",
+          "icon": "$(save)"
+        },
+        {
           "id": "postgresExplorer.chatView",
           "name": "SQL Assistant",
           "type": "webview",
@@ -1040,18 +1034,17 @@
           "icon": "resources/ai-icon.png"
         },
         {
-          "id": "postgresExplorer.savedQueryLibrary",
-          "name": "Saved Queries",
-          "contextualTitle": "PostgreSQL Explorer",
-          "icon": "$(save)",
-          "visibility": "collapsed"
-        },
-        {
-          "id": "postgresExplorer.executedQueryHistory",
+          "id": "postgresExplorer.history",
           "name": "Query History",
           "contextualTitle": "PostgreSQL Explorer",
-          "icon": "$(history)",
-          "visibility": "collapsed"
+          "icon": "$(history)"
+        },
+        {
+          "id": "postgresExplorer.whatsNew",
+          "name": "What's New",
+          "type": "webview",
+          "contextualTitle": "PostgreSQL Explorer",
+          "icon": "resources/postgres-explorer.png"
         }
       ]
     },
@@ -1265,7 +1258,7 @@
         },
         {
           "command": "postgres-explorer.clearHistory",
-          "when": "view == postgresExplorer.executedQueryHistory",
+          "when": "view == postgresExplorer.history",
           "group": "navigation"
         },
         {
@@ -1292,17 +1285,17 @@
       "view/item/context": [
         {
           "command": "postgres-explorer.copyQuery",
-          "when": "view == postgresExplorer.executedQueryHistory",
+          "when": "view == postgresExplorer.history",
           "group": "1_modification"
         },
         {
           "command": "postgres-explorer.openQuery",
-          "when": "view == postgresExplorer.executedQueryHistory",
+          "when": "view == postgresExplorer.history",
           "group": "1_modification"
         },
         {
           "command": "postgres-explorer.deleteHistoryItem",
-          "when": "view == postgresExplorer.executedQueryHistory",
+          "when": "view == postgresExplorer.history",
           "group": "2_destructive"
         },
         {
@@ -1890,22 +1883,22 @@
         },
         {
           "command": "postgres-explorer.copySavedQuery",
-          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
           "group": "1_actions@1"
         },
         {
           "command": "postgres-explorer.editSavedQuery",
-          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
           "group": "1_actions@2"
         },
         {
           "command": "postgres-explorer.openSavedQueryInNotebook",
-          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
           "group": "1_actions@3"
         },
         {
           "command": "postgres-explorer.deleteSavedQuery",
-          "when": "view == postgresExplorer.savedQueryLibrary && viewItem == savedQuery",
+          "when": "view == postgresExplorer.savedQueries && viewItem == savedQuery",
           "group": "2_delete@1"
         },
         {
@@ -2079,21 +2072,16 @@
     "watch": "tsc -watch -p ./",
     "esbuild": "npm run esbuild-base -- --sourcemap && npm run esbuild-renderer -- --sourcemap",
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch & npm run esbuild-renderer -- --sourcemap --watch",
-    "test": "npm run compile && find src/test/unit -maxdepth 1 -name '*.test.ts' ! -name 'PgPassSupport.test.ts' -print0 | xargs -0 npx ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts --reporter spec --exit",
-    "test:pgpass": "npm run compile && mocha --loader ./node_modules/ts-node/esm/transpile-only.mjs -r tsconfig-paths/register -r src/test/setup.ts src/test/unit/PgPassSupport.test.ts",
-    "test:unit": "npm run compile && find src/test/unit -maxdepth 1 -name '*.test.ts' ! -name 'PgPassSupport.test.ts' -print0 | xargs -0 npx ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts --reporter spec --exit",
+    "test": "npm run compile && mocha --loader ./node_modules/ts-node/esm/transpile-only.mjs -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/**/*.test.ts'",
+    "test:unit": "npm run compile && ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/**/*.test.ts'",
     "test:integration": "npm run compile && ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/integration/**/*.test.ts'",
     "test:renderer": "npm run compile && ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/RendererComponents.test.ts'",
-    "test:renderer:coverage": "npm run compile && c8 --include 'src/renderer/**/*.ts' --reporter=text-summary --reporter=lcov node ./node_modules/ts-mocha/bin/ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/RendererComponents.test.ts'",
+    "test:renderer:coverage": "npm run compile && nyc ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/RendererComponents.test.ts'",
     "test:versions": "npm run compile && ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/integration/ConnectionLifecycle.test.ts'",
     "test:all": "npm run compile && ts-mocha -p src/test/tsconfig.json -r ts-node/register -r tsconfig-paths/register -r src/test/setup.ts 'src/test/**/*.test.ts'",
     "build-tests": "tsc -p src/test/tsconfig.json --outDir out_test",
-    "coverage": "npm run coverage:unit",
-    "coverage:unit": "npm run compile && bash scripts/coverage-unit.sh",
-    "coverage:unit:instrument": "npm run compile && bash scripts/coverage-unit-instrument.sh",
-    "coverage:e2e": "npm run compile && c8 --check-coverage=false --include \"out/test/**/*.js\" --reporter=text-summary --reporter=lcov node ./out/test/runTest.js",
-    "test:e2e": "npm run compile && node ./out/test/runTest.js",
-    "coverage:report": "c8 report --reporter=html --reporter=text"
+    "coverage": "npm run compile && nyc ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/**/*.test.ts' '!src/test/unit/PgPassSupport.test.ts'",
+    "coverage:report": "nyc report --reporter=html --reporter=text"
   },
   "dependencies": {
     "@types/pg-cursor": "^2.7.2",
@@ -2114,14 +2102,10 @@
     "@types/ssh2": "^1.15.0",
     "@types/vscode": "^1.80.0",
     "@types/vscode-notebook-renderer": "^1.72.4",
-    "@vscode/test-electron": "^2.5.2",
-    "c8": "^10.1.3",
     "chai": "^6.2.1",
     "esbuild": ">=0.25.0",
-    "glob": "^10.5.0",
     "jsdom": "^24.0.0",
     "mocha": "^11.7.5",
-    "mocha-junit-reporter": "^2.2.1",
     "module-alias": "^2.2.3",
     "nyc": "^17.1.0",
     "ovsx": "^0.10.2",

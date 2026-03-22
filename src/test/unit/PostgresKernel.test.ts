@@ -89,11 +89,11 @@ describe('PostgresKernel', () => {
     sandbox.stub(QueryPerformanceService, 'getInstance').returns({
       getBaseline: () => null,
       recordExecution: sandbox.stub().resolves()
-    });
+    } as any);
 
     sandbox.stub(QueryHistoryService, 'getInstance').returns({
       add: sandbox.stub().resolves()
-    });
+    } as any);
 
     // Mock vscode.workspace.getConfiguration — avoid returning connection[] for unrelated keys (auto-limit reads numeric defaults)
     configGetStub = sandbox.stub().callsFake((key: string, defaultValue?: unknown) => {
