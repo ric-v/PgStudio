@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
+import pg from 'pg';
 import { ConnectionManager } from '../../services/ConnectionManager';
 import { SecretStorageService } from '../../services/SecretStorageService';
 import { Client } from 'pg';
@@ -51,7 +52,7 @@ describe('ConnectionManager', () => {
     };
 
     // Mock pg.Pool constructor
-    const pgPoolStub = sandbox.stub(require('pg'), 'Pool').returns(poolStub);
+    const pgPoolStub = sandbox.stub(pg, 'Pool').returns(poolStub);
 
     const client = await manager.getPooledClient(config);
 
@@ -82,7 +83,7 @@ describe('ConnectionManager', () => {
       end: sandbox.stub().resolves()
     };
 
-    const pgPoolStub = sandbox.stub(require('pg'), 'Pool').returns(poolStub);
+    const pgPoolStub = sandbox.stub(pg, 'Pool').returns(poolStub);
 
     await manager.getPooledClient(config);
     await manager.getPooledClient(config);
@@ -110,7 +111,7 @@ describe('ConnectionManager', () => {
       end: sandbox.stub().resolves()
     };
 
-    sandbox.stub(require('pg'), 'Pool').returns(poolStub);
+    sandbox.stub(pg, 'Pool').returns(poolStub);
 
     await manager.getPooledClient(config);
     await manager.closeConnection(config);
@@ -126,7 +127,7 @@ describe('ConnectionManager', () => {
     const poolStub1 = { connect: sandbox.stub().resolves({ release: sandbox.stub() }), on: sandbox.stub(), end: sandbox.stub().resolves() };
     const poolStub2 = { connect: sandbox.stub().resolves({ release: sandbox.stub() }), on: sandbox.stub(), end: sandbox.stub().resolves() };
 
-    const pgPoolStub = sandbox.stub(require('pg'), 'Pool');
+    const pgPoolStub = sandbox.stub(pg, 'Pool');
     pgPoolStub.onCall(0).returns(poolStub1);
     pgPoolStub.onCall(1).returns(poolStub2);
 

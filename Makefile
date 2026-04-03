@@ -105,6 +105,11 @@ docker-clean:
 	docker-compose -f docker-compose.test.yml down -v
 	@echo "Test containers and volumes removed"
 
+# update npm dependencies
+npm-update:
+	$(NPM_BIN) update
+	@echo "npm dependencies updated"
+
 # Full test suite
 test-full: docker-up test-all coverage docker-down
 	@echo "Full test suite completed"

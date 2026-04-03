@@ -106,7 +106,7 @@ describe('QueryHandlers (additional error branches)', () => {
     sandbox.stub(ConnectionManager, 'getInstance').returns({ getSessionClient } as any);
     sandbox.stub(ConnectionUtils, 'findConnection').returns({ host: 'h', port: 1, username: 'u', database: 'db' } as any);
 
-    const handler = new (require('../../services/handlers/QueryHandlers').DeleteRowsHandler)();
+    const handler = new DeleteRowsHandler();
     await handler.handle(
       {
         tableInfo: { schema: 'public', table: 'users', primaryKeys: ['id'] },
@@ -127,9 +127,9 @@ describe('QueryHandlers (additional error branches)', () => {
     const query = sandbox.stub().rejects(new Error('fail-all'));
     const release = sandbox.stub();
     sandbox.stub(ConnectionManager, 'getInstance').returns({ getPooledClient: sandbox.stub().resolves({ query, release }) } as any);
-    const err = sandbox.stub(require('../../commands/helper').ErrorHandlers, 'handleCommandError').resolves();
+    const err = sandbox.stub(ErrorHandlers, 'handleCommandError').resolves();
 
-    await new (require('../../services/handlers/QueryHandlers').ExecuteUpdateBackgroundHandler)().handle({ statements: ['s1', 's2'] }, { editor: { notebook: { metadata: { connectionId: 'c1', host: 'h', port: 1, username: 'u', databaseName: 'db' } } } } as any);
+    await new ExecuteUpdateBackgroundHandler().handle({ statements: ['s1', 's2'] }, { editor: { notebook: { metadata: { connectionId: 'c1', host: 'h', port: 1, username: 'u', databaseName: 'db' } } } } as any);
 
     expect(err.called).to.be.true;
     expect((vscode.window.showInformationMessage as any).called).to.be.false;
