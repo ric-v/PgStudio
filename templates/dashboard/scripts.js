@@ -311,7 +311,7 @@ function updateDashboard(stats) {
     }
 
     // Update TPS card tooltip for flatline annotation
-    const tpsCard = document.getElementById('tps-card');
+      const tpsCard = document.getElementById('tps-card');
     if (tpsCard) {
       if (tps === 0 && blockingPids.size > 0) {
         tpsCard.title = 'Throughput stalled due to blocking locks';
@@ -409,17 +409,31 @@ function updateDashboard(stats) {
 
 function updateActiveLoad(stats) {
   const el = document.getElementById('active-load-value');
-  if (el) el.innerHTML = `${stats.activeConnections} <span style="font-size: 0.8em; color: var(--muted-color); font-weight: 400;">/ ${stats.maxConnections}</span>`;
-
-  const sub = document.getElementById('active-load-sub');
-  if (sub) {
-    if (stats.waitingConnections > 0) {
-      // Emphasize waiting with icon and stronger color
-      sub.innerHTML = `<span style="color: var(--danger-color); font-weight: 500;">⚠️ ${stats.waitingConnections} waiting</span>`;
-    } else {
-      sub.innerHTML = 'No waits';
-    }
+  if (el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+    const num = document.createTextNode(String(stats.activeConnections) + ' ');
+    const span = document.createElement('span');
+    span.style.fontSize = '0.8em';
+    span.style.color = 'var(--muted-color)';
+    span.style.fontWeight = '400';
+    span.textContent = '/ ' + (stats.maxConnections || '');
+    el.appendChild(num);
+    el.appendChild(span);
   }
+
+    const sub = document.getElementById('active-load-sub');
+    if (sub) {
+      if (stats.waitingConnections > 0) {
+        while (sub.firstChild) sub.removeChild(sub.firstChild);
+        const span = document.createElement('span');
+        span.style.color = 'var(--danger-color)';
+        span.style.fontWeight = '500';
+        span.textContent = '\u26A0\uFE0F ' + stats.waitingConnections + ' waiting';
+        sub.appendChild(span);
+      } else {
+        sub.textContent = 'No waits';
+      }
+    }
 }
 
 function updateIssues(stats) {
@@ -429,24 +443,46 @@ function updateIssues(stats) {
   if (stats.waitEvents && stats.waitEvents.length > 0) {
     // Show Wait Events
     document.getElementById('issues-label').innerText = 'Top Wait Events';
-    container.innerHTML = `<div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px;">
-            ${stats.waitEvents.map(w => `
-                <div style="display: flex; justify-content: space-between; font-size: 0.85em;">
-                    <span style="color: var(--text-color);">${w.type}</span>
-                    <span style="color: var(--muted-color);">${w.count}</span>
-                </div>
-            `).join('')}
-        </div>`;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '4px';
+    wrapper.style.marginTop = '8px';
+    stats.waitEvents.forEach(w => {
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.justifyContent = 'space-between';
+      row.style.fontSize = '0.85em';
+
+      const left = document.createElement('span');
+      left.style.color = 'var(--text-color)';
+      left.textContent = w.type || '';
+
+      const right = document.createElement('span');
+      right.style.color = 'var(--muted-color)';
+      right.textContent = String(w.count || '');
+
+      row.appendChild(left);
+      row.appendChild(right);
+      wrapper.appendChild(row);
+    });
+    container.appendChild(wrapper);
   } else {
     // Show Generic Issues
     document.getElementById('issues-label').innerText = 'Issues (Events)';
-    container.innerHTML = `
-            <div class="value">
-                ${stats.metrics.deadlocks + stats.metrics.conflicts}
-            </div>
-            <div style="font-size: 0.8rem; color: var(--muted-color);">
-                ${stats.metrics.deadlocks} Deadlocks
-            </div>`;
+    while (container.firstChild) container.removeChild(container.firstChild);
+    const valDiv = document.createElement('div');
+    valDiv.className = 'value';
+    valDiv.textContent = String((stats.metrics.deadlocks || 0) + (stats.metrics.conflicts || 0));
+
+    const detail = document.createElement('div');
+    detail.style.fontSize = '0.8rem';
+    detail.style.color = 'var(--muted-color)';
+    detail.textContent = String(stats.metrics.deadlocks || 0) + ' Deadlocks';
+
+    container.appendChild(valDiv);
+    container.appendChild(detail);
   }
 }
 
@@ -468,19 +504,35 @@ function updateHealth(stats) {
   if (connUsage > 0.7) summaryParts.push(`${Math.round(connUsage * 100)}% conn`);
 
   // Determine status
-  if (hasBlocks || connUsage > 0.9) {
-    healthDot.className = 'status-dot status-crit';
-    healthText.innerHTML = `Critical<br><span style="font-size: 0.65em; font-weight: normal; opacity: 0.9;">${summaryParts.join(' • ') || 'High load'}</span>`;
-    healthText.style.color = colors.danger;
-  } else if (connUsage > 0.7 || hasWaiting) {
-    healthDot.className = 'status-dot status-warn';
-    healthText.innerHTML = `Degraded<br><span style="font-size: 0.65em; font-weight: normal; opacity: 0.9;">${summaryParts.join(' • ') || 'Elevated load'}</span>`;
-    healthText.style.color = colors.warning;
-  } else {
-    healthDot.className = 'status-dot status-ok';
-    healthText.innerText = 'Healthy';
-    healthText.style.color = colors.success;
-  }
+    if (hasBlocks || connUsage > 0.9) {
+      healthDot.className = 'status-dot status-crit';
+      while (healthText.firstChild) healthText.removeChild(healthText.firstChild);
+      healthText.appendChild(document.createTextNode('Critical'));
+      healthText.appendChild(document.createElement('br'));
+      const span = document.createElement('span');
+      span.style.fontSize = '0.65em';
+      span.style.fontWeight = 'normal';
+      span.style.opacity = '0.9';
+      span.textContent = summaryParts.join(' • ') || 'High load';
+      healthText.appendChild(span);
+      healthText.style.color = colors.danger;
+    } else if (connUsage > 0.7 || hasWaiting) {
+      healthDot.className = 'status-dot status-warn';
+      while (healthText.firstChild) healthText.removeChild(healthText.firstChild);
+      healthText.appendChild(document.createTextNode('Degraded'));
+      healthText.appendChild(document.createElement('br'));
+      const span2 = document.createElement('span');
+      span2.style.fontSize = '0.65em';
+      span2.style.fontWeight = 'normal';
+      span2.style.opacity = '0.9';
+      span2.textContent = summaryParts.join(' • ') || 'Elevated load';
+      healthText.appendChild(span2);
+      healthText.style.color = colors.warning;
+    } else {
+      healthDot.className = 'status-dot status-ok';
+      healthText.innerText = 'Healthy';
+      healthText.style.color = colors.success;
+    }
 
   // Hover Tooltip: Detailed factors
   const tooltip = [];
@@ -500,55 +552,116 @@ function updateHealth(stats) {
 function updateActiveQueries(queries) {
   const tbody = document.querySelector('#active-queries-table tbody');
   if (!queries || queries.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 24px; color: var(--muted-color);">No active queries running</td></tr>';
+    while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.setAttribute('colspan', '5');
+    td.style.textAlign = 'center';
+    td.style.padding = '24px';
+    td.style.color = 'var(--muted-color)';
+    td.textContent = 'No active queries running';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
     return;
   }
-
-  tbody.innerHTML = queries.map(q => {
+  while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+  queries.forEach(q => {
     let rowClass = '';
-    if (q.duration.includes('m') || (q.duration.includes(':') && q.duration > '00:01:00')) {
+    if ((q.duration || '').includes('m') || ((q.duration || '').includes(':') && (q.duration || '') > '00:01:00')) {
       rowClass = 'row-crit'; // > 60s
-    } else if (q.duration > '00:00:10') {
+    } else if ((q.duration || '') > '00:00:10') {
       rowClass = 'row-warn'; // > 10s
     }
 
-    // Check for lock status
     const isBlocker = blockingPids.has(q.pid);
     const isWaiting = waitingPids.has(q.pid);
 
-    let pidContent = `${q.pid}`;
-    let pidStyle = '';
+    let pidContent = String(q.pid);
     let pidTitle = '';
+    let pidStyle = '';
 
     if (isBlocker) {
-      pidContent = `🔒 ${q.pid}`;
+      pidContent = '\uD83D\uDD12 ' + String(q.pid);
       pidStyle = 'color: var(--danger-color); font-weight: bold;';
       pidTitle = 'This process is blocking other queries';
     } else if (isWaiting) {
-      pidContent = `⏳ ${q.pid}`;
-      pidStyle = 'color: var(--warning-color); font-weight: 500;'; // Amber for waiting
+      pidContent = '\u23F3 ' + String(q.pid);
+      pidStyle = 'color: var(--warning-color); font-weight: 500;';
       pidTitle = 'This process is waiting for a lock';
     }
 
     const b64Query = btoa(unescape(encodeURIComponent(q.query || '')));
-    return `
-        <tr class="${rowClass}">
-            <td class="mono" style="${pidStyle}" title="${pidTitle}">${pidContent}</td>
-            <td>${q.usename}</td>
-            <td style="font-weight: 500;">${q.duration}</td>
-            <td style="font-size: 0.85em; color: var(--muted-color);">${q.startTime || '-'}</td>
-            <td class="mono" style="font-size: 0.85em; color: var(--muted-color);" title="${(q.query || '').replace(/"/g, '&quot;')}">
-                ${(q.query || '').substring(0, 120)}${(q.query || '').length > 120 ? '...' : ''}
-            </td>
-            <td class="actions-cell">
-                <div style="display: flex; gap: 4px; justify-content: flex-end;">
-                    <button class="btn-action" data-action="explain" data-query="${b64Query}" title="Explain Plan">Explain</button>
-                    <button class="btn-action btn-warn" data-action="cancel" data-pid="${q.pid}" title="Cancel Query (SIGINT)">Cancel</button>
-                    <button class="btn-action btn-danger" data-action="terminate" data-pid="${q.pid}" title="Terminate Backend (SIGTERM)">Kill</button>
-                </div>
-            </td>
-        </tr>
-    `}).join('');
+
+    const tr = document.createElement('tr');
+    if (rowClass) tr.className = rowClass;
+
+    const tdPid = document.createElement('td');
+    tdPid.className = 'mono';
+    if (pidStyle) tdPid.setAttribute('style', pidStyle);
+    if (pidTitle) tdPid.setAttribute('title', pidTitle);
+    tdPid.textContent = pidContent;
+    tr.appendChild(tdPid);
+
+    const tdUser = document.createElement('td');
+    tdUser.textContent = q.usename || '';
+    tr.appendChild(tdUser);
+
+    const tdDuration = document.createElement('td');
+    tdDuration.style.fontWeight = '500';
+    tdDuration.textContent = q.duration || '';
+    tr.appendChild(tdDuration);
+
+    const tdStart = document.createElement('td');
+    tdStart.style.fontSize = '0.85em';
+    tdStart.style.color = 'var(--muted-color)';
+    tdStart.textContent = q.startTime || '-';
+    tr.appendChild(tdStart);
+
+    const tdQuery = document.createElement('td');
+    tdQuery.className = 'mono';
+    tdQuery.style.fontSize = '0.85em';
+    tdQuery.style.color = 'var(--muted-color)';
+    tdQuery.setAttribute('title', q.query || '');
+    const short = (q.query || '').substring(0, 120) + ((q.query || '').length > 120 ? '...' : '');
+    tdQuery.textContent = short;
+    tr.appendChild(tdQuery);
+
+    const tdActions = document.createElement('td');
+    tdActions.className = 'actions-cell';
+    const actionsDiv = document.createElement('div');
+    actionsDiv.style.display = 'flex';
+    actionsDiv.style.gap = '4px';
+    actionsDiv.style.justifyContent = 'flex-end';
+
+    const explainBtn = document.createElement('button');
+    explainBtn.className = 'btn-action';
+    explainBtn.setAttribute('data-action', 'explain');
+    explainBtn.setAttribute('data-query', b64Query);
+    explainBtn.title = 'Explain Plan';
+    explainBtn.textContent = 'Explain';
+    actionsDiv.appendChild(explainBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-action btn-warn';
+    cancelBtn.setAttribute('data-action', 'cancel');
+    cancelBtn.setAttribute('data-pid', String(q.pid));
+    cancelBtn.title = 'Cancel Query (SIGINT)';
+    cancelBtn.textContent = 'Cancel';
+    actionsDiv.appendChild(cancelBtn);
+
+    const killBtn = document.createElement('button');
+    killBtn.className = 'btn-action btn-danger';
+    killBtn.setAttribute('data-action', 'terminate');
+    killBtn.setAttribute('data-pid', String(q.pid));
+    killBtn.title = 'Terminate Backend (SIGTERM)';
+    killBtn.textContent = 'Kill';
+    actionsDiv.appendChild(killBtn);
+
+    tdActions.appendChild(actionsDiv);
+    tr.appendChild(tdActions);
+
+    tbody.appendChild(tr);
+  });
 }
 
 function updateLocks(locks) {
@@ -589,7 +702,11 @@ function updateLocks(locks) {
   // Update Tile
   const tileVal = document.getElementById('locks-tile-value');
   if (tileVal) {
-    tileVal.innerHTML = `<span style="color: var(--danger-color)">${locks.length}</span>`;
+    while (tileVal.firstChild) tileVal.removeChild(tileVal.firstChild);
+    const span = document.createElement('span');
+    span.style.color = 'var(--danger-color)';
+    span.textContent = String(locks.length);
+    tileVal.appendChild(span);
   }
 
   // Restore visibility if we have locks
@@ -650,7 +767,9 @@ function renderLockTree(locks) {
     div.className = 'lock-node';
 
     if (visited.has(pid)) {
-      div.innerHTML = `<div>🔄 Cycle detected: PID ${pid}</div>`;
+      const cyc = document.createElement('div');
+      cyc.textContent = '🔄 Cycle detected: PID ' + pid;
+      div.appendChild(cyc);
       return div;
     }
     visited.add(pid);
@@ -682,25 +801,86 @@ function renderLockTree(locks) {
       obj = asBlocked.info.locked_object;
     }
 
-    div.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <span class="mono" style="font-weight:bold; ${asBlocker ? 'color:var(--danger-color)' : ''}">PID ${pid}</span>
-                    <span style="margin-left:8px; color:var(--muted-color)">${user}</span>
-                </div>
-                <div>
-                    ${asBlocked ? `<span class="badge">${asBlocked.info.lock_mode}</span>` : '<span class="badge" style="background:var(--success-color); color:black;">Root</span>'}
-                </div>
-            </div>
-            <div class="mono" style="font-size:0.85em; margin-top:4px; opacity:0.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                ${query || '(No query info)'}
-            </div>
-            ${asBlocked ? `<div style="font-size:0.8em; margin-top:4px; color:var(--muted-color)">Waiting for: ${asBlocked.info.locked_object}</div>` : ''}
-            <div style="margin-top:8px; display:flex; gap:8px;">
-                 <button class="btn-action btn-danger" data-action="terminate" data-pid="${pid}">Kill Session</button>
-                 <button class="btn-action" data-action="cancel" data-pid="${pid}">Cancel Query</button>
-            </div>
-        `;
+    // Header row with PID and user
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+
+    const left = document.createElement('div');
+    const pidSpan = document.createElement('span');
+    pidSpan.className = 'mono';
+    pidSpan.style.fontWeight = 'bold';
+    if (asBlocker) pidSpan.style.color = 'var(--danger-color)';
+    pidSpan.textContent = 'PID ' + pid;
+
+    const userSpan = document.createElement('span');
+    userSpan.style.marginLeft = '8px';
+    userSpan.style.color = 'var(--muted-color)';
+    userSpan.textContent = user || '';
+
+    left.appendChild(pidSpan);
+    left.appendChild(userSpan);
+
+    const right = document.createElement('div');
+    if (asBlocked) {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = asBlocked.info.lock_mode || '';
+      right.appendChild(badge);
+    } else {
+      const badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.style.background = 'var(--success-color)';
+      badge.style.color = 'black';
+      badge.textContent = 'Root';
+      right.appendChild(badge);
+    }
+
+    header.appendChild(left);
+    header.appendChild(right);
+    div.appendChild(header);
+
+    const queryDiv = document.createElement('div');
+    queryDiv.className = 'mono';
+    queryDiv.style.fontSize = '0.85em';
+    queryDiv.style.marginTop = '4px';
+    queryDiv.style.opacity = '0.8';
+    queryDiv.style.whiteSpace = 'nowrap';
+    queryDiv.style.overflow = 'hidden';
+    queryDiv.style.textOverflow = 'ellipsis';
+    queryDiv.textContent = query || '(No query info)';
+    div.appendChild(queryDiv);
+
+    if (asBlocked) {
+      const waitingDiv = document.createElement('div');
+      waitingDiv.style.fontSize = '0.8em';
+      waitingDiv.style.marginTop = '4px';
+      waitingDiv.style.color = 'var(--muted-color)';
+      waitingDiv.textContent = 'Waiting for: ' + (asBlocked.info.locked_object || '');
+      div.appendChild(waitingDiv);
+    }
+
+    const actions = document.createElement('div');
+    actions.style.marginTop = '8px';
+    actions.style.display = 'flex';
+    actions.style.gap = '8px';
+
+    const killBtn = document.createElement('button');
+    killBtn.className = 'btn-action btn-danger';
+    killBtn.setAttribute('data-action', 'terminate');
+    killBtn.setAttribute('data-pid', String(pid));
+    killBtn.textContent = 'Kill Session';
+    actions.appendChild(killBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-action';
+    cancelBtn.setAttribute('data-action', 'cancel');
+    cancelBtn.setAttribute('data-pid', String(pid));
+    cancelBtn.textContent = 'Cancel Query';
+    actions.appendChild(cancelBtn);
+
+    div.appendChild(actions);
 
     // Children
     if (myRelations.length > 0) {
@@ -733,7 +913,14 @@ function updateRecommendedAction(stats, hasBlocks) {
   const blockerPid = stats.blockingLocks[0].blocking_pid;
   if (actionContainer) {
     actionContainer.style.display = 'block';
-    actionContainer.innerHTML = `<span style="cursor: pointer;" data-action="terminate" data-pid="${blockerPid}">💡 Recommended: Kill blocker PID ${blockerPid}</span>`;
+    // Build content using DOM APIs to avoid injecting unsanitized HTML
+    actionContainer.innerHTML = '';
+    const span = document.createElement('span');
+    span.style.cursor = 'pointer';
+    span.setAttribute('data-action', 'terminate');
+    span.setAttribute('data-pid', String(blockerPid));
+    span.textContent = '💡 Recommended: Kill blocker PID ' + String(blockerPid);
+    actionContainer.appendChild(span);
   }
 }
 
@@ -757,33 +944,88 @@ function renderDetailsView(type, data, columns) {
   const title = titleMap[type] || (type.charAt(0).toUpperCase() + type.slice(1));
   document.getElementById('detail-title').innerText = title;
 
-  let html = '<div class="table-container"><table><thead><tr>';
-  columns.forEach(c => html += '<th>' + c + '</th>');
-  html += '</tr></thead><tbody>';
+  const container = document.getElementById('detail-content');
+  if (!container) return;
+  // Clear previous content
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'table-container';
+
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headTr = document.createElement('tr');
+  columns.forEach(c => {
+    const th = document.createElement('th');
+    th.textContent = c;
+    headTr.appendChild(th);
+  });
+  thead.appendChild(headTr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
 
   if (!data || data.length === 0) {
-    html += '<tr><td colspan="' + columns.length + '" style="text-align: center; color: var(--muted-color); padding: 24px;">No items found</td></tr>';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.setAttribute('colspan', String(columns.length));
+    td.style.textAlign = 'center';
+    td.style.color = 'var(--muted-color)';
+    td.style.padding = '24px';
+    td.textContent = 'No items found';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
   } else {
     data.forEach(row => {
-      html += '<tr>';
+      const tr = document.createElement('tr');
       if (type === 'pgStatStatements') {
-        html += '<td class="mono" style="max-width: 640px; white-space: pre-wrap;">' + row.query + '</td>';
-        html += '<td>' + row.calls + '</td>';
-        html += '<td>' + row.total_time + '</td>';
-        html += '<td>' + row.mean_time + '</td>';
-        html += '<td>' + row.rows + '</td>';
+        const tdQuery = document.createElement('td');
+        tdQuery.className = 'mono';
+        tdQuery.style.maxWidth = '640px';
+        tdQuery.style.whiteSpace = 'pre-wrap';
+        tdQuery.textContent = row && row.query != null ? String(row.query) : '';
+        tr.appendChild(tdQuery);
+
+        const appendCell = val => {
+          const td = document.createElement('td');
+          td.textContent = val != null ? String(val) : '';
+          tr.appendChild(td);
+        };
+
+        appendCell(row && row.calls);
+        appendCell(row && row.total_time);
+        appendCell(row && row.mean_time);
+        appendCell(row && row.rows);
       } else {
-        html += '<td class="mono">' + row.name + '</td>';
-        if (type === 'tables') html += '<td>' + row.size + '</td>';
-        if (type === 'views') html += '<td>' + (row.owner || '') + '</td>';
-        if (type === 'functions') html += '<td>' + row.language + '</td>';
+        const tdName = document.createElement('td');
+        tdName.className = 'mono';
+        tdName.textContent = row && row.name != null ? String(row.name) : '';
+        tr.appendChild(tdName);
+
+        if (type === 'tables') {
+          const tdSize = document.createElement('td');
+          tdSize.textContent = row && row.size != null ? String(row.size) : '';
+          tr.appendChild(tdSize);
+        }
+        if (type === 'views') {
+          const tdOwner = document.createElement('td');
+          tdOwner.textContent = row && row.owner != null ? String(row.owner) : '';
+          tr.appendChild(tdOwner);
+        }
+        if (type === 'functions') {
+          const tdLang = document.createElement('td');
+          tdLang.textContent = row && row.language != null ? String(row.language) : '';
+          tr.appendChild(tdLang);
+        }
       }
-      html += '</tr>';
+      tbody.appendChild(tr);
     });
   }
-  html += '</tbody></table></div>';
 
-  document.getElementById('detail-content').innerHTML = html;
+  table.appendChild(tbody);
+  wrapper.appendChild(table);
+  container.appendChild(wrapper);
+
   document.getElementById('main-view').style.display = 'none';
   document.getElementById('detail-view').style.display = 'block';
   window.scrollTo(0, 0);

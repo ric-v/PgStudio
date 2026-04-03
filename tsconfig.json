@@ -11,6 +11,7 @@
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
+    "skipLibCheck": true,
     "types": [
       "node",
       "vscode",
@@ -24,6 +25,10 @@
   "exclude": [
     "node_modules",
     ".vscode-test",
-    "src/test/**/*"
+    "src/test/unit/**",
+    "src/test/integration/**",
+    "src/test/runTest.ts",
+    "src/test/setup.ts",
+    "src/test/testUtils.ts"
   ]
 }

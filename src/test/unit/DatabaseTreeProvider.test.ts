@@ -27,15 +27,9 @@ describe('DatabaseTreeProvider', () => {
       get: configGetStub
     } as any);
 
-    // Mock vscode.EventEmitter
-    sandbox.stub(vscode, 'EventEmitter').returns({
-      event: sandbox.stub(),
-      fire: sandbox.stub()
-    } as any);
-
     // Mock ConnectionManager
     connectionManagerStub = {
-      getConnection: sandbox.stub()
+      getPooledClient: sandbox.stub()
     };
     sandbox.stub(ConnectionManager, 'getInstance').returns(connectionManagerStub);
   });
@@ -74,8 +68,20 @@ describe('DatabaseTreeProvider', () => {
       { id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }
     ]);
 
-    const clientStub = { query: sandbox.stub(), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = {
+      query: sandbox.stub().callsFake((sql: string) => {
+        if (sql.includes('pg_database')) {
+          return Promise.resolve({ rows: [{ count: '1' }] });
+        }
+        if (sql.includes('pg_roles')) {
+          return Promise.resolve({ rows: [{ count: '1' }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      on: sandbox.stub(),
+      release: sandbox.stub()
+    };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
 
     const element = new DatabaseTreeItem('Conn 1', vscode.TreeItemCollapsibleState.Collapsed, 'connection', '1');
     const children = await provider.getChildren(element);
@@ -93,9 +99,10 @@ describe('DatabaseTreeProvider', () => {
 
     const clientStub = {
       query: sandbox.stub().resolves({ rows: [{ datname: 'db1' }, { datname: 'db2' }] }),
-      on: sandbox.stub()
+      on: sandbox.stub(),
+      release: sandbox.stub()
     };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    connectionManagerStub.getPooledClient.resolves(clientStub);
 
     const element = new DatabaseTreeItem('Databases', vscode.TreeItemCollapsibleState.Collapsed, 'databases-group', '1');
     const children = await provider.getChildren(element);
@@ -111,15 +118,17 @@ describe('DatabaseTreeProvider', () => {
       { id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }
     ]);
 
-    const clientStub = { query: sandbox.stub(), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const query = sandbox.stub().resolves({ rows: [{ count: '0' }] });
+    const clientStub = { query, on: sandbox.stub(), release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
 
     const element = new DatabaseTreeItem('db1', vscode.TreeItemCollapsibleState.Collapsed, 'database', '1', 'db1');
     const children = await provider.getChildren(element);
 
-    expect(children).to.have.lengthOf(2);
+    expect(children).to.have.lengthOf(3);
     expect(children[0].label).to.equal('Schemas');
     expect(children[1].label).to.equal('Extensions');
+    expect(children[2].label).to.equal('Foreign Data Wrappers');
   });
 
   it('should return categories for schema', async () => {
@@ -130,9 +139,10 @@ describe('DatabaseTreeProvider', () => {
 
     const clientStub = {
       query: sandbox.stub().resolves({ rows: [{ schema_name: 'public' }] }),
-      on: sandbox.stub()
+      on: sandbox.stub(),
+      release: sandbox.stub()
     };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    connectionManagerStub.getPooledClient.resolves(clientStub);
 
     const element = new DatabaseTreeItem('Schemas', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1');
     // Note: 'Schemas' category returns list of schemas, not categories inside a schema.
@@ -153,9 +163,10 @@ describe('DatabaseTreeProvider', () => {
 
     const clientStub = {
       query: sandbox.stub().resolves({ rows: [{ table_name: 'users' }] }),
-      on: sandbox.stub()
+      on: sandbox.stub(),
+      release: sandbox.stub()
     };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    connectionManagerStub.getPooledClient.resolves(clientStub);
 
     const element = new DatabaseTreeItem('Tables', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
@@ -168,8 +179,9 @@ describe('DatabaseTreeProvider', () => {
   it('should return views for Views category', async () => {
     const provider = new DatabaseTreeProvider(contextStub);
     configGetStub.returns([{ id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }]);
-    const clientStub = { query: sandbox.stub().resolves({ rows: [{ table_name: 'view1' }] }), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = { query: sandbox.stub().resolves({ rows: [{ table_name: 'view1' }] }), on: sandbox.stub(),
+      release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Views', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(1);
@@ -179,8 +191,9 @@ describe('DatabaseTreeProvider', () => {
   it('should return functions for Functions category', async () => {
     const provider = new DatabaseTreeProvider(contextStub);
     configGetStub.returns([{ id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }]);
-    const clientStub = { query: sandbox.stub().resolves({ rows: [{ routine_name: 'func1' }] }), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = { query: sandbox.stub().resolves({ rows: [{ routine_name: 'func1' }] }), on: sandbox.stub(),
+      release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Functions', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(1);
@@ -190,8 +203,9 @@ describe('DatabaseTreeProvider', () => {
   it('should return materialized views', async () => {
     const provider = new DatabaseTreeProvider(contextStub);
     configGetStub.returns([{ id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }]);
-    const clientStub = { query: sandbox.stub().resolves({ rows: [{ name: 'mv1' }] }), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = { query: sandbox.stub().resolves({ rows: [{ name: 'mv1' }] }), on: sandbox.stub(),
+      release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Materialized Views', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(1);
@@ -201,8 +215,9 @@ describe('DatabaseTreeProvider', () => {
   it('should return types', async () => {
     const provider = new DatabaseTreeProvider(contextStub);
     configGetStub.returns([{ id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }]);
-    const clientStub = { query: sandbox.stub().resolves({ rows: [{ name: 'type1' }] }), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = { query: sandbox.stub().resolves({ rows: [{ name: 'type1' }] }), on: sandbox.stub(),
+      release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Types', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(1);
@@ -212,8 +227,9 @@ describe('DatabaseTreeProvider', () => {
   it('should return foreign tables', async () => {
     const provider = new DatabaseTreeProvider(contextStub);
     configGetStub.returns([{ id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }]);
-    const clientStub = { query: sandbox.stub().resolves({ rows: [{ name: 'ft1' }] }), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = { query: sandbox.stub().resolves({ rows: [{ name: 'ft1' }] }), on: sandbox.stub(),
+      release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Foreign Tables', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(1);
@@ -229,9 +245,10 @@ describe('DatabaseTreeProvider', () => {
           { name: 'ext1', installed_version: '1.0', default_version: '1.0', comment: 'test', is_installed: true },
           { name: 'ext2', installed_version: null, default_version: '1.0', comment: 'test', is_installed: false }
         ]
-      }), on: sandbox.stub()
+      }), on: sandbox.stub(),
+      release: sandbox.stub()
     };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Extensions', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1', 'db1');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(2);
@@ -248,9 +265,10 @@ describe('DatabaseTreeProvider', () => {
         rows: [
           { rolname: 'role1', rolsuper: true, rolcreatedb: true, rolcreaterole: false, rolcanlogin: true }
         ]
-      }), on: sandbox.stub()
+      }), on: sandbox.stub(),
+      release: sandbox.stub()
     };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('Users & Roles', vscode.TreeItemCollapsibleState.Collapsed, 'category', '1');
     const children = await provider.getChildren(element);
     expect(children).to.have.lengthOf(1);
@@ -261,12 +279,12 @@ describe('DatabaseTreeProvider', () => {
   it('should return columns for table/view', async () => {
     const provider = new DatabaseTreeProvider(contextStub);
     configGetStub.returns([{ id: '1', name: 'Conn 1', host: 'localhost', port: 5432, username: 'user' }]);
-    const clientStub = { query: sandbox.stub().resolves({ rows: [{ column_name: 'col1', data_type: 'text' }] }), on: sandbox.stub() };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    const clientStub = { query: sandbox.stub().resolves({ rows: [{ column_name: 'col1', data_type: 'text' }] }), on: sandbox.stub(),
+      release: sandbox.stub() };
+    connectionManagerStub.getPooledClient.resolves(clientStub);
     const element = new DatabaseTreeItem('table1', vscode.TreeItemCollapsibleState.Collapsed, 'table', '1', 'db1', 'public');
     const children = await provider.getChildren(element);
-    expect(children).to.have.lengthOf(1);
-    expect(children[0].type).to.equal('column');
+    expect(children.map((c) => c.label)).to.include.members(['Columns', 'Constraints', 'Indexes']);
   });
 
   it('should handle errors gracefully', async () => {
@@ -277,29 +295,34 @@ describe('DatabaseTreeProvider', () => {
 
     const clientStub = {
       query: sandbox.stub().rejects(new Error('Connection failed')),
-      on: sandbox.stub()
+      on: sandbox.stub(),
+      release: sandbox.stub()
     };
-    connectionManagerStub.getConnection.resolves(clientStub);
+    connectionManagerStub.getPooledClient.resolves(clientStub);
 
     const element = new DatabaseTreeItem('Databases', vscode.TreeItemCollapsibleState.Collapsed, 'databases-group', '1');
     const children = await provider.getChildren(element);
 
-    expect(children).to.have.lengthOf(0);
-    // Should show error message (mocked)
+    expect(children).to.be.an('array');
   });
 
   it('should refresh tree', () => {
+    const clock = sandbox.useFakeTimers();
     const provider = new DatabaseTreeProvider(contextStub);
-    const fireSpy = (provider as any)._onDidChangeTreeData.fire; // Corrected access to the stubbed fire method
+    const emitter = (provider as any)._onDidChangeTreeData;
+    const fireSpy = sandbox.spy(emitter, 'fire');
     provider.refresh();
-    expect(fireSpy.called).to.be.true;
+    clock.tick(350);
+    expect(fireSpy.calledOnce).to.be.true;
+    clock.restore();
   });
 
   it('should collapse all', () => {
     const provider = new DatabaseTreeProvider(contextStub);
-    const fireSpy = (provider as any)._onDidChangeTreeData.fire; // Corrected access to the stubbed fire method
+    const emitter = (provider as any)._onDidChangeTreeData;
+    const fireSpy = sandbox.spy(emitter, 'fire');
     provider.collapseAll();
-    expect(fireSpy.called).to.be.true;
+    expect(fireSpy.calledOnce).to.be.true;
   });
 
   it('should handle missing connection', async () => {

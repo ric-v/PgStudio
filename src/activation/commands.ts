@@ -49,6 +49,7 @@ import {
   showQueryRecommendations
 } from '../commands/phase7';
 import { SavedQueriesTreeProvider } from '../providers/Phase7TreeProviders';
+import { pickQueryHistory } from '../commands/pickQueryHistory';
 
 // Visual Schema Design
 import { cmdOpenTableDesigner, cmdCreateTableVisual, cmdOpenSchemaDiff } from '../commands/schemaDesigner';
@@ -90,6 +91,10 @@ export function registerAllCommands(
         await QueryHistoryService.getInstance().clear();
         vscode.window.showInformationMessage('Query history cleared');
       }
+    },
+    {
+      command: 'postgres-explorer.pickQueryHistory',
+      callback: () => pickQueryHistory()
     },
     {
       command: 'postgres-explorer.copyQuery',

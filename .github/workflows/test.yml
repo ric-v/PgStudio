@@ -1,5 +1,8 @@
 name: Test PostgreSQL Integration
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, develop]
@@ -32,7 +35,7 @@ jobs:
         run: npm run test
       
       - name: Generate coverage report
-        run: npm run coverage
+        run: npm run coverage:phased
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

@@ -81,7 +81,7 @@ export function registerProviders(context: vscode.ExtensionContext, outputChanne
   // Register Query History Provider
   const queryHistoryProvider = new QueryHistoryProvider();
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider('postgresExplorer.history', queryHistoryProvider)
+    vscode.window.registerTreeDataProvider('postgresExplorer.executedQueryHistory', queryHistoryProvider)
   );
 
   // Store query history provider instance for command access
@@ -90,7 +90,7 @@ export function registerProviders(context: vscode.ExtensionContext, outputChanne
   // Phase 7: Register Saved Queries Tree Provider
   const savedQueriesTreeProvider = new SavedQueriesTreeProvider();
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider('postgresExplorer.savedQueries', savedQueriesTreeProvider)
+    vscode.window.registerTreeDataProvider('postgresExplorer.savedQueryLibrary', savedQueriesTreeProvider)
   );
 
   return {

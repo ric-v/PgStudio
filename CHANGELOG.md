@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.8] - 2026-03-21
+
+### Added
+- **Command palette — release notes**: **PgStudio: Show Release Notes / What's New** is registered in the manifest for discovery (changelog opens in an editor-area webview panel).
+- **Tests**: Integration coverage for notebook renderer message flow (`NotebookRendererFlow.test.ts`) and unit tests for query save/delete handlers (`QueryHandlers.test.ts`).
+- **Table Designer (create mode)**: Drag-and-drop column reorder with clear create-vs-edit UI behavior.
+- **AI chat**: Explicit **production safety** rules in the system prompt (read-first bias, transaction/rollback guidance, guarded writes).
+
+### Changed
+- **Sidebar layout**: **Connections** and **SQL Assistant** are listed first; **Saved Queries** and **Query History** use new view identifiers and start **collapsed by default** (VS Code only applies manifest defaults when it has no prior UI state for that view).
+- **Release notes**: **What's New** is no longer a sidebar section; use the command palette command. Automatic release-note panels on upgrade are not shown on activation.
+- **Notebook inline edits**: `SaveChangesHandler` and bulk/table deletes use **parameterized** `UPDATE`/`DELETE`, run inside a **transaction** (`BEGIN` / `COMMIT` / `ROLLBACK` on failure), and build predicates with proper identifier quoting (fixes composite-key and NULL edge cases).
+
+---
+
 ## [0.8.6...0.8.7] - 2026-03-15
 
 ### Added

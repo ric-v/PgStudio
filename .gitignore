@@ -1,5 +1,7 @@
 node_modules
 out
+src/**/*.js
+src/**/*.js.map
 
 yarn.lock
 pat
@@ -8,6 +10,7 @@ dist
 pat-open-vsx
 .nyc_output/
 coverage/
+test-results/
 out_test/
 test_*
 mock_ai_server.js

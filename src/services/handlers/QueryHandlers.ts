@@ -6,6 +6,36 @@ import { ErrorHandlers } from '../../commands/helper';
 import { ConnectionUtils } from '../../utils/connectionUtils';
 import { SqlExecutor } from '../../providers/kernel/SqlExecutor';
 
+function quoteIdentifier(identifier: string): string {
+  return `"${String(identifier).replace(/"/g, '""')}"`;
+}
+
+function buildWhereClause(
+  keys: Record<string, any>,
+  startParamIndex: number = 1
+): { clause: string; params: any[]; nextParamIndex: number } {
+  const params: any[] = [];
+  const conditions: string[] = [];
+  let paramIndex = startParamIndex;
+
+  for (const [column, value] of Object.entries(keys)) {
+    const quotedColumn = quoteIdentifier(column);
+    if (value === null || value === undefined) {
+      conditions.push(`${quotedColumn} IS NULL`);
+    } else {
+      conditions.push(`${quotedColumn} = $${paramIndex}`);
+      params.push(value);
+      paramIndex++;
+    }
+  }
+
+  return {
+    clause: conditions.join(' AND '),
+    params,
+    nextParamIndex: paramIndex
+  };
+}
+
 export class ExecuteUpdateBackgroundHandler implements IMessageHandler {
   async handle(message: any, context: { editor: vscode.NotebookEditor }) {
     if (!context.editor) return;
@@ -69,8 +99,8 @@ export class ExecuteUpdateHandler implements IMessageHandler {
   }
 
   private async insertCell(notebook: vscode.NotebookDocument, index: number, content: string) {
-    const newCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, content, 'sql');
-    const edit = new vscode.NotebookEdit(new vscode.NotebookRange(index, index), [newCell]);
+    const newCell = { kind: vscode.NotebookCellKind.Code, value: content, languageId: 'sql' } as vscode.NotebookCellData;
+    const edit = vscode.NotebookEdit.insertCells(index, [newCell]);
     const workspaceEdit = new vscode.WorkspaceEdit();
     workspaceEdit.set(notebook.uri, [edit]);
     await vscode.workspace.applyEdit(workspaceEdit);
@@ -108,6 +138,9 @@ export class DeleteRowsHandler implements IMessageHandler {
     const metadata = notebook.metadata as PostgresMetadata;
     if (!metadata?.connectionId) return;
 
+    let client: any;
+    let hasOpenTransaction = false;
+
     try {
       const connection = ConnectionUtils.findConnection(metadata.connectionId);
       if (!connection) throw new Error('Connection not found');
@@ -117,35 +150,31 @@ export class DeleteRowsHandler implements IMessageHandler {
         database: metadata.databaseName || connection.database
       };
 
-      const client = await ConnectionManager.getInstance().getSessionClient(config, notebook.uri.toString());
+      client = await ConnectionManager.getInstance().getSessionClient(config, notebook.uri.toString());
 
-      const allValues: any[] = [];
-      const rowConditions: string[] = [];
-      let paramIndex = 1;
+      const quotedSchema = quoteIdentifier(schema);
+      const quotedTable = quoteIdentifier(table);
+      let deletedRows = 0;
 
+      await client.query('BEGIN');
+      hasOpenTransaction = true;
       for (const targetRow of targets) {
-        const conditions: string[] = [];
-        for (const pk of primaryKeys) {
-          conditions.push(`$${paramIndex++}`);
-          allValues.push(targetRow[pk]);
-        }
-        if (primaryKeys.length > 1) {
-          rowConditions.push(`(${conditions.join(', ')})`);
-        } else {
-          rowConditions.push(conditions[0]);
-        }
+        const keyValues = primaryKeys.reduce((acc: Record<string, any>, pk: string) => {
+          acc[pk] = targetRow[pk];
+          return acc;
+        }, {});
+
+        const { clause, params } = buildWhereClause(keyValues);
+        const result = await client.query(
+          `DELETE FROM ${quotedSchema}.${quotedTable} WHERE ${clause}`,
+          params
+        );
+        deletedRows += result.rowCount || 0;
       }
+      await client.query('COMMIT');
+      hasOpenTransaction = false;
 
-      const pkCols = primaryKeys.map((pk: string) => `"${pk}"`).join(', ');
-      const whereClause = primaryKeys.length > 1
-        ? `(${pkCols}) IN (${rowConditions.join(', ')})`
-        : `${pkCols} IN (${rowConditions.join(', ')})`;
-
-      const query = `DELETE FROM "${schema}"."${table}" WHERE ${whereClause}`;
-
-      const result = await client.query(query, allValues);
-
-      vscode.window.showInformationMessage(`Deleted ${result.rowCount} row(s) from ${schema}.${table}`);
+      vscode.window.showInformationMessage(`Deleted ${deletedRows} row(s) from ${schema}.${table}`);
 
       if (context.editor.selection) {
         const range = context.editor.selection;
@@ -153,6 +182,13 @@ export class DeleteRowsHandler implements IMessageHandler {
       }
 
     } catch (err: any) {
+      if (client && hasOpenTransaction) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // Best effort rollback for active transaction.
+        }
+      }
       vscode.window.showErrorMessage(`Failed to delete rows: ${err.message}`);
     }
   }
@@ -181,16 +217,9 @@ export class ScriptDeleteHandler implements IMessageHandler {
 
       // Insert new cell with the query
       const targetIndex = cellIndex + 1;
-      const newCell = new vscode.NotebookCellData(
-        vscode.NotebookCellKind.Code,
-        query,
-        'sql'
-      );
+      const newCell = { kind: vscode.NotebookCellKind.Code, value: query, languageId: 'sql' } as vscode.NotebookCellData;
 
-      const edit = new vscode.NotebookEdit(
-        new vscode.NotebookRange(targetIndex, targetIndex),
-        [newCell]
-      );
+      const edit = vscode.NotebookEdit.insertCells(targetIndex, [newCell]);
 
       const workspaceEdit = new vscode.WorkspaceEdit();
       workspaceEdit.set(notebook.uri, [edit]);
@@ -208,6 +237,10 @@ export class SaveChangesHandler implements IMessageHandler {
     const { updates, deletions, tableInfo } = message;
     const { schema, table } = tableInfo;
     let client;
+    let hasOpenTransaction = false;
+    let successCount = 0;
+    let errorCount = 0;
+    let deletedCount = 0;
 
     try {
       const notebook = context.editor.notebook;
@@ -229,81 +262,34 @@ export class SaveChangesHandler implements IMessageHandler {
 
       client = await ConnectionManager.getInstance().getPooledClient(connectionConfig);
 
-      let successCount = 0;
-      let errorCount = 0;
+      const quotedSchema = quoteIdentifier(schema);
+      const quotedTable = quoteIdentifier(table);
+
+      await client.query('BEGIN');
+      hasOpenTransaction = true;
 
       for (const update of updates) {
         const { keys, column, value } = update;
-
-        // Format value for SQL
-        let valueStr = 'NULL';
-        if (value !== null && value !== undefined) {
-          if (typeof value === 'boolean') {
-            valueStr = value ? 'TRUE' : 'FALSE';
-          } else if (typeof value === 'number') {
-            valueStr = String(value);
-          } else if (typeof value === 'object') {
-            valueStr = `'${JSON.stringify(value).replace(/'/g, "''")}'`;
-          } else {
-            valueStr = `'${String(value).replace(/'/g, "''")}'`;
-          }
-        }
-
-        // Format conditions
-        const conditions: string[] = [];
-        for (const [pk, pkVal] of Object.entries(keys)) {
-          let pkValStr = 'NULL';
-          if (pkVal !== null && pkVal !== undefined) {
-            if (typeof pkVal === 'number' || typeof pkVal === 'boolean') {
-              pkValStr = String(pkVal);
-            } else {
-              pkValStr = `'${String(pkVal).replace(/'/g, "''")}'`;
-            }
-          }
-          conditions.push(`"${pk}" = ${pkValStr}`);
-        }
-
-        const query = `UPDATE "${schema}"."${table}" SET "${column}" = ${valueStr} WHERE ${conditions.join(' AND ')}`;
-
-        try {
-          await client.query(query);
-          successCount++;
-        } catch (err: any) {
-          errorCount++;
-          console.error('Update failed:', query, err);
-        }
+        const quotedColumn = quoteIdentifier(column);
+        const { clause, params } = buildWhereClause(keys, 2);
+        await client.query(
+          `UPDATE ${quotedSchema}.${quotedTable} SET ${quotedColumn} = $1 WHERE ${clause}`,
+          [value, ...params]
+        );
+        successCount++;
       }
 
       // Process DELETE queries
-      let deletedCount = 0;
       for (const deletion of deletions || []) {
         const { keys } = deletion;
-
-        // Build WHERE clause
-        const conditions: string[] = [];
-        for (const [pk, pkVal] of Object.entries(keys)) {
-          let pkValStr = 'NULL';
-          if (pkVal !== null && pkVal !== undefined) {
-            if (typeof pkVal === 'number' || typeof pkVal === 'boolean') {
-              pkValStr = String(pkVal);
-            } else {
-              pkValStr = `'${String(pkVal).replace(/'/g, "''")}'`;
-            }
-          }
-          conditions.push(`"${pk}" = ${pkValStr}`);
-        }
-
-        const query = `DELETE FROM "${schema}"."${table}" WHERE ${conditions.join(' AND ')}`;
-
-        try {
-          await client.query(query);
-          deletedCount++;
-          successCount++;
-        } catch (err: any) {
-          errorCount++;
-          console.error('Delete failed:', query, err);
-        }
+        const { clause, params } = buildWhereClause(keys);
+        await client.query(`DELETE FROM ${quotedSchema}.${quotedTable} WHERE ${clause}`, params);
+        deletedCount++;
+        successCount++;
       }
+
+      await client.query('COMMIT');
+      hasOpenTransaction = false;
 
       if (successCount > 0) {
         const parts = [];
@@ -320,6 +306,14 @@ export class SaveChangesHandler implements IMessageHandler {
         vscode.window.showErrorMessage(`Failed to save changes: ${errorCount} error(s)`);
       }
     } catch (err: any) {
+      errorCount++;
+      if (client && hasOpenTransaction) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // Ignore rollback failures and surface original error.
+        }
+      }
       vscode.window.showErrorMessage(`Failed to save changes: ${err.message}`);
     } finally {
       if (client) client.release();

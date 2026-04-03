@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
-import { SchemaCache } from '../../lib/schema-cache';
+import { SchemaCache, getSchemaCache } from '../../lib/schema-cache';
 
 describe('SchemaCache', () => {
   let cache: SchemaCache;
@@ -81,5 +81,67 @@ describe('SchemaCache', () => {
 
     const stats = cache.getStats();
     expect(stats.size).to.equal(0);
+  });
+
+  it('invalidate() with no pattern clears entire cache', async () => {
+    const fetcher = sinon.stub().resolves('data');
+    await cache.getOrFetch('a', fetcher);
+    await cache.getOrFetch('b', fetcher);
+    cache.invalidate();
+    await cache.getOrFetch('a', fetcher);
+    await cache.getOrFetch('b', fetcher);
+    expect(fetcher.callCount).to.equal(4);
+  });
+
+  it('invalidateDatabase removes keys for that connection and database', async () => {
+    const fetcher = sinon.stub().resolves('x');
+    const key = SchemaCache.buildKey('c1', 'db1');
+    await cache.getOrFetch(key, fetcher);
+    cache.invalidateDatabase('c1', 'db1');
+    await cache.getOrFetch(key, fetcher);
+    expect(fetcher.calledTwice).to.be.true;
+  });
+
+  it('invalidateSchema removes keys for connection, database, and schema', async () => {
+    const fetcher = sinon.stub().resolves('x');
+    const key = SchemaCache.buildKey('c1', 'db1', 'public');
+    await cache.getOrFetch(key, fetcher);
+    cache.invalidateSchema('c1', 'db1', 'public');
+    await cache.getOrFetch(key, fetcher);
+    expect(fetcher.calledTwice).to.be.true;
+  });
+
+  it('getStats sums accessCount across entries', async () => {
+    const fetcher = sinon.stub().resolves('v');
+    await cache.getOrFetch('k1', fetcher);
+    await cache.getOrFetch('k1', fetcher);
+    await cache.getOrFetch('k2', fetcher);
+    const stats = cache.getStats();
+    expect(stats.totalAccess).to.equal(3);
+  });
+
+  it('getStats memory estimate uses MB when cache is large', async () => {
+    const fetcher = sinon.stub().resolves(0);
+    const keys = Array.from({ length: 1025 }, (_, i) => `bulk-${i}`);
+    await Promise.all(keys.map(k => cache.getOrFetch(k, fetcher)));
+    const stats = cache.getStats();
+    expect(stats.memorySizeEstimate).to.match(/^\d+\.\d+MB$/);
+  });
+
+  it('applies short adaptive TTL after many hits on the same key', async () => {
+    const fetcher = sinon.stub().resolves('v');
+    for (let i = 0; i < 12; i++) {
+      await cache.getOrFetch('hot', fetcher);
+    }
+    expect(fetcher.calledOnce).to.be.true;
+    clock.tick(31000);
+    await cache.getOrFetch('hot', fetcher);
+    expect(fetcher.calledTwice).to.be.true;
+  });
+
+  it('getSchemaCache returns singleton instance', () => {
+    const a = getSchemaCache();
+    const b = getSchemaCache();
+    expect(a).to.equal(b);
   });
 });

@@ -17,6 +17,8 @@ Chart.register(...registerables);
 // Track renderer instances and their containers per output element for cleanup
 const chartInstances = new WeakMap<HTMLElement, ChartRenderer>();
 const tableInstances = new WeakMap<HTMLElement, TableRenderer>();
+const BRAND_ACCENT = 'var(--vscode-textLink-foreground)';
+const BRAND_ACCENT_MUTED = 'color-mix(in srgb, var(--vscode-textLink-foreground) 20%, transparent)';
 
 export const activate: ActivationFunction = context => {
   return {
@@ -44,9 +46,11 @@ export const activate: ActivationFunction = context => {
         font-size: 13px;
         color: var(--vscode-editor-foreground);
         border: 1px solid var(--vscode-widget-border);
+        border-top: 2px solid ${BRAND_ACCENT};
         border-radius: 4px;
         overflow: hidden;
         margin-bottom: 8px;
+        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
       `;
 
       // Header
@@ -55,7 +59,7 @@ export const activate: ActivationFunction = context => {
         padding: 6px 12px;
         border-bottom: 1px solid var(--vscode-widget-border);
         cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none;
-        background: ${success ? 'rgba(115, 191, 105, 0.25)' : 'var(--vscode-editor-background)'};
+        background: ${success ? 'color-mix(in srgb, var(--vscode-testing-iconPassed) 18%, var(--vscode-editor-background))' : 'color-mix(in srgb, var(--vscode-editor-background) 85%, var(--vscode-sideBar-background))'};
       `;
       if (success) {
         header.style.borderLeft = '4px solid var(--vscode-testing-iconPassed)';
@@ -81,21 +85,27 @@ export const activate: ActivationFunction = context => {
       if (!summaryText) summaryText = 'No results';
       summary.textContent = summaryText;
 
+      header.appendChild(chevron);
+      header.appendChild(title);
       header.appendChild(summary);
       mainContainer.appendChild(header);
 
       // Performance Warning
-      if (json.performanceAnalysis?.isDegraded) {
+      if (json.performanceAnalysis?.isDegraded || json.slowQuery) {
         const perfBanner = document.createElement('div');
+        const degraded = Boolean(json.performanceAnalysis?.isDegraded);
+        const warningText = degraded
+          ? json.performanceAnalysis.analysis
+          : 'This query crossed the slow-query threshold. Consider reviewing indexes and filters.';
         perfBanner.style.cssText = `
           padding: 6px 12px;
-          background: rgba(255, 165, 0, 0.15);
-          border-bottom: 1px solid rgba(255, 165, 0, 0.3);
+          background: ${degraded ? 'rgba(255, 165, 0, 0.15)' : BRAND_ACCENT_MUTED};
+          border-bottom: 1px solid ${degraded ? 'rgba(255, 165, 0, 0.3)' : BRAND_ACCENT};
           color: var(--vscode-editorWarning-foreground);
           font-size: 11px;
           display: flex; align-items: center; gap: 6px;
         `;
-        perfBanner.innerHTML = `<span style="font-size:14px">⚠️</span> <span>${json.performanceAnalysis.analysis}</span>`;
+        perfBanner.innerHTML = `<span style="font-size:14px">${degraded ? '⚠️' : '🐘'}</span> <span>${warningText}</span>`;
         mainContainer.appendChild(perfBanner);
       }
 

@@ -1,35 +1,32 @@
 {
-    "extends": "../../tsconfig.json",
     "compilerOptions": {
         "module": "commonjs",
+        "moduleResolution": "node",
         "target": "ES2020",
+        "rootDir": "..",
+        "noEmitOnError": false,
+        "strict": false,
+        "skipLibCheck": true,
         "baseUrl": ".",
         "paths": {
             "vscode": [
                 "unit/mocks/vscode"
             ]
         },
-        "types": [
-            "node",
-            "mocha",
-            "chai",
-            "sinon"
-        ],
+        "types": ["node", "mocha", "chai", "sinon"],
         "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "allowJs": true
     },
     "ts-node": {
         "compilerOptions": {
-            "module": "commonjs"
+            "module": "commonjs",
+            "ignoreDeprecations": "6.0"
         },
         "require": ["tsconfig-paths/register"]
     },
     "include": [
-        "./**/*.ts",
-        "./**/*.js"
+        "./**/*.ts"
     ],
-    "exclude": [
-        "../../node_modules"
-    ]
+    "exclude": ["../../node_modules", "./runTest.ts"]
 }

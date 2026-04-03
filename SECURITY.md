@@ -6,12 +6,12 @@ We actively support security updates for the latest major release.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.5.x   | :white_check_mark: |
-| < 0.5.0 | :x:                |
+| 0.8.x   | :white_check_mark: |
+| < 0.8.0 | :x:                |
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in this extension (e.g., improper credential storage, SQL injection risks within the helper, or data leakage), please report it through github issues.
+If you discover a security vulnerability in this extension (for example, credential storage issues, SQL injection risks, or data leakage), please report it via GitHub issues and clearly mark it as a security report.
 
 ### What to Include
 * Description of the vulnerability.
