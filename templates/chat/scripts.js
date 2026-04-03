@@ -94,25 +94,48 @@ function navigateToSchema(schemaName) {
 function renderBreadcrumbs() {
   const container = document.getElementById('mentionBreadcrumbs');
   if (!container) return;
+  // Build breadcrumb elements using DOM APIs to avoid inline handlers and HTML injection
+  while (container.firstChild) container.removeChild(container.firstChild);
 
-  let html = `<div class="mention-breadcrumb-item" onclick="navigateToRoot()">Home</div>`;
+  const makeSeparator = () => {
+    const s = document.createElement('span');
+    s.className = 'mention-breadcrumb-separator';
+    s.textContent = '/';
+    return s;
+  };
+
+  const home = document.createElement('div');
+  home.className = 'mention-breadcrumb-item';
+  home.textContent = 'Home';
+  home.addEventListener('click', navigateToRoot);
+  container.appendChild(home);
 
   if (currentHierarchyPath.connection) {
-    html += `<span class="mention-breadcrumb-separator">/</span>`;
-    html += `<div class="mention-breadcrumb-item" onclick="navigateToConnection('${currentHierarchyPath.connection.id}', '${escapeHtml(currentHierarchyPath.connection.name)}')">${escapeHtml(currentHierarchyPath.connection.name)}</div>`;
+    container.appendChild(makeSeparator());
+    const conn = document.createElement('div');
+    conn.className = 'mention-breadcrumb-item';
+    conn.textContent = currentHierarchyPath.connection.name || '';
+    conn.addEventListener('click', () => navigateToConnection(currentHierarchyPath.connection.id, currentHierarchyPath.connection.name));
+    container.appendChild(conn);
   }
 
   if (currentHierarchyPath.database) {
-    html += `<span class="mention-breadcrumb-separator">/</span>`;
-    html += `<div class="mention-breadcrumb-item" onclick="navigateToDatabase('${escapeHtml(currentHierarchyPath.database)}')">${escapeHtml(currentHierarchyPath.database)}</div>`;
+    container.appendChild(makeSeparator());
+    const db = document.createElement('div');
+    db.className = 'mention-breadcrumb-item';
+    db.textContent = currentHierarchyPath.database || '';
+    db.addEventListener('click', () => navigateToDatabase(currentHierarchyPath.database));
+    container.appendChild(db);
   }
 
   if (currentHierarchyPath.schema) {
-    html += `<span class="mention-breadcrumb-separator">/</span>`;
-    html += `<div class="mention-breadcrumb-item" onclick="navigateToSchema('${escapeHtml(currentHierarchyPath.schema)}')">${escapeHtml(currentHierarchyPath.schema)}</div>`;
+    container.appendChild(makeSeparator());
+    const schema = document.createElement('div');
+    schema.className = 'mention-breadcrumb-item';
+    schema.textContent = currentHierarchyPath.schema || '';
+    schema.addEventListener('click', () => navigateToSchema(currentHierarchyPath.schema));
+    container.appendChild(schema);
   }
-
-  container.innerHTML = html;
 }
 
 function handleContainerClick(index) {
@@ -230,25 +253,47 @@ function filterHistory(query) {
     : chatHistory;
 
   if (filtered.length === 0) {
-    historyList.innerHTML = '<div class="history-empty">' + (query ? 'No matching chats found' : 'No chat history yet') + '</div>';
+    while (historyList.firstChild) historyList.removeChild(historyList.firstChild);
+    const empty = document.createElement('div');
+    empty.className = 'history-empty';
+    empty.textContent = query ? 'No matching chats found' : 'No chat history yet';
+    historyList.appendChild(empty);
     return;
   }
+  while (historyList.firstChild) historyList.removeChild(historyList.firstChild);
+  filtered.forEach(session => {
+    const item = document.createElement('div');
+    item.className = 'history-item' + (session.isActive ? ' active' : '');
+    item.addEventListener('click', () => loadSession(session.id));
 
-  historyList.innerHTML = filtered.map(session => `
-                <div class="history-item ${session.isActive ? 'active' : ''}" onclick="loadSession('${session.id}')">
-                    <div class="history-item-title">${escapeHtml(session.title)}</div>
-                    <div class="history-item-meta">
-                        <span>📅 ${formatDate(session.updatedAt)}</span>
-                        <span>💬 ${session.messageCount} messages</span>
-                    </div>
-                    <button class="history-item-delete" onclick="deleteSession('${session.id}', event)" title="Delete chat">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                        </svg>
-                    </button>
-                </div>
-            `).join('');
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'history-item-title';
+    titleDiv.textContent = session.title || '';
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'history-item-meta';
+    const dateSpan = document.createElement('span');
+    dateSpan.textContent = '📅 ' + formatDate(session.updatedAt);
+    const countSpan = document.createElement('span');
+    countSpan.textContent = '💬 ' + (session.messageCount || 0) + ' messages';
+    metaDiv.appendChild(dateSpan);
+    metaDiv.appendChild(countSpan);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'history-item-delete';
+    delBtn.title = 'Delete chat';
+    delBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+      </svg>`;
+    delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(session.id, e); });
+
+    item.appendChild(titleDiv);
+    item.appendChild(metaDiv);
+    item.appendChild(delBtn);
+    historyList.appendChild(item);
+  });
 }
 
 // @ Mention functions
@@ -318,12 +363,16 @@ function renderHierarchyItems(items) {
   dbObjects = items;
 
   if (items.length === 0) {
-    mentionList.innerHTML = '<div class="mention-picker-empty">No items found.</div>';
+    while (mentionList.firstChild) mentionList.removeChild(mentionList.firstChild);
+    const empty = document.createElement('div');
+    empty.className = 'mention-picker-empty';
+    empty.textContent = 'No items found.';
+    mentionList.appendChild(empty);
     return;
   }
 
   let html = '';
-
+  // Sort items for display
   items.sort((a, b) => {
     const aContainer = !!a.isContainer;
     const bContainer = !!b.isContainer;
@@ -332,43 +381,52 @@ function renderHierarchyItems(items) {
     if (!aContainer && bContainer) return 1;
     return (a.name || '').localeCompare(b.name || '');
   });
+  // Build DOM elements for each item instead of using innerHTML
+  while (mentionList.firstChild) mentionList.removeChild(mentionList.firstChild);
 
   items.forEach((obj, idx) => {
-    const isContainer = !!obj.isContainer;
-    let icon = getDbTypeIcon(obj.type);
+    const el = document.createElement('div');
+    el.className = 'mention-item';
+    el.dataset.index = String(idx);
 
-    const clickHandler = isContainer
-      ? `handleContainerClick(${idx})`
-      : `selectMention(${idx})`;
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'mention-item-name';
 
-    const displayName = isContainer ? obj.name : (obj.schema ? obj.schema + '.' + obj.name : obj.name);
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'db-type-icon';
+    iconSpan.textContent = getDbTypeIcon(obj.type);
 
-    let metaHtml = '';
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'mention-item-label';
+    const displayName = obj.isContainer ? obj.name : (obj.schema ? obj.schema + '.' + obj.name : obj.name);
+    labelSpan.textContent = displayName || '';
+
+    nameDiv.appendChild(iconSpan);
+    nameDiv.appendChild(labelSpan);
+    el.appendChild(nameDiv);
+
     if (obj.type !== 'connection') {
       const metaParts = [];
-
-      if (obj.connectionName) {
-        metaParts.push(obj.connectionName);
-      }
-      if (obj.database && obj.type !== 'database') {
-        metaParts.push(obj.database);
-      }
-
+      if (obj.connectionName) metaParts.push(obj.connectionName);
+      if (obj.database && obj.type !== 'database') metaParts.push(obj.database);
       if (metaParts.length > 0) {
-        metaHtml = `<div class="mention-item-meta">${escapeHtml(metaParts.join(' • '))}</div>`;
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'mention-item-meta';
+        metaDiv.textContent = metaParts.join(' • ');
+        el.appendChild(metaDiv);
       }
     }
 
-    html += `<div class="mention-item" data-index="${idx}" onclick="${clickHandler}" onmouseenter="highlightMention(${idx})">
-          <div class="mention-item-name">
-            <span class="db-type-icon">${icon}</span>
-            <span class="mention-item-label">${escapeHtml(displayName)}</span>
-          </div>
-          ${metaHtml}
-      </div>`;
-  });
+    // Event handlers
+    if (obj.isContainer) {
+      el.addEventListener('click', () => handleContainerClick(idx));
+    } else {
+      el.addEventListener('click', () => selectMention(idx));
+    }
+    el.addEventListener('mouseenter', () => highlightMention(idx));
 
-  mentionList.innerHTML = html;
+    mentionList.appendChild(el);
+  });
 }
 
 function renderDbObjects(objects) {
@@ -376,7 +434,11 @@ function renderDbObjects(objects) {
   dbObjects = objects;
 
   if (objects.length === 0) {
-    mentionList.innerHTML = '<div class="mention-picker-empty">No matches found. Try a different search term.</div>';
+    while (mentionList.firstChild) mentionList.removeChild(mentionList.firstChild);
+    const empty = document.createElement('div');
+    empty.className = 'mention-picker-empty';
+    empty.textContent = 'No matches found. Try a different search term.';
+    mentionList.appendChild(empty);
     return;
   }
 
@@ -410,24 +472,42 @@ function renderDbObjects(objects) {
   let html = '';
   let globalIdx = 0;
 
-  // Helper to generate item HTML with metadata
+  // Helper to generate item element with metadata
   const renderItem = (obj) => {
     const idx = globalIdx++;
+    const itemEl = document.createElement('div');
+    itemEl.className = 'mention-item';
+    itemEl.dataset.index = String(idx);
+
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'mention-item-name';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'db-type-icon';
+    iconSpan.textContent = getDbTypeIcon(obj.type);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'mention-item-label';
+    labelSpan.textContent = (obj.schema ? obj.schema + '.' : '') + (obj.name || '');
+
+    nameDiv.appendChild(iconSpan);
+    nameDiv.appendChild(labelSpan);
+    itemEl.appendChild(nameDiv);
+
     const metaParts = [];
     if (obj.connectionName) metaParts.push(obj.connectionName);
     if (obj.database) metaParts.push(obj.database);
+    if (metaParts.length > 0) {
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'mention-item-meta';
+      metaDiv.textContent = metaParts.join(' • ');
+      itemEl.appendChild(metaDiv);
+    }
 
-    const metaHtml = metaParts.length > 0
-      ? `<div class="mention-item-meta">${escapeHtml(metaParts.join(' • '))}</div>`
-      : '';
+    itemEl.addEventListener('click', () => selectMention(idx));
+    itemEl.addEventListener('mouseenter', () => highlightMention(idx));
 
-    return `<div class="mention-item" data-index="${idx}" onclick="selectMention(${idx})" onmouseenter="highlightMention(${idx})">
-      <div class="mention-item-name">
-        <span class="db-type-icon">${getDbTypeIcon(obj.type)}</span>
-        <span class="mention-item-label">${escapeHtml(obj.schema)}.${escapeHtml(obj.name)}</span>
-      </div>
-      ${metaHtml}
-    </div>`;
+    return itemEl;
   };
 
   // Render in type order
@@ -451,11 +531,43 @@ function renderDbObjects(objects) {
   });
 
 
+  // Build DOM and append
+  while (mentionList.firstChild) mentionList.removeChild(mentionList.firstChild);
+
+  const frag = document.createDocumentFragment();
+  // Render in type order
+  typeOrder.forEach(type => {
+    if (grouped[type] && grouped[type].length > 0) {
+      const header = document.createElement('div');
+      header.className = 'mention-group-header';
+      header.textContent = (typeLabels[type] || type) + ' (' + grouped[type].length + ')';
+      frag.appendChild(header);
+      grouped[type].forEach(obj => {
+        frag.appendChild(renderItem(obj));
+      });
+    }
+  });
+
+  Object.keys(grouped).forEach(type => {
+    if (!typeOrder.includes(type) && grouped[type].length > 0) {
+      const header = document.createElement('div');
+      header.className = 'mention-group-header';
+      header.textContent = (typeLabels[type] || type) + ' (' + grouped[type].length + ')';
+      frag.appendChild(header);
+      grouped[type].forEach(obj => {
+        frag.appendChild(renderItem(obj));
+      });
+    }
+  });
+
   if (hasMore) {
-    html += '<div class="mention-picker-more">' + (objects.length - MAX_DISPLAY) + ' more... (refine your search)</div>';
+    const more = document.createElement('div');
+    more.className = 'mention-picker-more';
+    more.textContent = (objects.length - MAX_DISPLAY) + ' more... (refine your search)';
+    frag.appendChild(more);
   }
 
-  mentionList.innerHTML = html;
+  mentionList.appendChild(frag);
 
   // Re-map dbObjects to match displayed order
   dbObjects = [];
@@ -554,22 +666,30 @@ function renderMentionChips() {
   }
   inputWrapper.classList.add('has-attachments');
 
-  // Render file chips first, then mention chips
-  attachmentsContainer.innerHTML = '';
+  // Render file chips first, then mention chips (build DOM to avoid innerHTML injection)
+  while (attachmentsContainer.firstChild) attachmentsContainer.removeChild(attachmentsContainer.firstChild);
 
   attachedFiles.forEach((file, index) => {
     const chip = document.createElement('div');
     chip.className = 'attachment-chip';
-    const icon = getFileIcon(file.type);
-    chip.innerHTML = `
-                    <span class="file-icon">${icon}</span>
-                    <span class="file-name">${file.name}</span>
-                    <button class="remove-btn" onclick="removeAttachment(${index})" title="Remove file">
-                        <svg viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z"/>
-                        </svg>
-                    </button>
-                `;
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'file-icon';
+    iconSpan.textContent = getFileIcon(file.type);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'file-name';
+    nameSpan.textContent = file.name || '';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.title = 'Remove file';
+    removeBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z"/></svg>';
+    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removeAttachment(index); });
+
+    chip.appendChild(iconSpan);
+    chip.appendChild(nameSpan);
+    chip.appendChild(removeBtn);
     attachmentsContainer.appendChild(chip);
   });
 
@@ -577,24 +697,37 @@ function renderMentionChips() {
     const chip = document.createElement('div');
     chip.className = 'mention-chip';
 
-    // Prepare metadata text
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'mention-icon';
+    iconSpan.textContent = getDbTypeIcon(mention.type);
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'mention-chip-content';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'mention-name';
+    nameSpan.textContent = '@' + (mention.schema || '') + '.' + (mention.name || '');
+    contentDiv.appendChild(nameSpan);
+
     const metaParts = [];
     if (mention.connectionName) metaParts.push(mention.connectionName);
     if (mention.database) metaParts.push(mention.database);
-    const metaText = metaParts.join(' • ');
+    if (metaParts.length > 0) {
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'mention-chip-meta';
+      metaSpan.textContent = metaParts.join(' • ');
+      contentDiv.appendChild(metaSpan);
+    }
 
-    chip.innerHTML = `
-                    <span class="mention-icon">${getDbTypeIcon(mention.type)}</span>
-                    <div class="mention-chip-content">
-                        <span class="mention-name">@${mention.schema}.${mention.name}</span>
-                        ${metaText ? `<span class="mention-chip-meta">${escapeHtml(metaText)}</span>` : ''}
-                    </div>
-                    <button class="remove-btn" onclick="removeMention(${index})" title="Remove reference">
-                        <svg viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z"/>
-                        </svg>
-                    </button>
-                `;
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.title = 'Remove reference';
+    removeBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z"/></svg>';
+    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removeMention(index); });
+
+    chip.appendChild(iconSpan);
+    chip.appendChild(contentDiv);
+    chip.appendChild(removeBtn);
     attachmentsContainer.appendChild(chip);
   });
 }
@@ -787,16 +920,23 @@ function renderAttachments() {
     const chip = document.createElement('div');
     chip.className = 'attachment-chip';
 
-    const icon = getFileIcon(file.type);
-    chip.innerHTML = `
-                    <span class="file-icon">${icon}</span>
-                    <span class="file-name">${file.name}</span>
-                    <button class="remove-btn" onclick="removeAttachment(${index})" title="Remove file">
-                        <svg viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z"/>
-                        </svg>
-                    </button>
-                `;
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'file-icon';
+    iconSpan.textContent = getFileIcon(file.type);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'file-name';
+    nameSpan.textContent = file.name || '';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.title = 'Remove file';
+    removeBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z"/></svg>';
+    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removeAttachment(index); });
+
+    chip.appendChild(iconSpan);
+    chip.appendChild(nameSpan);
+    chip.appendChild(removeBtn);
 
     attachmentsContainer.appendChild(chip);
   });
@@ -974,6 +1114,29 @@ function handleNotebookResult(success, error) {
   pendingNotebookOriginalHtml = null;
 }
 
+// Global handler for code-block action buttons (copy, notebook)
+document.addEventListener('click', (e) => {
+  const copyBtn = e.target.closest && e.target.closest('.copy-btn');
+  if (copyBtn) {
+    const wrapper = copyBtn.closest('.code-block-wrapper');
+    const codeEl = wrapper && wrapper.querySelector('code');
+    if (codeEl && codeEl.id) {
+      copyCode(copyBtn, codeEl.id);
+    }
+    return;
+  }
+
+  const nbBtn = e.target.closest && e.target.closest('.notebook-btn');
+  if (nbBtn) {
+    const wrapper = nbBtn.closest('.code-block-wrapper');
+    const codeEl = wrapper && wrapper.querySelector('code');
+    if (codeEl && codeEl.id) {
+      openInNotebook(nbBtn, codeEl.id);
+    }
+    return;
+  }
+});
+
 function highlightSql(code) {
   const keywords = ['SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TABLE', 'INDEX', 'VIEW', 'FUNCTION', 'TRIGGER', 'PROCEDURE', 'CONSTRAINT', 'PRIMARY KEY', 'FOREIGN KEY', 'REFERENCES', 'JOIN', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'ON', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'OFFSET', 'UNION', 'ALL', 'DISTINCT', 'AS', 'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'ILIKE', 'IS', 'NULL', 'TRUE', 'FALSE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'DEFAULT', 'VALUES', 'SET', 'RETURNING', 'BEGIN', 'COMMIT', 'ROLLBACK', 'TRANSACTION', 'GRANT', 'REVOKE'];
   const types = ['INT', 'INTEGER', 'VARCHAR', 'TEXT', 'BOOLEAN', 'DATE', 'TIMESTAMP', 'NUMERIC', 'FLOAT', 'REAL', 'JSON', 'JSONB', 'UUID', 'SERIAL', 'BIGSERIAL'];
@@ -1120,40 +1283,126 @@ function getMarkedRenderer() {
     const isSQL = ['sql', 'pgsql', 'postgresql', 'plpgsql'].includes(language.toLowerCase());
 
     return `<div class="code-block-wrapper">
-                    <div class="code-block-header">
-                        <span class="code-language">${displayLang}</span>
-                        <div class="code-block-actions">
-                            ${isSQL ? `<button class="notebook-btn" onclick="openInNotebook(this, '${codeId}')" title="Add to active notebook">
-                                <svg viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M2.5 2A1.5 1.5 0 001 3.5v9A1.5 1.5 0 002.5 14h11a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0013.5 2h-11zM2 3.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v9a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-9z"/>
-                                    <path d="M7.5 5.5v2h-2v1h2v2h1v-2h2v-1h-2v-2h-1z"/>
-                                </svg>
-                                Notebook
-                            </button>` : ''}
-                            <button class="copy-btn" onclick="copyCode(this, '${codeId}')">
-                                <svg viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/>
-                                    <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/>
-                                </svg>
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-                    <pre><code id="${codeId}" class="hljs language-${language}" data-raw="${safeRawCode}">${highlightedCode}</code></pre>
-                </div>`;
+            <div class="code-block-header">
+              <span class="code-language">${displayLang}</span>
+              <div class="code-block-actions">
+                ${isSQL ? `<button class="notebook-btn" title="Add to active notebook">
+                  <svg viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M2.5 2A1.5 1.5 0 001 3.5v9A1.5 1.5 0 002.5 14h11a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0013.5 2h-11zM2 3.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v9a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-9z"/>
+                    <path d="M7.5 5.5v2h-2v1h2v2h1v-2h2v-1h-2v-2h-1z"/>
+                  </svg>
+                  Notebook
+                </button>` : ''}
+                <button class="copy-btn">
+                  <svg viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/>
+                    <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+            </div>
+            <pre><code id="${codeId}" class="hljs language-${language}" data-raw="${safeRawCode}">${highlightedCode}</code></pre>
+          </div>`;
   };
 
   markedRenderer = renderer;
   return markedRenderer;
 }
 
-// Markdown parser using marked.js
+// Basic HTML sanitizer for markdown output
+function sanitizeHtml(dirty) {
+  if (!dirty) return '';
+
+  // Prefer DOMPurify if available in the webview (very robust)
+  if (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) {
+    try {
+      return DOMPurify.sanitize(dirty);
+    } catch (e) {
+      console.warn('DOMPurify failed, falling back to simple sanitizer', e);
+    }
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(dirty, 'text/html');
+
+  // Allowed tags (keeps markup we use for formatting and highlighting)
+  const allowedTags = new Set([
+    'a','b','i','em','strong','code','pre','p','br','ul','ol','li',
+    'span','div','blockquote','hr','h1','h2','h3','h4','h5','h6',
+    'table','thead','tbody','tr','th','td'
+  ]);
+
+  // Allowed attributes per tag ("*" applies to all tags)
+  const allowedAttrs = {
+    '*': ['class'],
+    'a': ['href', 'title', 'rel', 'target', 'class'],
+    'img': ['src', 'alt', 'title', 'class'],
+    'code': ['class'],
+    'pre': ['class'],
+    'span': ['class'],
+    'div': ['class'],
+    'p': ['class'],
+    'table': ['class'],
+    'th': ['class'],
+    'td': ['class']
+  };
+
+  const nodes = Array.from(doc.body.querySelectorAll('*'));
+  nodes.forEach(node => {
+    const tag = node.nodeName.toLowerCase();
+
+    if (!allowedTags.has(tag)) {
+      // Replace disallowed tags with their text content to drop any inner markup
+      const textNode = doc.createTextNode(node.textContent);
+      node.parentNode.replaceChild(textNode, node);
+      return;
+    }
+
+    // Sanitize attributes
+    const attrs = Array.from(node.attributes);
+    attrs.forEach(attr => {
+      const name = attr.name.toLowerCase();
+
+      // Remove event handlers and style attributes
+      if (name.startsWith('on') || name === 'style') {
+        node.removeAttribute(attr.name);
+        return;
+      }
+
+      // Handle href specially to avoid javascript: URIs
+      if (tag === 'a' && name === 'href') {
+        const val = (node.getAttribute('href') || '').trim();
+        if (/^\s*(javascript|data):/i.test(val)) {
+          node.removeAttribute('href');
+          return;
+        }
+        // enforce safer defaults
+        node.setAttribute('rel', 'noopener noreferrer');
+        node.setAttribute('target', '_blank');
+        return;
+      }
+
+      // Only keep whitelisted attributes for the tag (or global ones)
+      const allowedForTag = (allowedAttrs[tag] || []).concat(allowedAttrs['*'] || []);
+      if (!allowedForTag.includes(name)) {
+        node.removeAttribute(attr.name);
+      }
+    });
+  });
+
+  return doc.body.innerHTML;
+}
+
+// Markdown parser using marked.js (sanitizes output)
 function parseMarkdown(text) {
+  let parsed = '';
   if (typeof marked !== 'undefined') {
     try {
       const renderer = getMarkedRenderer();
       if (renderer) {
-        return marked.parse(text, { renderer: renderer, breaks: true });
+        parsed = marked.parse(text, { renderer: renderer, breaks: true });
+        return sanitizeHtml(parsed);
       }
     } catch (e) {
       console.error('Error parsing markdown with marked:', e);
@@ -1161,7 +1410,7 @@ function parseMarkdown(text) {
   }
 
   // Fallback (simplified) in case marked fails or isn't loaded
-  return text.replace(/\n/g, '<br>');
+  return sanitizeHtml(text.replace(/\n/g, '<br>'));
 }
 
 // Typing effect for assistant messages
@@ -1251,7 +1500,11 @@ window.addEventListener('message', event => {
       break;
     case 'dbHierarchyData':
       if (message.error) {
-        mentionList.innerHTML = '<div class="mention-picker-empty">' + escapeHtml(message.error) + '</div>';
+        while (mentionList.firstChild) mentionList.removeChild(mentionList.firstChild);
+        const empty = document.createElement('div');
+        empty.className = 'mention-picker-empty';
+        empty.textContent = message.error || '';
+        mentionList.appendChild(empty);
       } else {
         renderHierarchyItems(message.items);
       }
@@ -1259,7 +1512,11 @@ window.addEventListener('message', event => {
     case 'dbObjectsResult':
       console.log('[WebView] Received dbObjectsResult:', message.objects?.length || 0, 'objects');
       if (message.error) {
-        mentionList.innerHTML = '<div class="mention-picker-empty">' + escapeHtml(message.error) + '</div>';
+        while (mentionList.firstChild) mentionList.removeChild(mentionList.firstChild);
+        const empty = document.createElement('div');
+        empty.className = 'mention-picker-empty';
+        empty.textContent = message.error || '';
+        mentionList.appendChild(empty);
       } else {
         renderDbObjects(message.objects);
       }
@@ -1398,12 +1655,12 @@ function renderMessages(messages, animate = false) {
         const filePreview = document.createElement('div');
         filePreview.className = 'file-preview';
         filePreview.innerHTML = `
-                            <div class="file-preview-header">
-                                <span>${getFileIcon(att.type)}</span>
-                                <span>${att.name}</span>
-                            </div>
-                            <div class="file-preview-content">${escapeHtml(att.content.substring(0, 500))}${att.content.length > 500 ? '...' : ''}</div>
-                        `;
+                  <div class="file-preview-header">
+                    <span>${getFileIcon(att.type)}</span>
+                    <span>${escapeHtml(att.name)}</span>
+                  </div>
+                  <div class="file-preview-content">${escapeHtml(att.content.substring(0, 500))}${att.content.length > 500 ? '...' : ''}</div>
+                `;
         contentDiv.appendChild(filePreview);
       });
 

@@ -164,9 +164,20 @@ function showMessage(text, type = 'info') {
     error: '✗',
     info: 'ℹ'
   };
-  messageDiv.innerHTML = `<span class="message-icon">${icons[type]}</span><span>${text}</span>`;
+  // Use DOM APIs to avoid inserting untrusted HTML
   messageDiv.className = 'message ' + type;
   messageDiv.style.display = 'flex';
+  while (messageDiv.firstChild) messageDiv.removeChild(messageDiv.firstChild);
+
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'message-icon';
+  iconSpan.textContent = icons[type];
+
+  const textSpan = document.createElement('span');
+  textSpan.textContent = text;
+
+  messageDiv.appendChild(iconSpan);
+  messageDiv.appendChild(textSpan);
 }
 
 function hideMessage() {

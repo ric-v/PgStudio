@@ -1,5 +1,7 @@
 node_modules
 out
+src/**/*.js
+src/**/*.js.map
 
 yarn.lock
 pat

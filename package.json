@@ -2080,6 +2080,11 @@
     "test:versions": "npm run compile && ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/integration/ConnectionLifecycle.test.ts'",
     "test:all": "npm run compile && ts-mocha -p src/test/tsconfig.json -r ts-node/register -r tsconfig-paths/register -r src/test/setup.ts 'src/test/**/*.test.ts'",
     "build-tests": "tsc -p src/test/tsconfig.json --outDir out_test --ignoreDeprecations 6.0",
+    "clean:src-js": "node ./scripts/clean-generated-src-js.js",
+    "postesbuild-base": "npm run clean:src-js",
+    "postesbuild": "npm run clean:src-js",
+    "postcompile": "npm run clean:src-js",
+    "postbuild-tests": "npm run clean:src-js",
     "coverage": "npm run compile && nyc ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/**/*.test.ts' '!src/test/unit/PgPassSupport.test.ts'",
     "coverage:phase-utils": "npm run compile && npx c8 --config .c8rc.phase-utils.json ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/pgPassUtils.test.ts' 'src/test/unit/connectionUtils.test.ts'",
     "coverage:phase-handlers": "npm run compile && npx c8 --config .c8rc.phase-handlers.json ts-mocha -p src/test/tsconfig.json -r tsconfig-paths/register -r src/test/setup.ts 'src/test/unit/CoreHandlers.test.ts' 'src/test/unit/ExplainHandlers.test.ts' 'src/test/unit/TransactionHandlers.test.ts' 'src/test/unit/QueryHandlers.test.ts' 'src/test/unit/QueryHandlers.extended.test.ts'",
@@ -2099,7 +2104,7 @@
     "@types/jsdom": "^28.0.1",
     "@types/mocha": "^10.0.10",
     "@types/module-alias": "^2.0.4",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.1",
     "@types/pg": "^8.20.0",
     "@types/sinon": "^21.0.1",
     "@types/ssh2": "^1.15.5",
@@ -2117,6 +2122,10 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.2"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.5"
   },
   "resolutions": {
     "webpack": "^5.76.0",
