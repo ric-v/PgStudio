@@ -12,7 +12,7 @@ export interface ConnectionConfig {
   sslKeyPath?: string;        // Client key path
   sslRootCertPath?: string;   // CA certificate path
   statementTimeout?: number;  // milliseconds
-  connectTimeout?: number;    // seconds (default: 5)
+  connectTimeout?: number;    // seconds (default: 15)
   applicationName?: string;   // Shows in pg_stat_activity
   options?: string;           // Raw options string (e.g., "-c search_path=myschema")
   // Safety & confidence features

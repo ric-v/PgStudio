@@ -50,7 +50,7 @@
 - 🔍 **EXPLAIN CodeLens** — One-click query analysis directly in notebooks
 - 🛡️ **Auto-LIMIT** — Intelligent query protection (configurable, default 1000 rows)
 - 🌍 **Foreign Data Wrappers** — Manage foreign servers, user mappings & tables
-- 🤖 **AI-Powered** — Generate, Optimize, Explain & Analyze (OpenAI, Anthropic, Gemini)
+- 🤖 **AI-Powered** — Generate, Optimize, Explain & Analyze with guided follow-ups and next-step suggestions (OpenAI, Anthropic, Gemini)
 - 📤 **Export Data** — Export results to CSV, JSON, or Excel
 
 ---
@@ -130,7 +130,7 @@ Then: **PostgreSQL icon** → **Add Connection** → Enter details → **Connect
 - `SECURITY.md` - Security policy and vulnerability reporting guidance
 - `CHANGELOG.md` - Release notes and what changed across versions
 
-**v0.8.8 (latest) —** Sidebar puts **Connections** and **SQL Assistant** first; **Saved Queries** and **Query History** start collapsed for fresh view state; **What’s New** is command-palette only. Notebook inline edits use **parameterized SQL inside transactions**. **Table Designer** adds **create-mode column reorder** and improved **SQL preview** styling. Details: `CHANGELOG.md`.
+**v0.8.9 (latest) —** AI chat now lists Anthropic models from the official API, resolves saved AI keys from SecretStorage, and adds guided follow-up selection plus optional next-step bubbles/factoids. Assistant responses are labeled **PG Studio Bot**. Details: `CHANGELOG.md`.
 
 ---
 

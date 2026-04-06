@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import * as https from 'https';
 import * as http from 'http';
 import { ChatMessage } from './types';
+import { SecretStorageService } from '../../services/SecretStorageService';
 
 export class AiService {
   private _messages: ChatMessage[] = [];
@@ -117,31 +118,46 @@ IMPORTANT: At the end of each response, provide 2-4 numbered follow-up questions
 
 Make these questions relevant to the topic discussed and progressively more advanced.
 
-**PHASE D: NEXT STEPS SUGGESTION BUBBLES (Optional):**
-After your response, you MAY optionally provide suggested follow-up actions the user might want to take. If you do, append them EXACTLY in this JSON format at the very end of your response (after the follow-up questions):
+IMPORTANT: If there is a genuinely good factoid or contextual joke, add it immediately before the follow-up questions as a short Markdown blockquote.
+- Use your judgment: this is mainly for general-knowledge, conceptual, or exploratory answers.
+- For simple fix, error, or query-generation tasks, usually omit it unless there is a truly apt one-liner.
+- You may include a factoid, a joke, both, or neither.
+- Keep it short, self-contained, and clearly relevant to the current answer.
+- Format it as quote style markdown using blockquote lines only; do not add a heading.
 
-\`\`\`json
+IMPORTANT: Follow-up questions are distinct from next-step suggestion bubbles.
+- If the user's latest message is only a number, treat it as selecting that numbered question from the immediately previous assistant response's "Follow-up questions:" list.
+- Answer the selected follow-up question directly.
+- Do not confuse this with next-step bubbles, which are optional model suggestions and not user selections.
+
+**PHASE D: NEXT STEPS SUGGESTION BUBBLES (Optional):**
+After your response, you MAY optionally provide suggested follow-up actions the user might want to take. If you do, append them as a raw JSON object at the very end of your response (after the follow-up questions). Do not wrap the JSON in markdown or code fences.
+
 {
   "next_steps": [
-    "First suggested action or question (< 120 chars)",
-    "Second suggested action or question (< 120 chars)",
-    "Third suggested action or question (< 120 chars)"
+    "Short action phrase, 3 to 6 words max",
+    "Short action phrase, 3 to 6 words max",
+    "Short action phrase, 3 to 6 words max"
   ]
 }
-\`\`\`
+
 
 IMPORTANT: Only include this JSON block if you have 2-3 truly valuable next-step suggestions. The suggestions should be:
 - Actionable and relevant to the current conversation
-- Phrased as concise questions or prompts (< 120 characters each)
+- Phrased as concise, self-contained action phrases or prompts (ideally 3-6 words, max 40 characters each)
 - Progressive in complexity or depth
-- Examples: "Show me how to index this table", "What indexes exist on orders?", "How to optimize this JOIN?"
+- Examples: "Review query plan", "Add missing index", "Compare join options"
 
 Do NOT include the JSON block if:
 - There are no clear follow-up actions
 - The suggestions are obvious or trivial
 - You're uncertain about what would be helpful next
+- Do not invent filler suggestions just to reach 3 entries
+- Do not repeat the follow-up questions in this JSON block
+- If only 1 or 2 actions are appropriate, provide only those
+- If no actions are appropriate, omit the JSON block entirely
 
-The JSON will be automatically parsed and shown as clickable suggestion bubbles in the UI.`;
+The UI will automatically parse this and show clickable suggestion bubbles.`;
   }
 
   async callVsCodeLm(userMessage: string, config: vscode.WorkspaceConfiguration, customSystemPrompt?: string): Promise<{ text: string, usage?: string }> {
@@ -499,7 +515,7 @@ The JSON will be automatically parsed and shown as clickable suggestion bubbles 
   }
 
   async callDirectApi(provider: string, userMessage: string, config: vscode.WorkspaceConfiguration, customSystemPrompt?: string): Promise<{ text: string, usage?: string }> {
-    const apiKey = config.get<string>('aiApiKey');
+    const apiKey = await this._getDirectApiKey(config);
     
     // API key is required for most providers, but optional for custom endpoints
     if (!apiKey && provider !== 'custom') {
@@ -597,6 +613,15 @@ The JSON will be automatically parsed and shown as clickable suggestion bubbles 
     }
 
     return this._makeHttpRequest(endpoint, headers, body, provider);
+  }
+
+  private async _getDirectApiKey(config: vscode.WorkspaceConfiguration): Promise<string> {
+    try {
+      const secretApiKey = await SecretStorageService.getInstance().getAiApiKey();
+      return secretApiKey || config.get<string>('aiApiKey') || '';
+    } catch {
+      return config.get<string>('aiApiKey') || '';
+    }
   }
 
   private _makeHttpRequest(endpoint: string, headers: any, body: any, provider: string): Promise<{ text: string, usage?: string }> {

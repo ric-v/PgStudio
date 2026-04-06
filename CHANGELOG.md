@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.8.9] - 2026-04-06
+
+### Added
+- **Anthropic model discovery**: AI Settings now lists Anthropic models from the official `/v1/models` API instead of a fixed local list.
+- **Guided chat responses**: Assistant replies can now include numbered follow-up questions, optional next-step suggestion bubbles, and contextual quote-style factoids or jokes when they genuinely fit.
+
+### Changed
+- **AI key lookup**: Direct AI provider keys now resolve from `SecretStorage` first, fixing false “API key required” errors when the key is already saved.
+- **Chat identity and styling**: Assistant messages are labeled **PG Studio Bot**, with improved assistant bubble contrast and quote styling for richer responses.
+- **Composer UX**: The chat input and suggestion bubbles were tightened for readability, capped to a compact height, and styled to avoid carrying stale next-step actions between chats.
+
+### Fixed
+- **Follow-up selection**: Typing a number now resolves to the corresponding numbered follow-up question from the previous assistant message, instead of being treated as a fresh prompt.
+- **Next-step carry-over**: Next-step bubbles are hidden when a new follow-up is sent or when switching chats, so actions remain specific to the active conversation.
+
 ## [0.8.8] - 2026-03-21
 
 ### Added

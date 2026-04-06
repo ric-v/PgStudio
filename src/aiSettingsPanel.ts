@@ -179,14 +179,11 @@ export class AiSettingsPanel {
                 }
                 models = await this._listOpenAIModels(settings.apiKey);
               } else if (settings.provider === 'anthropic') {
-                // Anthropic doesn't have a public models API, use known models
-                models = [
-                  'claude-3-5-sonnet-20241022',
-                  'claude-3-5-haiku-20241022',
-                  'claude-3-opus-20240229',
-                  'claude-3-sonnet-20240229',
-                  'claude-3-haiku-20240307'
-                ];
+                // Use Anthropic's models API when an API key is provided
+                if (!settings.apiKey) {
+                  throw new Error('API Key is required to list models for Anthropic');
+                }
+                models = await this._listAnthropicModels(settings.apiKey);
               } else if (settings.provider === 'gemini') {
                 if (!settings.apiKey) {
                   throw new Error('API Key is required to list models');
@@ -249,6 +246,63 @@ export class AiSettingsPanel {
             }
           } else {
             reject(new Error(`Failed to list models: ${res.statusCode}`));
+          }
+        });
+      });
+
+      req.on('error', (err: any) => reject(err));
+      req.end();
+    });
+  }
+
+  private async _listAnthropicModels(apiKey: string): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/models',
+        method: 'GET',
+        headers: {
+          'X-Api-Key': apiKey,
+          'anthropic-version': '2023-06-01'
+        }
+      };
+
+      const req = https.request(options, (res: any) => {
+        let body = '';
+        res.on('data', (chunk: any) => body += chunk);
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            try {
+              const data = JSON.parse(body);
+
+              // Accept several response shapes (models, data, or array)
+              let list: any[] = [];
+              if (Array.isArray(data)) {
+                list = data;
+              } else if (Array.isArray(data.models)) {
+                list = data.models;
+              } else if (Array.isArray(data.data)) {
+                list = data.data;
+              } else {
+                for (const k of Object.keys(data)) {
+                  if (Array.isArray((data as any)[k])) {
+                    list = (data as any)[k];
+                    break;
+                  }
+                }
+              }
+
+              const models = list
+                .map((m: any) => m.id || m.name || m.model || (typeof m === 'string' ? m : undefined))
+                .filter(Boolean)
+                .sort();
+
+              resolve(models as string[]);
+            } catch (e) {
+              reject(new Error('Failed to parse Anthropic models response'));
+            }
+          } else {
+            reject(new Error(`Failed to list Anthropic models: ${res.statusCode} - ${body}`));
           }
         });
       });

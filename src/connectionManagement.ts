@@ -87,7 +87,7 @@ export class ConnectionManagementPanel {
                                 user: connection.username || undefined,
                                 password: password || undefined,
                                 database: connection.database || 'postgres',
-                                connectionTimeoutMillis: 5000
+                                connectionTimeoutMillis: (connection.connectTimeout || 15) * 1000
                             });
 
                             await client.connect();

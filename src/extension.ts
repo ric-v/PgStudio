@@ -30,6 +30,31 @@ export let statusBar: NotebookStatusBar;
 
 let chatViewProvider: ChatViewProvider | undefined;
 
+function isAzurePostgresHost(host?: string): boolean {
+  if (!host) {
+    return false;
+  }
+
+  const normalizedHost = host.toLowerCase();
+  return normalizedHost.includes('postgres.database.azure.com');
+}
+
+function migrateLegacyAzureConnectionTimeouts(connections: any[]): { connections: any[]; migratedCount: number } {
+  let migratedCount = 0;
+
+  const migratedConnections = connections.map((connection) => {
+    // Legacy Azure connections from v0.8.8 commonly carried a 5s default timeout.
+    if (isAzurePostgresHost(connection.host) && connection.connectTimeout === 5) {
+      migratedCount++;
+      return { ...connection, connectTimeout: 15 };
+    }
+
+    return connection;
+  });
+
+  return { connections: migratedConnections, migratedCount };
+}
+
 export function getChatViewProvider(): ChatViewProvider | undefined {
   return chatViewProvider;
 }
@@ -61,6 +86,19 @@ export async function activate(context: vscode.ExtensionContext) {
   if (hasChanges) {
     await config.update('postgresExplorer.connections', migratedConnections, vscode.ConfigurationTarget.Global);
     console.log('Migrated legacy connections to include IDs');
+  }
+
+  const azureTimeoutMigrationKey = 'postgresExplorer.migrations.azureConnectionTimeouts.v0_8_9';
+  const azureTimeoutMigrationDone = context.globalState.get<boolean>(azureTimeoutMigrationKey, false);
+
+  if (!azureTimeoutMigrationDone) {
+    const timeoutMigration = migrateLegacyAzureConnectionTimeouts(migratedConnections);
+    if (timeoutMigration.migratedCount > 0) {
+      await config.update('postgresExplorer.connections', timeoutMigration.connections, vscode.ConfigurationTarget.Global);
+      console.log(`Migrated ${timeoutMigration.migratedCount} Azure connection(s) to a 15 second timeout`);
+    }
+
+    await context.globalState.update(azureTimeoutMigrationKey, true);
   }
 
   // Phase 7: Initialize ProfileManager and SavedQueriesService

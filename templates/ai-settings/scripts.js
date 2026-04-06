@@ -62,15 +62,13 @@ function autoLoadModels(provider, apiKey, endpoint) {
       settings: { provider: 'vscode-lm', apiKey: '', endpoint: '' }
     });
   } else if (provider === 'anthropic') {
-    // Anthropic has a fixed list, we can show it immediately
-    const anthropicModels = [
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-20241022',
-      'claude-3-opus-20240229',
-      'claude-3-sonnet-20240229',
-      'claude-3-haiku-20240307'
-    ];
-    handleModelsListed(anthropicModels);
+    // Prefer to fetch Anthropic models from the API when API key is provided
+    if (apiKey && apiKey.length > 0) {
+      vscode.postMessage({
+        command: 'listModels',
+        settings: { provider: 'anthropic', apiKey: apiKey, endpoint: endpoint }
+      });
+    }
   } else if ((provider === 'openai' || provider === 'gemini') && apiKey) {
     // Load models if API key is available
     vscode.postMessage({
@@ -181,12 +179,12 @@ document.querySelectorAll('.list-models-btn').forEach(btn => {
     const provider = this.getAttribute('data-provider');
     const settings = getFormData();
 
-    if ((provider === 'openai' || provider === 'gemini') && !settings.apiKey) {
+      if ((provider === 'openai' || provider === 'gemini' || provider === 'anthropic') && !settings.apiKey) {
       showMessage('Please enter an API key first', true);
       return;
     }
 
-    // VS Code LM and Anthropic don't require API key check
+      // VS Code LM does not require an API key
     if (provider === 'custom' && !settings.endpoint) {
       showMessage('Please enter an endpoint first', true);
       return;

@@ -27,6 +27,9 @@ const mentionSearch = document.getElementById('mentionSearch');
 const mentionList = document.getElementById('mentionList');
 const mentionBtn = document.getElementById('mentionBtn');
 
+const CHAT_INPUT_MIN_HEIGHT = 38;
+const CHAT_INPUT_MAX_VISIBLE_LINES = 5;
+
 let attachedFiles = [];
 let loadingInterval = null;
 let typingAnimation = null;
@@ -36,6 +39,7 @@ let selectedMentions = [];
 let mentionPickerVisible = false;
 let selectedMentionIndex = -1;
 let searchDebounceTimer = null;
+let currentMessages = [];
 let currentHierarchyPath = {
   connection: null,
   database: null,
@@ -158,6 +162,28 @@ function renderBreadcrumbs() {
     schema.addEventListener('click', () => navigateToSchema(currentHierarchyPath.schema));
     container.appendChild(schema);
   }
+}
+
+function resizeChatInput() {
+  if (!chatInput) {
+    return;
+  }
+
+  chatInput.style.height = 'auto';
+
+  const styles = window.getComputedStyle(chatInput);
+  const lineHeight = parseFloat(styles.lineHeight) || 20;
+  const paddingTop = parseFloat(styles.paddingTop) || 0;
+  const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+  const maxHeight = Math.ceil((lineHeight * CHAT_INPUT_MAX_VISIBLE_LINES) + paddingTop + paddingBottom);
+
+  const nextHeight = Math.max(
+    CHAT_INPUT_MIN_HEIGHT,
+    Math.min(chatInput.scrollHeight, maxHeight)
+  );
+
+  chatInput.style.height = `${nextHeight}px`;
+  chatInput.style.overflowY = chatInput.scrollHeight > maxHeight ? 'auto' : 'hidden';
 }
 
 function handleContainerClick(index) {
@@ -779,9 +805,8 @@ function handleChatInput(event) {
     hideMentionPicker();
   }
 
-  // Auto-resize textarea
-  chatInput.style.height = 'auto';
-  chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+  // Auto-resize textarea, capped to five visible lines
+  resizeChatInput();
 }
 
 function handleMentionKeydown(event) {
@@ -975,7 +1000,11 @@ function getFileIcon(type) {
 }
 
 function sendMessage() {
-  const message = chatInput.value.trim();
+  const rawMessage = chatInput.value.trim();
+  const resolvedFollowUp = (/^\d+$/.test(rawMessage) && attachedFiles.length === 0 && selectedMentions.length === 0)
+    ? resolveFollowUpQuestionSelection(rawMessage)
+    : null;
+  const message = resolvedFollowUp || rawMessage;
   if (!message && attachedFiles.length === 0 && selectedMentions.length === 0) return;
 
   // Phase B: Track last message for retry functionality
@@ -995,7 +1024,7 @@ function sendMessage() {
   });
 
   chatInput.value = '';
-  chatInput.style.height = 'auto';
+  resizeChatInput();
   chatInput.disabled = true;
   sendBtn.disabled = true;
   attachBtn.disabled = true;
@@ -1361,7 +1390,9 @@ function sanitizeHtml(dirty) {
   const allowedTags = new Set([
     'a','b','i','em','strong','code','pre','p','br','ul','ol','li',
     'span','div','blockquote','hr','h1','h2','h3','h4','h5','h6',
-    'table','thead','tbody','tr','th','td'
+    'table','thead','tbody','tr','th','td',
+    // Keep buttons and simple SVG so action controls remain interactive
+    'button','svg','path'
   ]);
 
   // Allowed attributes per tag ("*" applies to all tags)
@@ -1369,8 +1400,11 @@ function sanitizeHtml(dirty) {
     '*': ['class'],
     'a': ['href', 'title', 'rel', 'target', 'class'],
     'img': ['src', 'alt', 'title', 'class'],
-    'code': ['class'],
+    // Preserve data-raw and id on code elements so copy/notebook features work
+    'code': ['class', 'data-raw', 'id'],
     'pre': ['class'],
+    'button': ['class', 'title', 'aria-label', 'aria-pressed', 'aria-expanded'],
+    'svg': ['viewBox', 'width', 'height', 'fill', 'class'],
     'span': ['class'],
     'div': ['class'],
     'p': ['class'],
@@ -1654,15 +1688,19 @@ function showToast(text, type = 'info') {
 let lastMessageCount = 0;
 
 function renderMessages(messages, animate = false) {
+  currentMessages = Array.isArray(messages) ? [...messages] : [];
+
   if (messages.length === 0) {
     emptyState.style.display = 'flex';
     const messageElements = messagesContainer.querySelectorAll('.message');
     messageElements.forEach(el => el.remove());
+    dismissBubbleStrip();
     lastMessageCount = 0;
     return;
   }
 
   emptyState.style.display = 'none';
+  dismissBubbleStrip();
 
   // Check if this is a new assistant message (for typing effect)
   const isNewAssistantMessage = animate &&
@@ -1670,6 +1708,7 @@ function renderMessages(messages, animate = false) {
     messages[messages.length - 1].role === 'assistant';
 
   lastMessageCount = messages.length;
+  let activeSuggestionBubbles = [];
 
   // Clear existing messages (but keep typing indicator)
   const messageElements = messagesContainer.querySelectorAll('.message');
@@ -1682,7 +1721,8 @@ function renderMessages(messages, animate = false) {
 
     const roleDiv = document.createElement('div');
     roleDiv.className = 'message-role';
-    roleDiv.textContent = msg.role === 'user' ? 'You' : 'Assistant';
+    const emojis = ['😒', '🙄', '😕', '🤔', '😐', '🙂', '😀', '😁', '😴'];
+    roleDiv.textContent = msg.role === 'user' ? ' ' + emojis[Math.floor(Math.random() * emojis.length)] + ' You' : '🤖 PG Studio Bot';
 
     const bubbleDiv = document.createElement('div');
     bubbleDiv.className = 'message-bubble';
@@ -1723,10 +1763,11 @@ function renderMessages(messages, animate = false) {
     } else if (msg.role === 'assistant') {
       // Apply typing effect for the newest assistant message
       const isLastMessage = idx === messages.length - 1;
+      const extracted = safeJsonTailExtract(msg.content);
+      const cleanContent = extracted.content;
+      const bubbles = extracted.bubbles;
+
       if (isNewAssistantMessage && isLastMessage) {
-        // Extract JSON next_steps and clean content
-        const { content: cleanContent, bubbles } = safeJsonTailExtract(msg.content);
-        
         // Will be typed out
         bubbleDiv.appendChild(contentDiv);
         messageDiv.appendChild(roleDiv);
@@ -1743,13 +1784,16 @@ function renderMessages(messages, animate = false) {
           // Show bubbles after typing finishes
           if (bubbles.length > 0) {
             showSuggestionBubbles(bubbles);
+          } else {
+            dismissBubbleStrip();
           }
         });
         return; // Skip the normal append below
       } else {
-        // Extract JSON next_steps from non-typing messages
-        const { content: cleanContent, bubbles } = safeJsonTailExtract(msg.content);
         contentDiv.innerHTML = parseMarkdown(cleanContent);
+        if (isLastMessage) {
+          activeSuggestionBubbles = bubbles;
+        }
       }
     } else {
       contentDiv.textContent = msg.content;
@@ -1774,6 +1818,12 @@ function renderMessages(messages, animate = false) {
     top: messagesContainer.scrollHeight,
     behavior: 'smooth'
   });
+
+  if (activeSuggestionBubbles.length > 0) {
+    showSuggestionBubbles(activeSuggestionBubbles);
+  } else {
+    dismissBubbleStrip();
+  }
 }
 
 // ============================================================================
@@ -1870,6 +1920,73 @@ function dismissBubbleStrip() {
 }
 
 /**
+ * Convert a numeric user reply into the selected follow-up question text from
+ * the latest assistant message that listed follow-up questions.
+ * Returns null if there is no matching follow-up question list.
+ */
+function resolveFollowUpQuestionSelection(rawSelection) {
+  const selectedIndex = Number.parseInt(rawSelection, 10) - 1;
+  if (Number.isNaN(selectedIndex) || selectedIndex < 0) {
+    return null;
+  }
+
+  for (let index = currentMessages.length - 1; index >= 0; index--) {
+    const message = currentMessages[index];
+    if (message.role !== 'assistant' || !message.content) {
+      continue;
+    }
+
+    const questions = extractFollowUpQuestions(message.content);
+    if (selectedIndex < questions.length) {
+      return `Follow-up question ${selectedIndex + 1}: ${questions[selectedIndex]}`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract numbered follow-up questions from an assistant response.
+ * The parser looks for a "Follow-up questions:" heading followed by a numbered list.
+ */
+function extractFollowUpQuestions(responseText) {
+  if (!responseText) {
+    return [];
+  }
+
+  const lines = responseText.split(/\r?\n/);
+  const headingIndex = lines.findIndex(line => /^\s*Follow-up questions:\s*$/i.test(line));
+  if (headingIndex === -1) {
+    return [];
+  }
+
+  const questions = [];
+
+  for (let index = headingIndex + 1; index < lines.length; index++) {
+    const line = lines[index].trim();
+
+    if (!line) {
+      if (questions.length > 0) {
+        break;
+      }
+      continue;
+    }
+
+    const match = line.match(/^\d+\.\s+(.*)$/);
+    if (!match) {
+      if (questions.length > 0) {
+        break;
+      }
+      continue;
+    }
+
+    questions.push(match[1].trim());
+  }
+
+  return questions;
+}
+
+/**
  * Show error card with message and action buttons
  * @param {string} title - Error title
  * @param {string} message - Error message
@@ -1921,34 +2038,42 @@ function retryLastMessage() {
  */
 function safeJsonTailExtract(responseText) {
   try {
-    // Look for JSON-like pattern at end of text
-    // Match: { "next_steps": [...] }
-    const jsonMatch = responseText.match(/\{\s*"next_steps"\s*:\s*\[([^\]]*)\]\s*\}\s*$/i);
-    
-    if (!jsonMatch) {
-      return { content: responseText, bubbles: [] };
-    }
-    
-    // Try to parse the full JSON object
-    const jsonStart = responseText.lastIndexOf('{');
-    if (jsonStart === -1) {
-      return { content: responseText, bubbles: [] };
-    }
-    
-    const jsonStr = responseText.substring(jsonStart);
-    const parsed = JSON.parse(jsonStr);
-    
-    if (!Array.isArray(parsed.next_steps)) {
-      return { content: responseText, bubbles: [] };
-    }
-    
-    // Remove JSON from display content
-    const cleanContent = responseText.substring(0, jsonStart).trim();
-    
-    return {
-      content: cleanContent,
-      bubbles: parsed.next_steps.slice(0, 5) // Max 5 bubbles
+    const trimmed = responseText.trimEnd();
+
+    const parseNextSteps = (jsonText, cleanContent) => {
+      const parsed = JSON.parse(jsonText);
+      if (!Array.isArray(parsed.next_steps)) {
+        return null;
+      }
+
+      return {
+        content: cleanContent.trimEnd(),
+        bubbles: parsed.next_steps
+          .filter(step => typeof step === 'string' && step.trim().length > 0)
+          .map(step => step.trim())
+          .slice(0, 5)
+      };
     };
+
+    // Prefer fenced JSON blocks because the model often formats the tail that way.
+    const fencedMatch = trimmed.match(/(?:^|\n)```(?:json)?\s*\n([\s\S]*?)\n```\s*$/i);
+    if (fencedMatch) {
+      const parsed = parseNextSteps(fencedMatch[1], trimmed.slice(0, fencedMatch.index));
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    // Fallback to a bare JSON object at the end of the response.
+    const tailMatch = trimmed.match(/(\{\s*"next_steps"\s*:\s*\[[\s\S]*\]\s*\})\s*$/i);
+    if (tailMatch) {
+      const parsed = parseNextSteps(tailMatch[1], trimmed.slice(0, trimmed.length - tailMatch[1].length));
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    return { content: responseText, bubbles: [] };
   } catch (err) {
     // JSON parse failed, return original content
     console.warn('[PgStudio] JSON extraction failed:', err.message);
