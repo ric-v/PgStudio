@@ -1,7 +1,7 @@
 {
   "name": "postgres-explorer",
   "displayName": "PgStudio (PostgreSQL Explorer)",
-  "version": "0.8.5",
+  "version": "0.8.9",
   "description": "PostgreSQL database explorer for VS Code with notebook support",
   "publisher": "ric-v",
   "private": false,
@@ -1007,7 +1007,7 @@
       "activitybar": [
         {
           "id": "postgres-explorer",
-          "title": "PostgreSQL Explorer",
+          "title": "PG Studio",
           "icon": "resources/postgres-vsc-icon.png"
         }
       ]
@@ -1017,34 +1017,27 @@
         {
           "id": "postgresExplorer",
           "name": "Connections",
-          "contextualTitle": "PostgreSQL Explorer",
+          "contextualTitle": "PG Studio",
           "icon": "resources/postgres-vsc-icon.png"
         },
         {
           "id": "postgresExplorer.savedQueries",
           "name": "Saved Queries",
-          "contextualTitle": "PostgreSQL Explorer",
+          "contextualTitle": "PG Studio",
           "icon": "$(save)"
         },
         {
           "id": "postgresExplorer.chatView",
           "name": "SQL Assistant",
           "type": "webview",
-          "contextualTitle": "PostgreSQL Explorer",
-          "icon": "resources/ai-icon.png"
+          "contextualTitle": "PG Studio",
+          "icon": "resources/sql-assistant-vsc-icon.png"
         },
         {
           "id": "postgresExplorer.history",
           "name": "Query History",
-          "contextualTitle": "PostgreSQL Explorer",
+          "contextualTitle": "PG Studio",
           "icon": "$(history)"
-        },
-        {
-          "id": "postgresExplorer.whatsNew",
-          "name": "What's New",
-          "type": "webview",
-          "contextualTitle": "PostgreSQL Explorer",
-          "icon": "resources/postgres-explorer.png"
         }
       ]
     },

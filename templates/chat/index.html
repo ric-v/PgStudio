@@ -70,23 +70,61 @@
         </div>
       </div>
 
+      <!-- Context Bar showing connection/database -->
+      <div class="context-bar" id="contextBar" style="display: none;">
+        <span class="context-label">CONTEXT</span>
+        <div class="context-item">
+          <span class="context-value" id="contextConnection">Local DB 1 • ecommerce_demo</span>
+        </div>
+        <div class="context-item">
+          <span class="context-value badge" id="contextTable">@table</span>
+        </div>
+      </div>
+
       <div class="messages-container" id="messagesContainer">
         <div class="empty-state" id="emptyState">
-          <div class="empty-state-icon">💬</div>
-          <div class="empty-state-text">
-            Ask questions about PostgreSQL<br />
-            Get help writing queries<br />
-            Generating performant SQL statements<br />
-            Explore database concepts
+          <div class="empty-state-header">
+            <div class="empty-state-title">SQL Assistant</div>
+            <div class="empty-state-description">
+              Ask about your schema, write queries, or<br />pick a starting point.
+            </div>
           </div>
-          <div class="empty-state-hint">
-            <span>⚡</span> Powered by You & AI
+          
+          <!-- Quick Action Grid (2x2) -->
+          <div class="quick-grid">
+            <button class="quick-card" onclick="sendSuggestion('Write a query to...')">
+              <div class="quick-card-icon">+</div>
+              <div class="quick-card-title">Write a query</div>
+              <div class="quick-card-description">Describe what you need</div>
+            </button>
+            <button class="quick-card" onclick="sendSuggestion('Optimize this query...')">
+              <div class="quick-card-icon">⚡</div>
+              <div class="quick-card-title">Optimize slow query</div>
+              <div class="quick-card-description">Paste query below</div>
+            </button>
+            <button class="quick-card" onclick="sendSuggestion('Explain...')">
+              <div class="quick-card-icon">•</div>
+              <div class="quick-card-title">Explain a concept</div>
+              <div class="quick-card-description">CTEs, indexes, JOINs...</div>
+            </button>
+            <button class="quick-card" onclick="sendSuggestion('Review my schema...')">
+              <div class="quick-card-icon">⊞</div>
+              <div class="quick-card-title">Review my schema</div>
+              <div class="quick-card-description">Get design feedback</div>
+            </button>
           </div>
-          <div class="suggestions">
-            <button class="suggestion-btn" onclick="sendSuggestion('How do I write a JOIN query?')">JOINs</button>
-            <button class="suggestion-btn" onclick="sendSuggestion('Explain CTEs in PostgreSQL')">CTEs</button>
-            <button class="suggestion-btn" onclick="sendSuggestion('How to optimize a slow query?')">Optimize</button>
-            <button class="suggestion-btn" onclick="sendSuggestion('What are window functions?')">Window Fn</button>
+          
+          <!-- SQL Snippets -->
+          <div class="snippets-section">
+            <div class="snippets-label">SQL SNIPPETS</div>
+            <div class="snippets-grid">
+              <button class="snippet-btn" onclick="sendSuggestion('INNER JOIN')">INNER_JOIN</button>
+              <button class="snippet-btn" onclick="sendSuggestion('WITH cte AS')">WITH cte AS</button>
+              <button class="snippet-btn" onclick="sendSuggestion('ROW_NUMBER()')">ROW_NUMBER()</button>
+              <button class="snippet-btn" onclick="sendSuggestion('EXPLAIN ANALYZE')">EXPLAIN ANALYZE</button>
+              <button class="snippet-btn" onclick="sendSuggestion('ON CONFLICT')">ON CONFLICT</button>
+              <button class="snippet-btn" onclick="sendSuggestion('jsonb_agg')">jsonb_agg</button>
+            </div>
           </div>
         </div>
         <div class="typing-indicator" id="typingIndicator">
@@ -100,6 +138,32 @@
       </div>
 
       <div class="input-wrapper" id="inputWrapper">
+        <!-- Suggestion Bubble Strip for AI-suggested next steps -->
+        <div class="bubble-strip" id="bubbleStrip" style="display: none;">
+          <div class="bubble-strip-label">Next steps:</div>
+          <div class="bubble-strip-content" id="bubbleStripContent"></div>
+        </div>
+        
+        <!-- Error Card Template for structured errors -->
+        <div class="error-card" id="errorCard" style="display: none;">
+          <div class="error-card-header">
+            <span class="error-card-icon">⚠️</span>
+            <span class="error-card-title" id="errorCardTitle">Error</span>
+          </div>
+          <div class="error-card-message" id="errorCardMessage"></div>
+          <div class="error-card-actions">
+            <button class="error-card-btn" onclick="retryLastMessage()" title="Retry the last message">
+              🔄 Retry
+            </button>
+            <button class="error-card-btn" onclick="openAiSettings()" title="Configure AI settings">
+              ⚙️ Configure
+            </button>
+            <button class="error-card-btn" onclick="dismissError()" title="Dismiss error">
+              ✕ Dismiss
+            </button>
+          </div>
+        </div>
+
         <div class="mention-picker" id="mentionPicker">
           <div class="mention-picker-header">
             <span>🔗 Reference DB Object</span>

@@ -30,6 +30,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _messages: ChatMessage[] = [];
   private _isProcessing = false;
 
+  // Phase C: Track current connection/database context for session metadata
+  private _currentConnectionName: string | undefined;
+  private _currentDatabase: string | undefined;
+
   // Services
   private _dbObjectService: DbObjectService;
   private _aiService: AiService;
@@ -331,6 +335,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // aiMessage already has attachments, now add schema context
     if (mentions && mentions.length > 0) {
       console.log('[ChatView] Processing mentions for schema context...');
+      
+      // Phase C: Capture connection context from first mention
+      if (mentions[0]) {
+        this._currentDatabase = mentions[0].database;
+        // Note: connectionName might not be populated in DbMention, so we use connectionId as fallback
+        this._currentConnectionName = mentions[0].breadcrumb?.split('.')[0] || mentions[0].connectionId;
+        this._sendContextUpdate();
+      }
+      
       let schemaContext = '\n\n=== DATABASE SCHEMA CONTEXT (Use this information to answer the question) ===\n';
 
       for (const mention of mentions) {
@@ -634,9 +647,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     const config = vscode.workspace.getConfiguration('postgresExplorer');
     const provider = config.get<string>('aiProvider') || 'vscode-lm';
 
+    // Phase C: Pass metadata to session service
     await this._sessionService.saveSession(
       this._messages,
-      (msg) => this._aiService.generateTitle(msg, provider)
+      (msg) => this._aiService.generateTitle(msg, provider),
+      {
+        connectionName: this._currentConnectionName,
+        database: this._currentDatabase
+      }
     );
     this._sendHistoryToWebview();
   }
@@ -668,6 +686,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       this._view.webview.postMessage({
         type: 'updateHistory',
         sessions: this._sessionService.getSessionSummaries()
+      });
+    }
+  }
+
+  // Phase C: Send context bar update to webview
+  private _sendContextUpdate(): void {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'contextUpdate',
+        connectionName: this._currentConnectionName || null,
+        database: this._currentDatabase || null
       });
     }
   }

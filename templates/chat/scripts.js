@@ -42,6 +42,28 @@ let currentHierarchyPath = {
   schema: null
 };
 
+// Phase B: New state for context bar, retries, and debounced search
+let currentContext = {
+  connectionName: null,
+  database: null
+};
+let lastUserMessage = null;
+let historySearchDebounceTimer = null;
+
+// Phase B: Quick actions and snippets configuration
+const QUICK_ACTIONS = [
+  { prompt: 'How do I write a JOIN query?', icon: '🔗', title: 'JOINs', desc: 'Query patterns' },
+  { prompt: 'Explain CTEs in PostgreSQL', icon: '📋', title: 'CTEs', desc: 'Temp tables' },
+  { prompt: 'How to optimize a slow query?', icon: '⚡', title: 'Optimize', desc: 'Performance' },
+  { prompt: 'What are window functions?', icon: '📊', title: 'Window Fn', desc: 'Advanced SQL' }
+];
+
+const SNIPPETS = [
+  { prompt: 'Show me a basic SELECT example', icon: '📝', text: 'SELECT Basics' },
+  { prompt: 'How do I filter rows with WHERE?', icon: '🔍', text: 'WHERE Clauses' },
+  { prompt: 'Explain GROUP BY and aggregation', icon: '📊', text: 'Aggregations' }
+];
+
 // Hierarchy Navigation
 function navigateToRoot() {
   currentHierarchyPath = { connection: null, database: null, schema: null };
@@ -956,6 +978,15 @@ function sendMessage() {
   const message = chatInput.value.trim();
   if (!message && attachedFiles.length === 0 && selectedMentions.length === 0) return;
 
+  // Phase B: Track last message for retry functionality
+  lastUserMessage = message;
+
+  // Dismiss error card when sending new message
+  dismissError();
+
+  // Dismiss bubble strip when user sends a message
+  dismissBubbleStrip();
+
   vscode.postMessage({
     type: 'sendMessage',
     message: message || (selectedMentions.length > 0 ? 'Please analyze the referenced database objects' : 'Please analyze the attached file(s)'),
@@ -1588,6 +1619,16 @@ window.addEventListener('message', event => {
         }
       }
       break;
+
+    // Phase B: Context bar update
+    case 'contextUpdate':
+      updateContextBar(message.connectionName || null, message.database || null);
+      break;
+
+    // Phase B: Error card display
+    case 'error':
+      showErrorCard(message.title || 'Error', message.message || 'An error occurred');
+      break;
   }
 });
 
@@ -1683,12 +1724,15 @@ function renderMessages(messages, animate = false) {
       // Apply typing effect for the newest assistant message
       const isLastMessage = idx === messages.length - 1;
       if (isNewAssistantMessage && isLastMessage) {
+        // Extract JSON next_steps and clean content
+        const { content: cleanContent, bubbles } = safeJsonTailExtract(msg.content);
+        
         // Will be typed out
         bubbleDiv.appendChild(contentDiv);
         messageDiv.appendChild(roleDiv);
         messageDiv.appendChild(bubbleDiv);
         messagesContainer.insertBefore(messageDiv, typingIndicator);
-        typeText(contentDiv, msg.content, () => {
+        typeText(contentDiv, cleanContent, () => {
           if (msg.usage) {
             const usageDiv = document.createElement('div');
             usageDiv.className = 'message-usage';
@@ -1696,10 +1740,16 @@ function renderMessages(messages, animate = false) {
             messageDiv.appendChild(usageDiv);
             messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
           }
+          // Show bubbles after typing finishes
+          if (bubbles.length > 0) {
+            showSuggestionBubbles(bubbles);
+          }
         });
         return; // Skip the normal append below
       } else {
-        contentDiv.innerHTML = parseMarkdown(msg.content);
+        // Extract JSON next_steps from non-typing messages
+        const { content: cleanContent, bubbles } = safeJsonTailExtract(msg.content);
+        contentDiv.innerHTML = parseMarkdown(cleanContent);
       }
     } else {
       contentDiv.textContent = msg.content;
@@ -1724,6 +1774,256 @@ function renderMessages(messages, animate = false) {
     top: messagesContainer.scrollHeight,
     behavior: 'smooth'
   });
+}
+
+// ============================================================================
+// Phase B: Frontend Logic - Context Bar, Bubbles, Errors, and Utilities
+// ============================================================================
+
+/**
+ * Update the context bar with current connection and database
+ * @param {string} connectionName - Name of the active connection
+ * @param {string} database - Name of the active database
+ * @param {string} tableName - Name of the referenced table (optional)
+ */
+function updateContextBar(connectionName, database, tableName) {
+  currentContext.connectionName = connectionName;
+  currentContext.database = database;
+  
+  const contextBar = document.getElementById('contextBar');
+  if (!contextBar) return;
+  
+  if (connectionName || database || tableName) {
+    contextBar.style.display = 'flex';
+    const connElem = document.getElementById('contextConnection');
+    const tableElem = document.getElementById('contextTable');
+    
+    if (connElem) {
+      // Format: "Connection Name • database_name"
+      const connInfo = connectionName ? connectionName : 'Connected';
+      const dbInfo = database ? database : '';
+      connElem.textContent = [connInfo, dbInfo].filter(Boolean).join(' • ');
+    }
+    
+    if (tableElem) {
+      // Format: "@table_name" or "@schema.table_name"
+      if (tableName) {
+        tableElem.textContent = '@' + tableName;
+        tableElem.parentElement.style.display = 'flex';
+      } else {
+        tableElem.parentElement.style.display = 'none';
+      }
+    }
+  } else {
+    contextBar.style.display = 'none';
+  }
+}
+
+/**
+ * Show suggestion bubbles from AI next-step recommendations
+ * Expects bubbles to be an array of strings, each < 140 chars
+ * @param {string[]} bubbles - Array of next-step suggestion texts
+ */
+function showSuggestionBubbles(bubbles) {
+  const bubbleStrip = document.getElementById('bubbleStrip');
+  const bubbleStripContent = document.getElementById('bubbleStripContent');
+  
+  if (!bubbleStrip || !bubbleStripContent) return;
+  
+  // Filter and validate bubbles
+  const validBubbles = bubbles
+    .filter(b => typeof b === 'string' && b.length > 0 && b.length <= 200)
+    .slice(0, 5); // Max 5 bubbles
+  
+  if (validBubbles.length === 0) {
+    bubbleStrip.style.display = 'none';
+    return;
+  }
+  
+  // Clear and rebuild
+  bubbleStripContent.innerHTML = '';
+  validBubbles.forEach(text => {
+    const bubble = document.createElement('button');
+    bubble.className = 'suggestion-bubble';
+    bubble.textContent = text;
+    bubble.title = `Click to continue: ${text}`;
+    bubble.onclick = () => {
+      chatInput.value = text;
+      chatInput.focus();
+      dismissBubbleStrip();
+      // Optionally auto-send: sendMessage();
+    };
+    bubbleStripContent.appendChild(bubble);
+  });
+  
+  bubbleStrip.style.display = 'flex';
+}
+
+/**
+ * Dismiss the suggestion bubble strip
+ */
+function dismissBubbleStrip() {
+  const bubbleStrip = document.getElementById('bubbleStrip');
+  if (bubbleStrip) {
+    bubbleStrip.style.display = 'none';
+  }
+}
+
+/**
+ * Show error card with message and action buttons
+ * @param {string} title - Error title
+ * @param {string} message - Error message
+ */
+function showErrorCard(title, message) {
+  const errorCard = document.getElementById('errorCard');
+  const titleElem = document.getElementById('errorCardTitle');
+  const messageElem = document.getElementById('errorCardMessage');
+  
+  if (!errorCard) return;
+  
+  if (titleElem) titleElem.textContent = title || 'Error';
+  if (messageElem) messageElem.textContent = message || 'An error occurred';
+  
+  errorCard.style.display = 'flex';
+}
+
+/**
+ * Dismiss the error card
+ */
+function dismissError() {
+  const errorCard = document.getElementById('errorCard');
+  if (errorCard) {
+    errorCard.style.display = 'none';
+  }
+}
+
+/**
+ * Retry the last user message
+ */
+function retryLastMessage() {
+  if (!lastUserMessage) {
+    console.warn('[PgStudio] No previous message to retry');
+    return;
+  }
+  
+  dismissError();
+  chatInput.value = lastUserMessage;
+  chatInput.focus();
+  sendMessage();
+}
+
+/**
+ * Safely extract JSON next_steps from end of model response
+ * Looks for { "next_steps": [...] } pattern at the end
+ * Removes JSON from display content and returns parsed bubbles
+ * @param {string} responseText - Full model response text
+ * @returns {object} { content: cleanedText, bubbles: string[] }
+ */
+function safeJsonTailExtract(responseText) {
+  try {
+    // Look for JSON-like pattern at end of text
+    // Match: { "next_steps": [...] }
+    const jsonMatch = responseText.match(/\{\s*"next_steps"\s*:\s*\[([^\]]*)\]\s*\}\s*$/i);
+    
+    if (!jsonMatch) {
+      return { content: responseText, bubbles: [] };
+    }
+    
+    // Try to parse the full JSON object
+    const jsonStart = responseText.lastIndexOf('{');
+    if (jsonStart === -1) {
+      return { content: responseText, bubbles: [] };
+    }
+    
+    const jsonStr = responseText.substring(jsonStart);
+    const parsed = JSON.parse(jsonStr);
+    
+    if (!Array.isArray(parsed.next_steps)) {
+      return { content: responseText, bubbles: [] };
+    }
+    
+    // Remove JSON from display content
+    const cleanContent = responseText.substring(0, jsonStart).trim();
+    
+    return {
+      content: cleanContent,
+      bubbles: parsed.next_steps.slice(0, 5) // Max 5 bubbles
+    };
+  } catch (err) {
+    // JSON parse failed, return original content
+    console.warn('[PgStudio] JSON extraction failed:', err.message);
+    return { content: responseText, bubbles: [] };
+  }
+}
+
+/**
+ * Debounced history search with delay timer
+ * @param {string} value - Search query
+ * @param {number} delay - Debounce delay in ms (default 300)
+ */
+function debounceHistorySearch(value, delay = 300) {
+  if (historySearchDebounceTimer) {
+    clearTimeout(historySearchDebounceTimer);
+  }
+  
+  historySearchDebounceTimer = setTimeout(() => {
+    filterHistoryHelper(value);
+  }, delay);
+}
+
+/**
+ * Helper for history filtering (called after debounce)
+ * @param {string} searchTerm - Search query
+ */
+function filterHistoryHelper(searchTerm) {
+  const historyItems = document.querySelectorAll('.history-item');
+  const normalizedTerm = searchTerm.toLowerCase();
+  
+  historyItems.forEach(item => {
+    const title = item.querySelector('.history-item-title');
+    if (!title) return;
+    
+    const matches = title.textContent.toLowerCase().includes(normalizedTerm);
+    item.style.display = matches ? 'block' : 'none';
+  });
+}
+
+/**
+ * Group history sessions by date (Today, Yesterday, This week, Older)
+ * @param {array} sessions - Array of ChatSessionSummary
+ * @returns {object} Sessions grouped by date category
+ */
+function groupSessionsByDate(sessions) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  
+  const groups = {
+    today: [],
+    yesterday: [],
+    thisWeek: [],
+    older: []
+  };
+  
+  sessions.forEach(session => {
+    const sessionDate = new Date(session.createdAt);
+    const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate());
+    
+    if (sessionDay.getTime() === today.getTime()) {
+      groups.today.push(session);
+    } else if (sessionDay.getTime() === yesterday.getTime()) {
+      groups.yesterday.push(session);
+    } else if (sessionDay.getTime() >= weekAgo.getTime()) {
+      groups.thisWeek.push(session);
+    } else {
+      groups.older.push(session);
+    }
+  });
+  
+  return groups;
 }
 
 

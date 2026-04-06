@@ -47,6 +47,10 @@ export interface ChatSession {
   messages: ChatMessage[];
   createdAt: number;
   updatedAt: number;
+  // Phase C: Optional metadata for enhanced history UI
+  preview?: string;          // First 100 chars of first AI response
+  connectionName?: string;   // Name of the connection this session used
+  database?: string;         // Name of the database this session used
 }
 
 export interface ChatSessionSummary {
@@ -56,4 +60,8 @@ export interface ChatSessionSummary {
   updatedAt: number;
   messageCount: number;
   isActive: boolean;
+  // Phase C: Optional metadata for history display
+  preview?: string;
+  connectionName?: string;
+  database?: string;
 }

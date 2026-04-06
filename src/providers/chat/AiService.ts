@@ -115,7 +115,33 @@ IMPORTANT: At the end of each response, provide 2-4 numbered follow-up questions
 2. [Second question]
 3. [Third question]
 
-Make these questions relevant to the topic discussed and progressively more advanced.`;
+Make these questions relevant to the topic discussed and progressively more advanced.
+
+**PHASE D: NEXT STEPS SUGGESTION BUBBLES (Optional):**
+After your response, you MAY optionally provide suggested follow-up actions the user might want to take. If you do, append them EXACTLY in this JSON format at the very end of your response (after the follow-up questions):
+
+\`\`\`json
+{
+  "next_steps": [
+    "First suggested action or question (< 120 chars)",
+    "Second suggested action or question (< 120 chars)",
+    "Third suggested action or question (< 120 chars)"
+  ]
+}
+\`\`\`
+
+IMPORTANT: Only include this JSON block if you have 2-3 truly valuable next-step suggestions. The suggestions should be:
+- Actionable and relevant to the current conversation
+- Phrased as concise questions or prompts (< 120 characters each)
+- Progressive in complexity or depth
+- Examples: "Show me how to index this table", "What indexes exist on orders?", "How to optimize this JOIN?"
+
+Do NOT include the JSON block if:
+- There are no clear follow-up actions
+- The suggestions are obvious or trivial
+- You're uncertain about what would be helpful next
+
+The JSON will be automatically parsed and shown as clickable suggestion bubbles in the UI.`;
   }
 
   async callVsCodeLm(userMessage: string, config: vscode.WorkspaceConfiguration, customSystemPrompt?: string): Promise<{ text: string, usage?: string }> {
@@ -150,21 +176,57 @@ Make these questions relevant to the topic discussed and progressively more adva
       throw new Error('No AI models available via VS Code API. Please ensure GitHub Copilot Chat is installed or switch provider.');
     }
 
+    console.log('[AiService] Selected model details:', JSON.stringify({
+      id: model.id,
+      name: model.name,
+      family: (model as any).family,
+      vendor: (model as any).vendor,
+      version: (model as any).version,
+      maxInputTokens: (model as any).maxInputTokens,
+      maxOutputTokens: (model as any).maxOutputTokens
+    }));
+
     const systemPrompt = customSystemPrompt !== undefined ? customSystemPrompt : this.buildSystemPrompt();
 
-    const messages = [];
+    const messages: any[] = [];
     if (systemPrompt) {
-      messages.push(vscode.LanguageModelChatMessage.User(systemPrompt));
+      const lmMessageCtor = vscode.LanguageModelChatMessage as any;
+      // Prefer system role when available; older API versions only expose User/Assistant.
+      if (typeof lmMessageCtor.System === 'function') {
+        messages.push(lmMessageCtor.System(systemPrompt));
+      } else {
+        messages.push(vscode.LanguageModelChatMessage.User(systemPrompt));
+      }
     }
 
+    const history = this._messages.slice(-10);
+
     messages.push(
-      ...this._messages.slice(-10).map(msg =>
+      ...history.map(msg =>
         msg.role === 'user'
           ? vscode.LanguageModelChatMessage.User(this._sanitizeContent(this._getMessageContent(msg)))
           : vscode.LanguageModelChatMessage.Assistant(this._sanitizeContent(this._getMessageContent(msg)))
       )
     );
+    // Always include the latest user prompt as the final turn.
+    // Some models are sensitive to explicit final-turn structure.
     messages.push(vscode.LanguageModelChatMessage.User(userMessage));
+
+    const compactHistory = history.map((msg, idx) => ({
+      idx,
+      role: msg.role,
+      contentLength: this._getMessageContent(msg).length,
+      attachmentCount: msg.attachments?.length || 0,
+      mentionCount: msg.mentions?.length || 0
+    }));
+
+    console.log('[AiService] Prepared request payload summary:', JSON.stringify({
+      totalMessages: messages.length,
+      historyMessages: history.length,
+      userMessageLength: userMessage.length,
+      systemPromptLength: systemPrompt.length,
+      history: compactHistory
+    }));
 
     // Debug: Log all messages being sent to model
     console.log('[AiService] ========== MESSAGES SENT TO MODEL ==========');
@@ -175,11 +237,69 @@ Make these questions relevant to the topic discussed and progressively more adva
     this._cancellationTokenSource = new vscode.CancellationTokenSource();
 
     try {
+      console.log('[AiService] sendRequest initial attempt started');
       const chatRequest = await model.sendRequest(messages, {}, this._cancellationTokenSource.token);
-      let responseText = '';
+      const rawChatRequest = chatRequest as any;
+      console.log('[AiService] sendRequest initial attempt resolved:', JSON.stringify({
+        hasStream: !!rawChatRequest?.stream,
+        hasText: !!rawChatRequest?.text,
+        hasResult: !!rawChatRequest?.result,
+        resultKeys: rawChatRequest?.result ? Object.keys(rawChatRequest.result) : []
+      }));
 
-      for await (const fragment of chatRequest.text) {
-        responseText += fragment;
+      let responseText = await this._extractVsCodeLmResponseText(chatRequest as any);
+      console.log('[AiService] Initial extraction result length:', responseText.length);
+
+      // Some models may return an empty text stream on the first attempt for verbose histories.
+      // Retry once with a minimal context to avoid persisting blank assistant replies.
+      let effectiveMessagesForFallback = messages;
+      if (!responseText.trim()) {
+        console.warn('[AiService] Empty response from VS Code LM; retrying with minimal prompt context.');
+        const retryMessages: any[] = [];
+        if (systemPrompt) {
+          const lmMessageCtor = vscode.LanguageModelChatMessage as any;
+          if (typeof lmMessageCtor.System === 'function') {
+            retryMessages.push(lmMessageCtor.System(systemPrompt));
+          } else {
+            retryMessages.push(vscode.LanguageModelChatMessage.User(systemPrompt));
+          }
+        }
+        retryMessages.push(vscode.LanguageModelChatMessage.User(userMessage));
+
+        console.log('[AiService] Retry payload summary:', JSON.stringify({
+          totalMessages: retryMessages.length,
+          userMessageLength: userMessage.length,
+          systemPromptLength: systemPrompt.length
+        }));
+
+        console.log('[AiService] sendRequest retry attempt started');
+        const retryRequest = await model.sendRequest(retryMessages, {}, this._cancellationTokenSource.token);
+        const rawRetryRequest = retryRequest as any;
+        console.log('[AiService] sendRequest retry attempt resolved:', JSON.stringify({
+          hasStream: !!rawRetryRequest?.stream,
+          hasText: !!rawRetryRequest?.text,
+          hasResult: !!rawRetryRequest?.result,
+          resultKeys: rawRetryRequest?.result ? Object.keys(rawRetryRequest.result) : []
+        }));
+
+        responseText = await this._extractVsCodeLmResponseText(retryRequest as any);
+        console.log('[AiService] Retry extraction result length:', responseText.length);
+        effectiveMessagesForFallback = retryMessages;
+      }
+
+      // If the configured model yields no chunks at all, try another available model once.
+      if (!responseText.trim()) {
+        const fallbackModel = await this._findAlternateModel(model.id);
+        if (fallbackModel) {
+          console.warn('[AiService] Selected model produced empty output. Trying alternate model:', fallbackModel.name || fallbackModel.id);
+          const fallbackRequest = await fallbackModel.sendRequest(effectiveMessagesForFallback, {}, this._cancellationTokenSource.token);
+          responseText = await this._extractVsCodeLmResponseText(fallbackRequest as any);
+          console.log('[AiService] Alternate model extraction result length:', responseText.length);
+        }
+      }
+
+      if (!responseText.trim()) {
+        throw new Error('AI model returned an empty response. Please retry or select a different model.');
       }
 
       return { text: responseText };
@@ -190,6 +310,173 @@ Make these questions relevant to the topic discussed and progressively more adva
         this._cancellationTokenSource = null;
       }
     }
+  }
+
+  private async _findAlternateModel(currentModelId: string): Promise<vscode.LanguageModelChat | undefined> {
+    const allModels = await this._selectChatModelsWithTimeout({});
+    if (allModels.length === 0) {
+      return undefined;
+    }
+
+    const candidates = allModels.filter(m => m.id !== currentModelId);
+    if (candidates.length === 0) {
+      return undefined;
+    }
+
+    // Prefer known stable families first if available.
+    const preferredFamilyOrder = ['gpt-4o', 'gpt-4.1', 'o3', 'claude'];
+    for (const family of preferredFamilyOrder) {
+      const match = candidates.find(m => (m.family || '').toLowerCase().includes(family));
+      if (match) {
+        return match;
+      }
+    }
+
+    return candidates[0];
+  }
+
+  private async _extractVsCodeLmResponseText(chatRequest: any): Promise<string> {
+    let responseText = '';
+    const streamPartDebug: string[] = [];
+    let streamChunkCount = 0;
+    let textChunkCount = 0;
+
+    // Stream is the canonical response channel in current VS Code APIs.
+    if (chatRequest?.stream && Symbol.asyncIterator in Object(chatRequest.stream)) {
+      for await (const part of chatRequest.stream) {
+        streamChunkCount += 1;
+        responseText += this._extractTextFromStreamPart(part, streamPartDebug);
+      }
+    }
+
+    console.log('[AiService] Stream extraction stats:', JSON.stringify({
+      streamChunkCount,
+      streamChunkTypes: streamPartDebug,
+      extractedLength: responseText.length
+    }));
+
+    if (responseText.trim()) {
+      return responseText;
+    }
+
+    // Fallback for environments where text is the only available channel.
+    if (chatRequest?.text && Symbol.asyncIterator in Object(chatRequest.text)) {
+      for await (const fragment of chatRequest.text) {
+        textChunkCount += 1;
+        responseText += this._normalizeLmTextFragment(fragment);
+      }
+    }
+
+    console.log('[AiService] Text extraction stats:', JSON.stringify({
+      textChunkCount,
+      extractedLength: responseText.length
+    }));
+
+    if (responseText.trim()) {
+      return responseText;
+    }
+
+    // Last-resort compatibility fallback.
+    const resultContent = chatRequest?.result?.content;
+    if (typeof resultContent === 'string') {
+      console.log('[AiService] Using result.content string fallback with length:', resultContent.length);
+      return resultContent;
+    }
+    if (Array.isArray(resultContent)) {
+      console.log('[AiService] Using result.content array fallback with parts:', resultContent.length);
+      return resultContent
+        .map((item: any) => {
+          if (typeof item === 'string') return item;
+          if (typeof item?.text === 'string') return item.text;
+          if (typeof item?.value === 'string') return item.value;
+          return '';
+        })
+        .join('');
+    }
+
+    if (!responseText.trim() && streamPartDebug.length > 0) {
+      console.warn('[AiService] LM stream yielded non-text parts only:', streamPartDebug.join(' | '));
+    }
+
+    return responseText;
+  }
+
+  private _normalizeLmTextFragment(fragment: any): string {
+    if (fragment === null || fragment === undefined) {
+      return '';
+    }
+    if (typeof fragment === 'string') {
+      return fragment;
+    }
+    if (typeof fragment?.value === 'string') {
+      return fragment.value;
+    }
+    if (typeof fragment?.text === 'string') {
+      return fragment.text;
+    }
+    return '';
+  }
+
+  private _extractTextFromStreamPart(part: any, debugParts?: string[]): string {
+    if (!part) {
+      return '';
+    }
+
+    const addDebugPart = (value: string): void => {
+      if (!debugParts) {
+        return;
+      }
+      if (debugParts.length < 8) {
+        debugParts.push(value);
+      }
+    };
+
+    const ctorName = part?.constructor?.name || typeof part;
+    addDebugPart(ctorName);
+
+    if (part instanceof (vscode as any).LanguageModelTextPart) {
+      return typeof part.value === 'string' ? part.value : '';
+    }
+
+    if (part instanceof (vscode as any).LanguageModelToolCallPart) {
+      addDebugPart(`tool:${part.name || 'unknown'}`);
+      return '';
+    }
+
+    if (typeof part === 'string') {
+      return part;
+    }
+    if (typeof part.text === 'string') {
+      return part.text;
+    }
+    if (typeof part.value === 'string') {
+      return part.value;
+    }
+
+    const nestedText = part?.part?.text;
+    if (typeof nestedText === 'string') {
+      return nestedText;
+    }
+
+    const nestedValue = part?.part?.value;
+    if (typeof nestedValue === 'string') {
+      return nestedValue;
+    }
+
+    const candidates = [part?.content, part?.chunk, part?.delta];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string') {
+        return candidate;
+      }
+      if (typeof candidate?.text === 'string') {
+        return candidate.text;
+      }
+      if (typeof candidate?.value === 'string') {
+        return candidate.value;
+      }
+    }
+
+    return '';
   }
 
   // Sanitize content to remove any HTML/CSS artifacts before sending to AI
