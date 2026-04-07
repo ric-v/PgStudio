@@ -1,7 +1,7 @@
 {
   "name": "postgres-explorer",
   "displayName": "PgStudio (PostgreSQL Explorer)",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "PostgreSQL database explorer for VS Code with notebook support",
   "publisher": "ric-v",
   "private": false,
@@ -16,11 +16,11 @@
   "homepage": "https://pgstudio.astrx.dev/",
   "icon": "resources/postgres-explorer.png",
   "galleryBanner": {
-    "color": "#C80000",
+    "color": "#575584",
     "theme": "dark"
   },
   "engines": {
-    "vscode": "^1.110.0",
+    "vscode": "^1.105.0",
     "node": ">=18.0.0"
   },
   "categories": [
@@ -66,16 +66,7 @@
         "title": "Edit Connection",
         "icon": "$(edit)"
       },
-      {
-        "command": "postgres-explorer.filterTree",
-        "title": "Filter Tree",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "postgres-explorer.clearFilter",
-        "title": "Clear Filter",
-        "icon": "$(search-remove)"
-      },
+
       {
         "command": "postgres-explorer.addToFavorites",
         "title": "Add to Favorites",
@@ -1224,16 +1215,7 @@
           "when": "view == postgresExplorer",
           "group": "navigation"
         },
-        {
-          "command": "postgres-explorer.filterTree",
-          "when": "view == postgresExplorer && !postgresExplorer.filterActive",
-          "group": "navigation"
-        },
-        {
-          "command": "postgres-explorer.clearFilter",
-          "when": "view == postgresExplorer && postgresExplorer.filterActive",
-          "group": "navigation"
-        },
+
         {
           "command": "postgres-explorer.refreshConnections",
           "when": "view == postgresExplorer",
@@ -2058,6 +2040,9 @@
   "main": "./dist/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-renderer -- --minify",
+    "prepare:nightly:manifests": "node ./scripts/prepare-nightly-manifests.js",
+    "package:prerelease": "npx @vscode/vsce package --pre-release",
+    "package:openvsx:nightly": "npx @vscode/vsce package",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:ssh2 --external:pg --format=cjs --platform=node --main-fields=main",
     "esbuild-renderer": "esbuild ./src/renderer_v2.ts --bundle --outfile=dist/renderer_v2.js --format=esm --platform=browser",
     "copy-templates": "cp -r templates dist/",
@@ -2101,7 +2086,7 @@
     "@types/pg": "^8.20.0",
     "@types/sinon": "^21.0.1",
     "@types/ssh2": "^1.15.5",
-    "@types/vscode": "^1.110.0",
+    "@types/vscode": "^1.105.0",
     "@types/vscode-notebook-renderer": "^1.72.4",
     "chai": "^6.2.2",
     "esbuild": ">=0.28.0",

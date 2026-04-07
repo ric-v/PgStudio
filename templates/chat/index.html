@@ -45,27 +45,19 @@
               <path d="M8 3.5a.5.5 0 0 1 .5.5v4H12a.5.5 0 0 1 0 1H8a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z" />
             </svg>
           </button>
-          <h3><span class="header-icon">🐘</span></h3>
-          <span class="ai-model-badge" onclick="openAiSettings()" title="Click to configure AI settings"
-            id="aiModelBadge">
-            <span class="sparkle-icon">✨</span>
-            <span id="aiModelName">Loading...</span>
-          </span>
-        </div>
-        <div class="chat-header-right">
           <button class="header-btn" onclick="newChat()" title="New Chat">
             <svg viewBox="0 0 16 16" fill="currentColor">
-              <path
-                d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z" />
+              <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z" />
             </svg>
           </button>
-          <button class="header-btn" onclick="clearChat()" title="Clear Current Chat">
+        </div>
+        <div class="chat-header-right">
+          <button class="header-btn ai-model-icon-btn" onclick="openAiSettings()" id="aiModelBadge"
+            title="Loading...">
             <svg viewBox="0 0 16 16" fill="currentColor">
-              <path
-                d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-              <path fill-rule="evenodd"
-                d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4L4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+              <path d="M7.657 6.247c.11-.33.576-.33.686 0l.645 1.937a2.89 2.89 0 0 0 1.829 1.828l1.936.645c.33.11.33.576 0 .686l-1.937.645a2.89 2.89 0 0 0-1.828 1.829l-.645 1.936a.361.361 0 0 1-.686 0l-.645-1.937a2.89 2.89 0 0 0-1.828-1.828l-1.937-.645a.361.361 0 0 1 0-.686l1.937-.645a2.89 2.89 0 0 0 1.828-1.828l.645-1.937zM3.794 1.148a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387A1.734 1.734 0 0 0 4.593 5.69l-.387 1.162a.217.217 0 0 1-.412 0L3.407 5.69A1.734 1.734 0 0 0 2.31 4.593l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387A1.734 1.734 0 0 0 3.407 2.31l.387-1.162zM10.863.099a.145.145 0 0 1 .274 0l.258.774c.115.346.386.617.732.732l.774.258a.145.145 0 0 1 0 .274l-.774.258a1.156 1.156 0 0 0-.732.732l-.258.774a.145.145 0 0 1-.274 0l-.258-.774a1.156 1.156 0 0 0-.732-.732L9.1 2.137a.145.145 0 0 1 0-.274l.774-.258c.346-.115.617-.386.732-.732L10.863.1z"/>
             </svg>
+            <span class="ai-model-name-tooltip" id="aiModelName">Loading...</span>
           </button>
         </div>
       </div>
@@ -118,12 +110,12 @@
           <div class="snippets-section">
             <div class="snippets-label">SQL SNIPPETS</div>
             <div class="snippets-grid">
-              <button class="snippet-btn" onclick="sendSuggestion('INNER JOIN')">INNER_JOIN</button>
-              <button class="snippet-btn" onclick="sendSuggestion('WITH cte AS')">WITH cte AS</button>
-              <button class="snippet-btn" onclick="sendSuggestion('ROW_NUMBER()')">ROW_NUMBER()</button>
-              <button class="snippet-btn" onclick="sendSuggestion('EXPLAIN ANALYZE')">EXPLAIN ANALYZE</button>
-              <button class="snippet-btn" onclick="sendSuggestion('ON CONFLICT')">ON CONFLICT</button>
-              <button class="snippet-btn" onclick="sendSuggestion('jsonb_agg')">jsonb_agg</button>
+              <button class="snippet-btn" onclick="runSnippet('Show me how INNER JOIN works in PostgreSQL with a practical example — join two tables and explain what rows are included vs excluded.')">INNER_JOIN</button>
+              <button class="snippet-btn" onclick="runSnippet('Explain how to write a CTE using WITH cte AS (...) in PostgreSQL. Show a real example and explain when to use a CTE instead of a subquery.')">WITH cte AS</button>
+              <button class="snippet-btn" onclick="runSnippet('How does ROW_NUMBER() work as a window function in PostgreSQL? Show an example that numbers rows within a partition and explain PARTITION BY and ORDER BY.')">ROW_NUMBER()</button>
+              <button class="snippet-btn" onclick="runSnippet('How do I use EXPLAIN ANALYZE in PostgreSQL to diagnose a slow query? Show what the output means and what to look for to find performance bottlenecks.')">EXPLAIN ANALYZE</button>
+              <button class="snippet-btn" onclick="runSnippet('How does ON CONFLICT work in PostgreSQL for upserts? Show examples of DO NOTHING and DO UPDATE SET, and explain when to use each.')">ON CONFLICT</button>
+              <button class="snippet-btn" onclick="runSnippet('How does jsonb_agg work in PostgreSQL? Show an example that aggregates rows into a JSON array, and explain how to use it with filters and ordering.')">jsonb_agg</button>
             </div>
           </div>
         </div>
@@ -138,20 +130,6 @@
       </div>
 
       <div class="input-wrapper" id="inputWrapper">
-        <!-- Suggestion Bubble Strip for AI-suggested next steps -->
-        <div class="bubble-strip" id="bubbleStrip" style="display: none;">
-          <div class="bubble-strip-header">
-            <div class="bubble-strip-label">Next steps:</div>
-            <button class="bubble-strip-close-btn" type="button" onclick="dismissBubbleStrip()"
-              title="Dismiss next steps" aria-label="Dismiss next steps">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <path
-                  d="M8 8.707l3.646 3.647.708-.707L8.707 8l3.647-3.646-.707-.708L8 7.293 4.354 3.646l-.708.708L7.293 8l-3.647 3.646.708.708L8 8.707z" />
-              </svg>
-            </button>
-          </div>
-          <div class="bubble-strip-content" id="bubbleStripContent"></div>
-        </div>
         
         <!-- Error Card Template for structured errors -->
         <div class="error-card" id="errorCard" style="display: none;">
@@ -187,7 +165,7 @@
         </div>
         <div class="input-container">
           <div class="composer-editor">
-            <textarea class="chat-input" id="chatInput" placeholder="Ask anything postgres/SQL... (use @ to refer a table/function)" rows="1"
+            <textarea class="chat-input" id="chatInput" placeholder="Ask anything postgres/SQL... (@ to refer a table/function)" rows="1"
               onkeydown="handleKeyDown(event)" oninput="handleChatInput(event)"></textarea>
           </div>
           <div class="composer-footer">

@@ -1038,6 +1038,14 @@ function sendMessage() {
 
 function sendSuggestion(text) {
   chatInput.value = text;
+  resizeChatInput();
+  chatInput.focus();
+  chatInput.selectionStart = chatInput.selectionEnd = chatInput.value.length;
+}
+
+function runSnippet(text) {
+  chatInput.value = text;
+  resizeChatInput();
   sendMessage();
 }
 
@@ -1345,25 +1353,30 @@ function getMarkedRenderer() {
     return `<div class="code-block-wrapper">
             <div class="code-block-header">
               <span class="code-language">${displayLang}</span>
-              <div class="code-block-actions">
-                ${isSQL ? `<button class="notebook-btn" title="Add to active notebook">
-                  <svg viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M2.5 2A1.5 1.5 0 001 3.5v9A1.5 1.5 0 002.5 14h11a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0013.5 2h-11zM2 3.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v9a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-9z"/>
-                    <path d="M7.5 5.5v2h-2v1h2v2h1v-2h2v-1h-2v-2h-1z"/>
-                  </svg>
-                  Notebook
-                </button>` : ''}
-                <button class="copy-btn">
-                  <svg viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/>
-                    <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/>
-                  </svg>
-                  Copy
-                </button>
-              </div>
             </div>
             <pre><code id="${codeId}" class="hljs language-${language}" data-raw="${safeRawCode}">${highlightedCode}</code></pre>
+            <div class="code-block-actions">
+              ${isSQL ? `<button class="notebook-btn" title="Add to active notebook">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M2.5 2A1.5 1.5 0 001 3.5v9A1.5 1.5 0 002.5 14h11a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0013.5 2h-11zM2 3.5a.5.5 0 01.5-.5h11a.5.5 0 01.5.5v9a.5.5 0 01-.5.5h-11a.5.5 0 01-.5-.5v-9z"/>
+                  <path d="M7.5 5.5v2h-2v1h2v2h1v-2h2v-1h-2v-2h-1z"/>
+                </svg>
+                Notebook
+              </button>` : ''}
+              <button class="copy-btn">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"/>
+                  <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"/>
+                </svg>
+                Copy
+              </button>
+            </div>
           </div>`;
+  };
+
+  // Render inline code as proper <code> tags (fixes "(u, o)" meta-notation)
+  renderer.codespan = function ({ text }) {
+    return `<code class="inline-code">${escapeHtml(text)}</code>`;
   };
 
   markedRenderer = renderer;
@@ -1405,6 +1418,7 @@ function sanitizeHtml(dirty) {
     'pre': ['class'],
     'button': ['class', 'title', 'aria-label', 'aria-pressed', 'aria-expanded'],
     'svg': ['viewBox', 'width', 'height', 'fill', 'class'],
+    'path': ['d', 'fill', 'fill-rule', 'clip-rule', 'stroke', 'stroke-width'],
     'span': ['class'],
     'div': ['class'],
     'p': ['class'],
@@ -1632,8 +1646,12 @@ window.addEventListener('message', event => {
       break;
     case 'updateModelInfo':
       const aiModelNameEl = document.getElementById('aiModelName');
+      const aiModelBadgeEl = document.getElementById('aiModelBadge');
       if (aiModelNameEl) {
         aiModelNameEl.textContent = message.modelName || 'Unknown';
+      }
+      if (aiModelBadgeEl) {
+        aiModelBadgeEl.title = message.modelName || 'Unknown';
       }
       break;
 
@@ -1875,48 +1893,48 @@ function updateContextBar(connectionName, database, tableName) {
  * @param {string[]} bubbles - Array of next-step suggestion texts
  */
 function showSuggestionBubbles(bubbles) {
-  const bubbleStrip = document.getElementById('bubbleStrip');
-  const bubbleStripContent = document.getElementById('bubbleStripContent');
-  
-  if (!bubbleStrip || !bubbleStripContent) return;
-  
+  // Remove any existing suggestion pills
+  dismissBubbleStrip();
+
   // Filter and validate bubbles
   const validBubbles = bubbles
     .filter(b => typeof b === 'string' && b.length > 0 && b.length <= 200)
     .slice(0, 5); // Max 5 bubbles
-  
-  if (validBubbles.length === 0) {
-    bubbleStrip.style.display = 'none';
-    return;
-  }
-  
-  // Clear and rebuild
-  bubbleStripContent.innerHTML = '';
+
+  if (validBubbles.length === 0) return;
+
+  // Find the last assistant message bubble to attach pills below it
+  const allMessages = messagesContainer.querySelectorAll('.message.assistant');
+  const lastAssistant = allMessages[allMessages.length - 1];
+  if (!lastAssistant) return;
+
+  const pillRow = document.createElement('div');
+  pillRow.className = 'suggestion-pill-row';
+  pillRow.id = 'bubbleStrip';
+
   validBubbles.forEach(text => {
-    const bubble = document.createElement('button');
-    bubble.className = 'suggestion-bubble';
-    bubble.textContent = text;
-    bubble.title = `Click to continue: ${text}`;
-    bubble.onclick = () => {
+    const pill = document.createElement('button');
+    pill.className = 'suggestion-bubble';
+    pill.textContent = text;
+    pill.title = text;
+    pill.onclick = () => {
       chatInput.value = text;
       chatInput.focus();
       dismissBubbleStrip();
-      // Optionally auto-send: sendMessage();
     };
-    bubbleStripContent.appendChild(bubble);
+    pillRow.appendChild(pill);
   });
-  
-  bubbleStrip.style.display = 'flex';
+
+  lastAssistant.appendChild(pillRow);
+  messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
 }
 
 /**
  * Dismiss the suggestion bubble strip
  */
 function dismissBubbleStrip() {
-  const bubbleStrip = document.getElementById('bubbleStrip');
-  if (bubbleStrip) {
-    bubbleStrip.style.display = 'none';
-  }
+  const existing = document.getElementById('bubbleStrip');
+  if (existing) existing.remove();
 }
 
 /**

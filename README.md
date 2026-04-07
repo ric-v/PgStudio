@@ -401,6 +401,31 @@ npx vsce publish
 npx ovsx publish
 ```
 
+### Stable And Nightly Channels
+
+- Stable releases are published from version tags (`v*`) via `.github/workflows/publish.yml`.
+- Nightly releases are published on every merge to `main` via `.github/workflows/publish-nightly.yml`.
+
+VS Code Marketplace channel behavior:
+
+- Stable extension ID: `ric-v.postgres-explorer`
+- Nightly is published as a **pre-release** of the same extension ID.
+- Users can opt in/out directly from the extension page with:
+    - `Switch to Pre-Release Version`
+    - `Switch to Release Version`
+
+Open VSX channel behavior:
+
+- Stable extension ID: `ric-v.postgres-explorer`
+- Nightly companion extension ID: `ric-v.postgres-explorer-nightly`
+- To opt out of nightly on Open VSX-based editors, uninstall the nightly companion extension and install stable.
+
+Nightly versioning policy:
+
+- Nightly builds use an odd minor stream and CI run number as patch.
+- Example format: `0.9.<run_number>`
+- This keeps nightly versions monotonically increasing for reliable updates.
+
 ---
 
 ## 📝 License

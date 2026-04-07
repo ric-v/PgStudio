@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
+import * as http from 'http';
 import { getChatViewProvider } from './extension';
 
 export interface AiSettings {
@@ -127,6 +128,12 @@ export class AiSettingsPanel {
                   throw new Error('Endpoint is required for custom provider');
                 }
                 testResult = 'Custom endpoint configured. Ensure it supports OpenAI-compatible API.';
+              } else if (settings.provider === 'ollama') {
+                const ep = settings.endpoint || 'http://localhost:11434/v1/chat/completions';
+                testResult = await this._testLocalEndpoint(ep, 'Ollama');
+              } else if (settings.provider === 'lmstudio') {
+                const ep = settings.endpoint || 'http://localhost:1234/v1/chat/completions';
+                testResult = await this._testLocalEndpoint(ep, 'LM Studio');
               }
 
               this._panel.webview.postMessage({
@@ -196,6 +203,12 @@ export class AiSettingsPanel {
                 } else {
                   models = ['custom-model'];
                 }
+              } else if (settings.provider === 'ollama') {
+                const ep = settings.endpoint || 'http://localhost:11434/v1/chat/completions';
+                models = await this._listCustomModels(ep, '');
+              } else if (settings.provider === 'lmstudio') {
+                const ep = settings.endpoint || 'http://localhost:1234/v1/chat/completions';
+                models = await this._listCustomModels(ep, '');
               }
 
               this._panel.webview.postMessage({
@@ -367,7 +380,7 @@ export class AiSettingsPanel {
           } : {}
         };
 
-        const protocol = url.protocol === 'https:' ? https : require('http');
+        const protocol = url.protocol === 'https:' ? https : http;
         const req = protocol.request(options, (res: any) => {
           let body = '';
           res.on('data', (chunk: any) => body += chunk);
@@ -390,6 +403,33 @@ export class AiSettingsPanel {
         req.end();
       } catch (e) {
         resolve(['custom-model']); // Fallback
+      }
+    });
+  }
+
+  private async _testLocalEndpoint(endpoint: string, name: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      try {
+        const url = new URL(endpoint);
+        const modelsPath = url.pathname.replace(/\/chat\/completions$/, '') + '/models';
+        const protocol = url.protocol === 'https:' ? https : http;
+        const req = protocol.request({
+          hostname: url.hostname,
+          port: url.port || (url.protocol === 'https:' ? 443 : 80),
+          path: modelsPath,
+          method: 'GET'
+        }, (res: any) => {
+          if (res.statusCode === 200) {
+            resolve(`${name} is running and reachable at ${url.hostname}:${url.port || 80}`);
+          } else {
+            reject(new Error(`${name} responded with status ${res.statusCode}. Is it running?`));
+          }
+          res.resume();
+        });
+        req.on('error', () => reject(new Error(`Cannot reach ${name} at ${endpoint}. Make sure it is running.`)));
+        req.end();
+      } catch (e: any) {
+        reject(new Error(`Invalid endpoint URL: ${e.message}`));
       }
     });
   }

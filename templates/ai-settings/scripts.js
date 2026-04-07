@@ -27,30 +27,14 @@ providerSelect.addEventListener('change', () => {
 
 function showMessage(text, isError = false) {
   const type = isError ? 'error' : 'success';
-  const icons = {
-    success: '✓',
-    error: '✗',
-    info: 'ℹ'
-  };
-  // Build message content using DOM APIs to avoid injecting untrusted HTML
-  messageDiv.className = 'message ' + type;
-  messageDiv.style.display = 'flex';
-  // Clear existing content
-  while (messageDiv.firstChild) messageDiv.removeChild(messageDiv.firstChild);
-
-  const iconSpan = document.createElement('span');
-  iconSpan.className = 'message-icon';
-  iconSpan.textContent = icons[type];
-
-  const textSpan = document.createElement('span');
-  textSpan.textContent = text;
-
-  messageDiv.appendChild(iconSpan);
-  messageDiv.appendChild(textSpan);
+  messageDiv.className = 'status-line ' + type;
+  messageDiv.style.display = 'block';
+  messageDiv.textContent = text;
 }
 
 function hideMessage() {
   messageDiv.style.display = 'none';
+  messageDiv.className = 'status-line';
 }
 
 function autoLoadModels(provider, apiKey, endpoint) {
@@ -80,6 +64,20 @@ function autoLoadModels(provider, apiKey, endpoint) {
     vscode.postMessage({
       command: 'listModels',
       settings: { provider: 'custom', apiKey: apiKey, endpoint: endpoint }
+    });
+  } else if (provider === 'ollama') {
+    // Ollama doesn't need an API key — always try to list
+    const ep = endpoint || 'http://localhost:11434/v1/chat/completions';
+    vscode.postMessage({
+      command: 'listModels',
+      settings: { provider: 'ollama', apiKey: '', endpoint: ep }
+    });
+  } else if (provider === 'lmstudio') {
+    // LM Studio doesn't need an API key — always try to list
+    const ep = endpoint || 'http://localhost:1234/v1/chat/completions';
+    vscode.postMessage({
+      command: 'listModels',
+      settings: { provider: 'lmstudio', apiKey: '', endpoint: ep }
     });
   }
 }
@@ -121,6 +119,12 @@ function getFormData() {
     apiKey = document.getElementById('apiKey-custom').value;
     model = document.getElementById('model-custom').value;
     endpoint = document.getElementById('endpoint-custom').value;
+  } else if (provider === 'ollama') {
+    model = document.getElementById('model-ollama').value;
+    endpoint = document.getElementById('endpoint-ollama').value || 'http://localhost:11434/v1/chat/completions';
+  } else if (provider === 'lmstudio') {
+    model = document.getElementById('model-lmstudio').value;
+    endpoint = document.getElementById('endpoint-lmstudio').value || 'http://localhost:1234/v1/chat/completions';
   }
 
   return { provider, apiKey, model, endpoint };
@@ -145,6 +149,12 @@ function setFormData(settings) {
     document.getElementById('apiKey-custom').value = settings.apiKey || '';
     document.getElementById('model-custom').value = settings.model || '';
     document.getElementById('endpoint-custom').value = settings.endpoint || '';
+  } else if (settings.provider === 'ollama') {
+    document.getElementById('model-ollama').value = settings.model || '';
+    document.getElementById('endpoint-ollama').value = settings.endpoint || 'http://localhost:11434/v1/chat/completions';
+  } else if (settings.provider === 'lmstudio') {
+    document.getElementById('model-lmstudio').value = settings.model || '';
+    document.getElementById('endpoint-lmstudio').value = settings.endpoint || 'http://localhost:1234/v1/chat/completions';
   }
 }
 
@@ -190,18 +200,23 @@ document.querySelectorAll('.list-models-btn').forEach(btn => {
       return;
     }
 
+    // For ollama/lmstudio use their default endpoints if not overridden
+    let endpoint = settings.endpoint;
+    if (provider === 'ollama' && !endpoint) { endpoint = 'http://localhost:11434/v1/chat/completions'; }
+    if (provider === 'lmstudio' && !endpoint) { endpoint = 'http://localhost:1234/v1/chat/completions'; }
+
     this.disabled = true;
     this.textContent = 'Loading models...';
 
     vscode.postMessage({
       command: 'listModels',
-      settings: { provider: provider, apiKey: settings.apiKey, endpoint: settings.endpoint }
+      settings: { provider: provider, apiKey: settings.apiKey, endpoint: endpoint }
     });
   });
 });
 
 // Model select change handlers
-['vscode-lm', 'openai', 'anthropic', 'gemini'].forEach(provider => {
+['vscode-lm', 'openai', 'anthropic', 'gemini', 'ollama', 'lmstudio'].forEach(provider => {
   const selectEl = document.getElementById('model-' + provider + '-select');
   const inputEl = document.getElementById('model-' + provider);
   if (selectEl && inputEl) {
@@ -273,7 +288,7 @@ window.addEventListener('message', event => {
       break;
     case 'modelsListed':
       handleModelsListed(message.models);
-      showMessage('✓ Found ' + message.models.length + ' model(s)');
+      showMessage('✓ Connected — ' + message.models.length + ' model(s) available');
       break;
     case 'modelsListError':
       showMessage('✗ Failed to list models: ' + message.error, true);

@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.8.9] - 2026-04-06
+## [0.9.2] - 2026-04-07
+
+### Added
+- **Local AI model support**: New **Ollama** and **LM Studio** providers connect to locally-running models at their default endpoints (`http://localhost:11434` and `http://localhost:1234`). No API key required.
+- **Nightly build pipeline**: Automated GitHub Actions workflow publishes pre-release builds to VS Code Marketplace and Open VSX on every push to `main`. Nightly versions use odd minor numbers (e.g., `0.9.1.{run}`).
+- **AI response timing**: Chat responses now display elapsed time alongside token usage for quick performance feedback.
+- **Code snippet execution**: Suggestion bubbles in chat can now run code snippets directly via a new `runSnippet()` action.
+
+### Changed
+- **Connection edit flow**: Editing a connection now opens `ConnectionFormPanel` directly instead of dispatching a command, making the flow more reliable.
+- **Connection card styling**: Environment-specific accent colors (green for DEV, orange for STAGING, red for PROD) applied consistently across connection cards.
+- **Chat input focus**: `sendSuggestion()` now properly focuses the input and positions the cursor after inserting a suggestion.
+- **Publish workflow**: Version mismatch between the git tag and `package.json` now fails the build instead of emitting a warning.
+
+### Fixed
+- **Inline code rendering**: Fixed markdown rendering of inline code in chat responses (resolves display issues with meta-notation like `(u, o)`).
+- **SVG icon sizing**: Code block action buttons now have explicit `width`/`height` attributes, preventing layout inconsistencies across themes.
+
+### Removed
+- **Tree filter commands**: `postgres-explorer.filterTree` and `postgres-explorer.clearFilter` removed from activation — these experimental commands were unused.
+
+---
+
+## [0.9.0] - 2026-04-06
 
 ### Added
 - **Anthropic model discovery**: AI Settings now lists Anthropic models from the official `/v1/models` API instead of a fixed local list.

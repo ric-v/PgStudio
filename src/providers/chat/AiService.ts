@@ -518,7 +518,7 @@ The UI will automatically parse this and show clickable suggestion bubbles.`;
     const apiKey = await this._getDirectApiKey(config);
     
     // API key is required for most providers, but optional for custom endpoints
-    if (!apiKey && provider !== 'custom') {
+    if (!apiKey && provider !== 'custom' && provider !== 'ollama' && provider !== 'lmstudio') {
       throw new Error(`API Key is required for ${provider} provider. Please configure postgresExplorer.aiApiKey.`);
     }
 
@@ -608,6 +608,30 @@ The UI will automatically parse this and show clickable suggestion bubbles.`;
         model: model,
         messages: messages
       };
+    } else if (provider === 'ollama') {
+      endpoint = config.get<string>('aiEndpoint') || 'http://localhost:11434/v1/chat/completions';
+      model = model || '';
+
+      const messages: any[] = [];
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+      }
+      messages.push(...conversationHistory);
+      messages.push({ role: 'user', content: userMessage });
+
+      body = { model, messages };
+    } else if (provider === 'lmstudio') {
+      endpoint = config.get<string>('aiEndpoint') || 'http://localhost:1234/v1/chat/completions';
+      model = model || '';
+
+      const messages: any[] = [];
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+      }
+      messages.push(...conversationHistory);
+      messages.push({ role: 'user', content: userMessage });
+
+      body = { model, messages };
     } else {
       throw new Error(`Unsupported provider: ${provider}`);
     }
@@ -753,6 +777,8 @@ The UI will automatically parse this and show clickable suggestion bubbles.`;
       case 'anthropic': return 'claude-3-5-sonnet-20241022';
       case 'gemini': return 'gemini-1.5-flash';
       case 'custom': return 'custom-model';
+      case 'ollama': return 'ollama';
+      case 'lmstudio': return 'lm-studio';
       default: return 'Unknown';
     }
   }

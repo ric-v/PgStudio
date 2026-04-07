@@ -151,58 +151,6 @@ export function registerAllCommands(
       callback: async (item: DatabaseTreeItem) => await cmdTableDefinition(item, context)
     },
     {
-      command: 'postgres-explorer.filterTree',
-      callback: async () => {
-        const currentFilter = databaseTreeProvider.filterPattern;
-
-        if (currentFilter) {
-          // Filter is active - show options to modify or clear
-          const choice = await vscode.window.showQuickPick([
-            { label: '$(close) Clear Filter', value: 'clear' },
-            { label: '$(edit) Change Filter', value: 'change', description: `Current: "${currentFilter}"` }
-          ], { placeHolder: `Filter active: "${currentFilter}"` });
-
-          if (choice?.value === 'clear') {
-            databaseTreeProvider.clearFilter();
-            vscode.commands.executeCommand('setContext', 'postgresExplorer.filterActive', false);
-            vscode.window.showInformationMessage('Filter cleared');
-          } else if (choice?.value === 'change') {
-            const pattern = await vscode.window.showInputBox({
-              prompt: 'Enter filter pattern',
-              placeHolder: 'e.g., users, product, order',
-              value: currentFilter
-            });
-            if (pattern !== undefined) {
-              databaseTreeProvider.setFilter(pattern);
-              vscode.commands.executeCommand('setContext', 'postgresExplorer.filterActive', pattern.length > 0);
-              if (pattern) {
-                vscode.window.showInformationMessage(`Filter applied: "${pattern}"`);
-              }
-            }
-          }
-        } else {
-          // No filter active - show input
-          const pattern = await vscode.window.showInputBox({
-            prompt: 'Enter filter pattern',
-            placeHolder: 'e.g., users, product, order'
-          });
-          if (pattern !== undefined && pattern.length > 0) {
-            databaseTreeProvider.setFilter(pattern);
-            vscode.commands.executeCommand('setContext', 'postgresExplorer.filterActive', true);
-            vscode.window.showInformationMessage(`Filter applied: "${pattern}"`);
-          }
-        }
-      }
-    },
-    {
-      command: 'postgres-explorer.clearFilter',
-      callback: () => {
-        databaseTreeProvider.clearFilter();
-        vscode.commands.executeCommand('setContext', 'postgresExplorer.filterActive', false);
-        vscode.window.showInformationMessage('Filter cleared');
-      }
-    },
-    {
       command: 'postgres-explorer.generateQuery',
       callback: async () => {
         if (!chatViewProviderInstance) {
