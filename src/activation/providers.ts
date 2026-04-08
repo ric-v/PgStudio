@@ -7,6 +7,7 @@ import { PostgresNotebookSerializer } from '../postgresNotebook';
 import { QueryCodeLensProvider } from '../providers/QueryCodeLensProvider';
 import { QueryHistoryProvider } from '../providers/QueryHistoryProvider';
 import { ProfilesTreeProvider, SavedQueriesTreeProvider } from '../providers/Phase7TreeProviders';
+import { NotebooksTreeProvider } from '../providers/NotebooksTreeProvider';
 
 export function registerProviders(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
   // Create database tree provider instance
@@ -94,11 +95,20 @@ export function registerProviders(context: vscode.ExtensionContext, outputChanne
     vscode.window.registerTreeDataProvider('postgresExplorer.savedQueries', savedQueriesTreeProvider)
   );
 
+  // Notebooks panel — browse all notebooks in globalStorage
+  const notebooksTreeProvider = new NotebooksTreeProvider(context.globalStorageUri);
+  const notebooksTreeView = vscode.window.createTreeView('postgresExplorer.notebooks', {
+    treeDataProvider: notebooksTreeProvider,
+    showCollapseAll: true
+  });
+  context.subscriptions.push(notebooksTreeView);
+
   return {
     databaseTreeProvider,
     treeView,
     chatViewProviderInstance,
     queryHistoryProvider,
-    savedQueriesTreeProvider
+    savedQueriesTreeProvider,
+    notebooksTreeProvider
   };
 }

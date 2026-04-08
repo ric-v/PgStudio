@@ -98,6 +98,36 @@
         "icon": "$(new-file)"
       },
       {
+        "command": "postgres-explorer.jumpToSection",
+        "title": "Jump to Section",
+        "category": "PgStudio",
+        "icon": "$(list-unordered)"
+      },
+      {
+        "command": "postgres-explorer.notebooks.open",
+        "title": "Open Notebook",
+        "category": "PgStudio",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "postgres-explorer.notebooks.rename",
+        "title": "Rename Notebook",
+        "category": "PgStudio",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "postgres-explorer.notebooks.delete",
+        "title": "Delete Notebook",
+        "category": "PgStudio",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "postgres-explorer.notebooks.refresh",
+        "title": "Refresh Notebooks",
+        "category": "PgStudio",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "postgres-explorer.generateQuery",
         "title": "AI: Generate Query",
         "category": "PgStudio"
@@ -1029,6 +1059,12 @@
           "name": "Query History",
           "contextualTitle": "PG Studio",
           "icon": "$(history)"
+        },
+        {
+          "id": "postgresExplorer.notebooks",
+          "name": "Notebooks",
+          "contextualTitle": "PG Studio",
+          "icon": "$(notebook)"
         }
       ]
     },
@@ -1210,7 +1246,19 @@
       }
     },
     "menus": {
+      "notebook/toolbar": [
+        {
+          "command": "postgres-explorer.jumpToSection",
+          "when": "notebookType == 'postgres-notebook'",
+          "group": "navigation@99"
+        }
+      ],
       "view/title": [
+        {
+          "command": "postgres-explorer.notebooks.refresh",
+          "when": "view == postgresExplorer.notebooks",
+          "group": "navigation"
+        },
         {
           "command": "postgres-explorer.addConnection",
           "when": "view == postgresExplorer",
@@ -1259,6 +1307,21 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "postgres-explorer.notebooks.open",
+          "when": "view == postgresExplorer.notebooks && viewItem == notebook-file",
+          "group": "inline@1"
+        },
+        {
+          "command": "postgres-explorer.notebooks.rename",
+          "when": "view == postgresExplorer.notebooks && viewItem == notebook-file",
+          "group": "1_actions"
+        },
+        {
+          "command": "postgres-explorer.notebooks.delete",
+          "when": "view == postgresExplorer.notebooks && viewItem == notebook-file",
+          "group": "9_destructive"
+        },
         {
           "command": "postgres-explorer.copyQuery",
           "when": "view == postgresExplorer.history",

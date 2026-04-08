@@ -30,7 +30,12 @@ export const ProgressLocation = { Notification: 1, Window: 2, SourceControl: 3 }
 export const workspace: {
   getConfiguration(section?: string): WorkspaceConfiguration;
   onDidChangeConfiguration(cb?: any): { dispose(): void };
-  fs: { readFile(uri: any): Thenable<Uint8Array>; writeFile(uri: any, b: Uint8Array): Thenable<void> };
+  fs: {
+    readFile(uri: any): Thenable<Uint8Array>;
+    writeFile(uri: any, b: Uint8Array): Thenable<void>;
+    stat(uri: any): Thenable<any>;
+    createDirectory(uri: any): Thenable<void>;
+  };
   notebookDocuments: any[];
   onDidOpenNotebookDocument(cb?: any): { dispose(): void };
   onDidSaveNotebookDocument(cb?: any): { dispose(): void };
@@ -45,7 +50,9 @@ export const workspace: {
   onDidChangeConfiguration: (_cb?: any) => ({ dispose: () => { } }),
   fs: {
     readFile: async (_uri: any) => new Uint8Array(),
-    writeFile: async (_uri: any, _b: Uint8Array) => { }
+    writeFile: async (_uri: any, _b: Uint8Array) => { },
+    stat: async (_uri: any) => { throw new Error('FileNotFound'); },
+    createDirectory: async (_uri: any) => { }
   },
   notebookDocuments: [] as any[],
   onDidOpenNotebookDocument: (_cb?: any) => ({ dispose: () => { } }),
@@ -78,6 +85,7 @@ export const window = {
   showWarningMessage: async (_msg?: string) => undefined,
   showQuickPick: async (_items?: any[], _opts?: any) => undefined,
   showSaveDialog: async (_opts?: any) => undefined,
+  showNotebookDocument: async (_doc?: any, _opts?: any) => new NotebookEditor(),
   createTreeView: (_id: string, _opts?: any) => ({ reveal: async (_item?: any, _opts?: any) => { } }),
   withProgress: async (_opt: any, _cb: any) => { return await _cb({ report: (_: any) => { } }); }
 } as any;
@@ -105,6 +113,8 @@ export type NotebookCellKind = typeof NotebookCellKind[keyof typeof NotebookCell
 
 export class NotebookCellData { constructor(public kind: NotebookCellKind, public value: string, public language?: string) { } }
 export class NotebookRange { constructor(public start: number, public end: number) { } }
+export const NotebookEditorRevealType = { Default: 0, InCenter: 1, InCenterIfOutsideViewport: 2, AtTop: 3 } as const;
+export type NotebookEditorRevealType = typeof NotebookEditorRevealType[keyof typeof NotebookEditorRevealType];
 export class NotebookEdit {
   constructor(public range: NotebookRange | number, public cells: NotebookCellData[]) { }
   static insertCells(rangeOrIndex: any, cells: NotebookCellData[]) { return new NotebookEdit(rangeOrIndex, cells); }
@@ -120,13 +130,13 @@ export interface Disposable { dispose(): void }
 export class NotebookCellOutput { constructor(public items: any[], public metadata?: any) { } }
 export class NotebookCellOutputItem { constructor(public data: any, public mime: string) { } static text(v: string, m?: string) { return new NotebookCellOutputItem(v, m || 'text/plain'); } static json(o: any, m?: string) { return new NotebookCellOutputItem(JSON.stringify(o), m || 'application/json'); } static error(e: any) { return new NotebookCellOutputItem(String(e), 'application/vnd.code.notebook.error'); } }
 
-export class NotebookDocument { uri: Uri; metadata?: any; constructor(uri?: Uri, metadata?: any) { this.uri = uri || new Uri('/tmp/mock'); this.metadata = metadata || {}; } getText(_r?: any) { return ''; } getCells(): NotebookCell[] { return []; } }
+export class NotebookDocument { uri: Uri; metadata?: any; isClosed: boolean = false; cellCount: number = 0; constructor(uri?: Uri, metadata?: any) { this.uri = uri || new Uri('/tmp/mock'); this.metadata = metadata || {}; } getText(_r?: any) { return ''; } getCells(): NotebookCell[] { return []; } }
 // notebookType is used throughout the codebase to distinguish notebook flavors
 export interface NotebookDocumentLike { notebookType?: string; }
 Object.assign(NotebookDocument.prototype, { notebookType: undefined });
 // ensure TypeScript knows about notebookType on the class
 declare module './vscode' { interface NotebookDocument { notebookType?: string } }
-export class NotebookEditor { notebook: NotebookDocument = new NotebookDocument(new Uri('/tmp/mock')); selection?: NotebookRange; }
+export class NotebookEditor { notebook: NotebookDocument = new NotebookDocument(new Uri('/tmp/mock')); selection?: NotebookRange; revealRange(_range: NotebookRange, _revealType?: any) { } }
 
 export class CompletionItem { detail?: string; documentation?: string | MarkdownString; insertText?: string | SnippetString; sortText?: string; filterText?: string; constructor(public label: string, public kind?: number) { } }
 export const CompletionItemKind = { Text: 0, Method: 1, Function: 2, Constructor: 3, Field: 4, Variable: 5, Class: 6, Interface: 7, Module: 8, Property: 9, Unit: 10, Value: 11, Enum: 12, Keyword: 13, Snippet: 14, Color: 15, File: 16, Reference: 17, Folder: 18, EnumMember: 19, Constant: 20, Struct: 21, Event: 22, Operator: 23, TypeParameter: 24 } as const;

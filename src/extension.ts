@@ -6,7 +6,8 @@ import { ConnectionManager } from './services/ConnectionManager';
 import { SecretStorageService } from './services/SecretStorageService';
 import { ProfileManager } from './services/ProfileManager';
 import { SavedQueriesService } from './services/SavedQueriesService';
-import { ErrorHandlers } from './commands/helper';
+import { ErrorHandlers, NotebookBuilder } from './commands/helper';
+import { SessionRegistry } from './services/SessionRegistry';
 import { registerProviders } from './activation/providers';
 import { registerAllCommands } from './activation/commands';
 import { NotebookStatusBar } from './activation/statusBar';
@@ -61,6 +62,23 @@ export function getChatViewProvider(): ChatViewProvider | undefined {
 
 export async function activate(context: vscode.ExtensionContext) {
   extensionContext = context;
+
+  // Provide extension context to NotebookBuilder for persistent session support (Req 5.4)
+  NotebookBuilder.setContext(context);
+
+  // Clean up SessionRegistry when a scratch notebook is closed (Req 6.1, 6.2)
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseNotebookDocument((closedDoc) => {
+      const closedUri = closedDoc.uri.toString();
+      for (const [connectionId, doc] of SessionRegistry.entries()) {
+        if (doc.uri.toString() === closedUri) {
+          SessionRegistry.delete(connectionId);
+          break;
+        }
+      }
+    })
+  );
+
   outputChannel = vscode.window.createOutputChannel('PgStudio');
   outputChannel.appendLine('Activating PgStudio extension');
 
@@ -106,13 +124,13 @@ export async function activate(context: vscode.ExtensionContext) {
   SavedQueriesService.getInstance().initialize(context);
   await ProfileManager.getInstance().initializeDefaultProfiles();
 
-  const { databaseTreeProvider, treeView, chatViewProviderInstance: chatView, savedQueriesTreeProvider } = registerProviders(context, outputChannel);
+  const { databaseTreeProvider, treeView, chatViewProviderInstance: chatView, savedQueriesTreeProvider, notebooksTreeProvider } = registerProviders(context, outputChannel);
   chatViewProvider = chatView;
 
   // Store tree view instance for reveal functionality
   (databaseTreeProvider as any).setTreeView(treeView);
 
-  registerAllCommands(context, databaseTreeProvider, chatView, outputChannel, savedQueriesTreeProvider);
+  registerAllCommands(context, databaseTreeProvider, chatView, outputChannel, savedQueriesTreeProvider, notebooksTreeProvider);
 
   // Kernel initialization
   const rendererMessaging = vscode.notebooks.createRendererMessaging('postgres-query-renderer');

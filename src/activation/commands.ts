@@ -15,7 +15,7 @@ import { cmdCreateForeignTable, cmdEditForeignTable, cmdForeignTableOperations, 
 import { cmdForeignDataWrapperOperations, cmdShowForeignDataWrapperProperties, cmdCreateForeignServer, cmdForeignServerOperations, cmdShowForeignServerProperties, cmdDropForeignServer, cmdCreateUserMapping, cmdUserMappingOperations, cmdShowUserMappingProperties, cmdDropUserMapping, cmdRefreshForeignDataWrapper, cmdRefreshForeignServer, cmdRefreshUserMapping } from '../commands/foreignDataWrappers';
 import { cmdCallFunction, cmdCreateFunction, cmdDropFunction, cmdEditFunction, cmdFunctionOperations, cmdRefreshFunction, cmdShowFunctionProperties } from '../commands/functions';
 import { cmdCreateMaterializedView, cmdDropMatView, cmdEditMatView, cmdMatViewOperations, cmdRefreshMatView, cmdViewMatViewData, cmdViewMatViewProperties } from '../commands/materializedViews';
-import { cmdNewNotebook, cmdExplainQuery } from '../commands/notebook';
+import { cmdNewNotebook, cmdExplainQuery, cmdJumpToSection } from '../commands/notebook';
 import { cmdCreateObjectInSchema, cmdCreateSchema, cmdSchemaOperations, cmdShowSchemaProperties, cmdPasteTable } from '../commands/schema';
 import {
   cmdCreateTable, cmdDropTable, cmdEditTable, cmdInsertTable, cmdMaintenanceAnalyze, cmdMaintenanceReindex, cmdMaintenanceVacuum, cmdScriptCreate, cmdScriptDelete, cmdScriptInsert, cmdScriptSelect, cmdScriptUpdate, cmdShowTableProperties, cmdTableOperations, cmdTruncateTable, cmdUpdateTable, cmdViewTableData, cmdTableProfile, cmdTableActivity, cmdQuickCloneTable, cmdExportTable, cmdIndexUsage, cmdTableDefinition
@@ -53,13 +53,15 @@ import { pickQueryHistory } from '../commands/pickQueryHistory';
 
 // Visual Schema Design
 import { cmdOpenTableDesigner, cmdCreateTableVisual, cmdOpenSchemaDiff } from '../commands/schemaDesigner';
+import { NotebookTreeItem, NotebooksTreeProvider } from '../providers/NotebooksTreeProvider';
 
 export function registerAllCommands(
   context: vscode.ExtensionContext,
   databaseTreeProvider: DatabaseTreeProvider,
   chatViewProviderInstance: ChatViewProvider | undefined,
   outputChannel: vscode.OutputChannel,
-  savedQueriesTreeProvider?: SavedQueriesTreeProvider
+  savedQueriesTreeProvider?: SavedQueriesTreeProvider,
+  notebooksTreeProvider?: NotebooksTreeProvider
 ) {
   const commands = [
     {
@@ -301,6 +303,52 @@ export function registerAllCommands(
     {
       command: 'postgres-explorer.newNotebook',
       callback: async (item: any) => await cmdNewNotebook(item)
+    },
+    {
+      command: 'postgres-explorer.jumpToSection',
+      callback: async () => await cmdJumpToSection()
+    },
+    {
+      command: 'postgres-explorer.notebooks.refresh',
+      callback: () => notebooksTreeProvider?.refresh()
+    },
+    {
+      command: 'postgres-explorer.notebooks.open',
+      callback: async (item: NotebookTreeItem) => {
+        if (item?.uri) {
+          const doc = await vscode.workspace.openNotebookDocument(item.uri);
+          await vscode.window.showNotebookDocument(doc, { preserveFocus: false });
+        }
+      }
+    },
+    {
+      command: 'postgres-explorer.notebooks.rename',
+      callback: async (item: NotebookTreeItem) => {
+        if (!item?.uri) { return; }
+        const oldName = (item.label as string);
+        const newName = await vscode.window.showInputBox({
+          prompt: 'New notebook name',
+          value: oldName,
+          validateInput: v => v && /^[a-zA-Z0-9_-]+$/.test(v) ? null : 'Use only letters, numbers, hyphens, underscores'
+        });
+        if (!newName || newName === oldName) { return; }
+        const newUri = vscode.Uri.joinPath(item.uri, '..', `${newName}.pgsql`);
+        await vscode.workspace.fs.rename(item.uri, newUri, { overwrite: false });
+        notebooksTreeProvider?.refresh();
+      }
+    },
+    {
+      command: 'postgres-explorer.notebooks.delete',
+      callback: async (item: NotebookTreeItem) => {
+        if (!item?.uri) { return; }
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete "${item.label as string}.pgsql"? This cannot be undone.`,
+          { modal: true }, 'Delete'
+        );
+        if (confirm !== 'Delete') { return; }
+        await vscode.workspace.fs.delete(item.uri, { recursive: false });
+        notebooksTreeProvider?.refresh();
+      }
     },
     {
       command: 'postgres-explorer.refresh',
