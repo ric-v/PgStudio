@@ -1,7 +1,7 @@
 {
   "name": "postgres-explorer",
   "displayName": "PgStudio (PostgreSQL Explorer)",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "PostgreSQL database explorer for VS Code with notebook support",
   "publisher": "ric-v",
   "private": false,
@@ -66,7 +66,6 @@
         "title": "Edit Connection",
         "icon": "$(edit)"
       },
-
       {
         "command": "postgres-explorer.addToFavorites",
         "title": "Add to Favorites",
@@ -1273,7 +1272,6 @@
           "when": "view == postgresExplorer",
           "group": "navigation"
         },
-
         {
           "command": "postgres-explorer.refreshConnections",
           "when": "view == postgresExplorer",
