@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **GitHub auth UX**: GitHub provider connection now uses the standard VS Code GitHub sign-in flow in AI Settings, with provider state reflected in the UI.
+- **Nightly release channel**: Nightly builds are now available as pre-release updates, including a dedicated Open VSX nightly companion package for early access testing.
 
 ### Fixed
 - **Image CSP**: Added `img-src data: blob:` to the webview Content Security Policy so image thumbnails actually render (previously blocked by `default-src 'none'`).

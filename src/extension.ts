@@ -154,6 +154,8 @@ export async function activate(context: vscode.ExtensionContext) {
       void whatsNewManager.checkAndShow(true);
     })
   );
+  // Auto-open once on install/update; manager tracks the last shown version in global state.
+  void whatsNewManager.checkAndShow(false);
 
   const queryKernel = new PostgresKernel(context, rendererMessaging, 'postgres-query');
 
