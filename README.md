@@ -7,11 +7,11 @@
 [![Version](https://img.shields.io/visual-studio-marketplace/v/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=0066CC)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=2ECC71)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=F39C12)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
-[![Status](https://img.shields.io/badge/status-stable%20v1.0.0-green?style=for-the-badge&logo=git&logoColor=white)](https://github.com/dev-asterix/PgStudio/releases/tag/v1.0.0)
+[![Status](https://img.shields.io/badge/status-stable%20v1.0.0%20%2B%20nightly-blue?style=for-the-badge&logo=git&logoColor=white)](https://github.com/dev-asterix/PgStudio/releases)
 
 **PgStudio** (formerly YAPE) is a comprehensive PostgreSQL database management extension featuring interactive SQL notebooks, real-time monitoring dashboard, AI-powered assistance, and advanced database operations—all within VS Code.
 
-[📖 **Documentation**](https://pgstudio.astrx.dev/) • [🛒 **Marketplace**](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer) • [🤝 **Contributing**](#-contributing) • [📝 **v1.0.0 Release Notes**](docs/RELEASE_NOTES_v1.0.0.md)
+[📖 **Documentation**](https://pgstudio.astrx.dev/) • [🛒 **Marketplace**](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer) • [🤝 **Contributing**](#-contributing) • [📝 **v1.0.0 Release Notes**](docs/RELEASE_NOTES_v1.0.0.md) • [📋 **Changelog**](CHANGELOG.md)
 
 </div>
 
@@ -39,15 +39,20 @@
 - 🛡️ **Connection Safety** — Environment tagging (🔴 PROD, 🟡 STAGING, 🟢 DEV), read-only mode, query safety analyzer
 - ⏱️ **Performance Tracking** — Historical query execution monitoring with degradation alerts
 - 📊 **Live Dashboard** — Real-time metrics & query monitoring
+- 🚦 **Dashboard Health Signals** — Status badges, lock/wait indicators, and performance-focused telemetry cards
 - 📓 **SQL Notebooks** — Interactive notebooks with AI assistance
+- 🗂️ **Notebook Manager** — Open/create notebooks with searchable picker and improved metadata context
 - 💾 **Saved Queries** — Tag-based organization, connection context restoration, AI metadata generation, edit & reuse
 - 🌳 **Database Explorer** — Browse tables, views, functions, types, FDWs
-- 🛠️ **Object Operations** — CRUD, scripts, VACUUM, ANALYZE, REINDEX
+- 🛠️ **Object Operations** — CRUD, scripts, VACUUM, ANALYZE, REINDEX, plus triggers/sequences/domains/rules/partitions/publications/event triggers/tablespaces/aggregates
 - 🏗️ **Visual Table Designer** — Create/Edit tables with a robust GUI
+- 🧭 **Definition Viewer (SQL Preview)** — Open object DDL with toggleable SQL preview, copy/edit workflows, and routine scaffolding
 - 🔑 **Index & Constraint Manager** — Visual management of DB constraints
+- 🧠 **Schema Intelligence** — Schema search, index advisor, and migration generator workflows
 - 📋 **Smart Paste** — Context-aware clipboard actions (SQL/CSV/JSON)
 - 📊 **Table Intelligence** — Profile, activity monitor, index usage, definition viewer
 - 🔍 **EXPLAIN CodeLens** — One-click query analysis directly in notebooks
+- 🎛️ **Advanced Result UX** — Column stats, transpose view, enhanced filtering, and improved in-grid editing controls
 - 🛡️ **Auto-LIMIT** — Intelligent query protection (configurable, default 1000 rows)
 - 🌍 **Foreign Data Wrappers** — Manage foreign servers, user mappings & tables
 - 🤖 **AI-Powered** — Generate, Optimize, Explain & Analyze with guided follow-ups and next-step suggestions (GitHub Models, OpenAI, Anthropic, Gemini, VS Code LM)
@@ -151,7 +156,7 @@ Then: **PostgreSQL icon** → **Add Connection** → Enter details → **Connect
 - `README.md` - Product overview, installation, development, and troubleshooting
 - `docs/ARCHITECTURE.md` - System architecture and component/data-flow details
 - `docs/STYLING_GUIDE.md` - Centralized styling/templates and UI refactoring patterns
-- `docs/ROADMAP.md` - Active pipeline and upcoming phases
+- `docs/WEBSITE_CONTEXT.md` - Website architecture and content context
 - `docs/API_STABILITY.md` - v1.x API stability and deprecation policy
 - `docs/SECURITY_REVIEW.md` - v1.0 security controls and release checklist
 - `docs/RELEASE_NOTES_v1.0.0.md` - v1.0 highlights and release notes
@@ -159,7 +164,7 @@ Then: **PostgreSQL icon** → **Add Connection** → Enter details → **Connect
 - `SECURITY.md` - Security policy and vulnerability reporting guidance
 - `CHANGELOG.md` - Release notes and what changed across versions
 
-**v1.0.0 (Latest) —** Production-ready release with comprehensive security audit, expanded test coverage, API stability guarantees, and production deployment guides. See [Release Notes](docs/RELEASE_NOTES_v1.0.0.md) and [Migration Guide](docs/MIGRATION_GUIDE_0.x_to_1.0.0.md) for upgrade details.
+**Stable: v1.0.0 | Nightly: v1.0.0-nightly+ —** Production-ready stable release plus active nightly improvements (dashboard telemetry UX and SQL Preview toggle workflows). See [Release Notes](docs/RELEASE_NOTES_v1.0.0.md), [Migration Guide](docs/MIGRATION_GUIDE_0.x_to_1.0.0.md), and [CHANGELOG.md](CHANGELOG.md) for details.
 
 ---
 

@@ -5,15 +5,21 @@ All notable changes to the PostgreSQL Explorer extension will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
-
 ## [1.0.0] - 2026-04-14
 
-### ✨ Production Stable Release
+### Production Stable Release
 
 PgStudio v1.0.0 is a major milestone release with comprehensive stability improvements, security hardening, and production-ready tooling.
 
-### 🛡️ Security & Stability
+#### Added
+- **DDL Viewer SQL Preview toggle**: Added user-facing toggle command and setting (`pgstudio.ddlViewer.enabled`) to quickly enable/disable definition preview actions.
+- **Definition Viewer workflow actions**: Improved DDL viewer command surface for opening editable copies, copying SQL, and routine execution scaffolding.
+
+#### Changed
+- **Dashboard visual telemetry polish**: Enhanced dashboard styling with richer badges, status signals, and clearer performance insight presentation.
+- **Nightly packaging metadata**: Aligned nightly channel metadata and version stream (`1.0.0-nightly`) for pre-release distribution.
+
+### Security & Stability
 
 #### Critical Fixes
 - **Fixed TypeScript compilation errors** (P0 blockers):
@@ -40,7 +46,7 @@ PgStudio v1.0.0 is a major milestone release with comprehensive stability improv
   - Threat model, existing controls, and verification checklist
   - Release sign-off criteria for future versions
 
-### 📚 Documentation & Release Materials
+### Documentation & Release Materials
 
 #### New User-Facing Docs
 - **Release Notes** (`docs/RELEASE_NOTES_v1.0.0.md`): Features, stability guarantees, system requirements, known limitations
@@ -48,7 +54,27 @@ PgStudio v1.0.0 is a major milestone release with comprehensive stability improv
 - **Updated README.md**: Added feature matrix (8 categories) and explicit known limitations section
 - **Updated MARKETPLACE.md**: VSX marketplace copy with feature matrix and limitations
 
-### 🧪 Test Coverage Expansion
+#### PostgreSQL Object Coverage
+- **New command suites** for additional object families:
+  - Aggregates, domains, event triggers, partitions, publications, rules, sequences, tablespaces, and triggers
+  - Extended SQL templates under `src/commands/sql/` for these object operations
+  - Expanded explorer/command palette workflows for more complete PostgreSQL administration
+
+#### Schema & Modeling Tooling
+- **Schema Search**: Added schema object discovery commands.
+- **Index Advisor**: Introduced index recommendation workflow.
+- **Migration Generator**: Added migration-oriented command workflow.
+- **ERD and Import tooling**: Added dedicated panels for ERD exploration and import-data workflows.
+
+#### Notebook, Renderer, and Query UX
+- **Notebook management UX**: Improved notebook open/create picker workflows and metadata handling.
+- **SQL formatting command/service**: Added formatter command path and supporting service.
+- **Result renderer enhancements**: Added column stats, result tab strip, transpose view, filter bar upgrades, and richer cell editor support.
+
+#### Operational Panels
+- Added dedicated providers for **Activity Monitor**, **Column Profile**, **LISTEN/NOTIFY**, **Mock Data**, **Server Logs**, and **Snippets**.
+
+### Test Coverage Expansion
 
 #### New Test Files
 - **FormatSqlCommand.test.ts** (45 lines): Unit tests for SQL formatting command layer
@@ -69,47 +95,19 @@ PgStudio v1.0.0 is a major milestone release with comprehensive stability improv
   - New assertions: Degradation alert confidence (≥5 samples), Welford variance validation
 
 #### Overall Coverage
-- ✅ Utils phase: 100% lines, 90.12% branches
-- 🟡 Handlers phase: 82.4% lines, 89.79% functions (0.21% below 90% threshold — acceptable for v1.0.0)
-- ✅ 250+ unit tests across 57 test files — all passing
-- ✅ Production build: Minified extension 1.0mb, renderer 298.2kb
+- Utils phase: 100% lines, 90.12% branches
+- Handlers phase: 82.4% lines, 89.79% functions (0.21% below 90% threshold — acceptable for v1.0.0)
+- 250+ unit tests across 57 test files — all passing
+- Production build: Minified extension 1.0mb, renderer 298.2kb
+- Broadened unit coverage across command, provider, service, renderer, and handler layers (including formatter, dashboard HTML, and row/handler flows)
 
-### 🎯 Quality Gates & Verification
-
-#### Pre-Release Checklist ✅
-- ✅ TypeScript strict compilation: 0 errors
-- ✅ Security audit: PASS (no critical vulnerabilities)
-- ✅ Full test suite: PASS (250+ tests)
-- ✅ Utils coverage gates: PASS (100% lines, 90.12% branches)
-- ✅ Production build: PASS (`npm run vscode:prepublish`)
-- ✅ All documentation delivered
-
-### 📋 Known Limitations (v1.0.0)
-
-Documented in README.md and Release Notes:
-- **In-grid editing**: Limited compared to desktop IDEs (improved UX planned for v1.1+)
-- **Schema visualization**: ERD depth still maturing (scheduled enhancement)
-- **Advanced replication**: Publication/subscription administration partial (v1.1+)
-
-### 🔄 Version Compatibility
+### Version Compatibility
 
 - **Minimum VS Code**: 1.90.0
 - **Node.js**: 18.0.0+
 - **PostgreSQL**: 10.0+
 - **SSL/TLS**: Full support with fallback options
 - **SSH Tunneling**: Fully functional
-
-### 🚀 Recommendations for v1.1.0+
-
-1. **Test Coverage**: Add missing handler tests (FkLookupHandler, InsertRowHandler) for 100% coverage
-2. **UI/UX**: Implement in-grid row editing with inline controls
-3. **Visualization**: Complete ERD with interactive relationship mapping
-4. **Replication**: Full publication/subscription admin panel
-5. **ESLint**: Add strict linting rules for future releases
-
-### 🙏 Acknowledgments
-
-Special thanks to all contributors and users who provided feedback during 0.9.x development. Your reports and feature requests shaped this stable foundation!
 
 ---
 
