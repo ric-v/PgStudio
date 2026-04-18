@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { IMessageHandler } from '../MessageHandler';
 import { ConnectionUtils } from '../../utils/connectionUtils';
 import { PostgresMetadata } from '../../common/types';
+import { DatabaseTreeItem } from '../../providers/DatabaseTreeProvider';
 
 export class ShowConnectionSwitcherHandler implements IMessageHandler {
   constructor(private statusBar: any) { }
@@ -122,6 +123,30 @@ export class ImportPickFileHandler implements IMessageHandler {
 
     // Step 5: Insert
     await performImport({ table, schema, data: parsedData, onConflict: conflictChoice.value }, connection);
+  }
+}
+
+export class OpenImportDataHandler implements IMessageHandler {
+  async handle(message: any, context: { editor: vscode.NotebookEditor }) {
+    if (!context.editor) return;
+
+    const metadata = context.editor.notebook.metadata as any;
+    if (!metadata?.connectionId) {
+      vscode.window.showErrorMessage('No active connection found for this notebook.');
+      return;
+    }
+
+    const targetItem = new DatabaseTreeItem(
+      message.table,
+      vscode.TreeItemCollapsibleState.None,
+      'table',
+      metadata.connectionId,
+      metadata.databaseName,
+      message.schema,
+      message.table,
+    );
+
+    await vscode.commands.executeCommand('postgres-explorer.importData', targetItem);
   }
 }
 

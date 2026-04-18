@@ -14,6 +14,11 @@ interface ColumnInfo {
   character_maximum_length: number | null;
 }
 
+interface DataGenerationStrategy {
+  strategy: string;
+  udt: string;
+}
+
 /**
  * Mock Data Generator Panel (Phase 5.4)
  *
@@ -255,7 +260,7 @@ export class MockDataPanel {
   private static _generateRows(
     count: number,
     columns: string[],
-    strategies: Record<string, string>
+    strategies: Record<string, DataGenerationStrategy>
   ): any[][] {
     const rows: any[][] = [];
     for (let i = 0; i < count; i++) {
@@ -279,7 +284,7 @@ export class MockDataPanel {
     table: string,
     rowCount: number,
     columns: string[],
-    strategies: Record<string, string>,
+    strategies: Record<string, DataGenerationStrategy>,
     panel: vscode.WebviewPanel
   ): Promise<void> {
     let conn: any;

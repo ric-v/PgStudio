@@ -23,6 +23,7 @@ export class ActivityMonitorPanel {
   private _pollTimer: NodeJS.Timeout | undefined;
   private _client: any;
   private _autoRefresh = true;
+  private _isDisposed = false;
 
   private constructor(panel: vscode.WebviewPanel) {
     this._panel = panel;
@@ -30,6 +31,7 @@ export class ActivityMonitorPanel {
   }
 
   private dispose(): void {
+    this._isDisposed = true;
     if (this._pollTimer) {
       clearInterval(this._pollTimer);
       this._pollTimer = undefined;
@@ -135,7 +137,7 @@ export class ActivityMonitorPanel {
     // Start polling loop (2 second interval)
     await instance._poll(); // Immediate first fetch
     instance._pollTimer = setInterval(async () => {
-      if (instance._autoRefresh && !instance._panel.disposed) {
+      if (instance._autoRefresh && !instance._isDisposed) {
         await instance._poll();
       }
     }, 2000);
@@ -165,14 +167,14 @@ ORDER BY duration_seconds DESC NULLS LAST
 `;
 
   private async _poll(): Promise<void> {
-    if (!this._client) { return; }
+    if (!this._client || this._isDisposed) { return; }
     try {
       const res = await this._client.query(this._SQL);
-      if (!this._panel.disposed) {
+      if (!this._isDisposed) {
         this._panel.webview.postMessage({ type: 'update', rows: res.rows });
       }
     } catch (err: any) {
-      if (!this._panel.disposed) {
+      if (!this._isDisposed) {
         this._panel.webview.postMessage({ type: 'error', message: err.message });
       }
     }

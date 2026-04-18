@@ -33,7 +33,7 @@ export async function cmdFunctionOperations(item: DatabaseTreeItem, context: vsc
     const functionInfo = functionResult.rows[0];
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ⚡ Function Operations: \`${item.schema}.${item.label}\`\n\nCommon operations for this PostgreSQL function.`)
+      .addMarkdown(MarkdownUtils.header(`⚡ Function Operations: \`${item.schema}.${item.label}\``, 'Common operations for this PostgreSQL function.'))
       .addMarkdown('##### 📊 Metadata')
       .addSql(FunctionSQL.metadata(item.schema!, item.label))
       .addMarkdown('##### 📝 Definition')
@@ -42,7 +42,7 @@ export async function cmdFunctionOperations(item: DatabaseTreeItem, context: vsc
       .addSql(FunctionSQL.call(item.schema!, item.label, functionInfo.arguments || ''))
       .addMarkdown('##### ✏️ Create or Replace')
       .addSql(FunctionSQL.createOrReplace(item.schema!))
-      .addMarkdown('##### ❌ DROP — ⚠️ Warning: permanently deletes the function')
+      .addMarkdown('##### 🗑️ DROP')
       .addSql(FunctionSQL.drop(item.schema!, item.label, functionInfo.arguments || ''))
       .show();
   } catch (err: any) {
@@ -70,7 +70,7 @@ export async function cmdEditFunction(item: DatabaseTreeItem, context: vscode.Ex
     const functionInfo = functionResult.rows[0];
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ✏️ Edit Function: \`${item.schema}.${item.label}\`\n\nModify the function definition below and execute to update.`)
+      .addMarkdown(MarkdownUtils.header(`✏️ Edit Function: \`${item.schema}.${item.label}\``, 'Modify the function definition below and execute to update.'))
       .addMarkdown('##### 📝 Function Definition')
       .addSql(functionInfo.definition)
       .show();
@@ -94,7 +94,7 @@ export async function cmdCallFunction(item: DatabaseTreeItem, context: vscode.Ex
     const functionInfo = functionResult.rows[0];
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 📞 Call Function: \`${item.schema}.${item.label}\`\n\nExecute the function with the arguments below.`)
+      .addMarkdown(MarkdownUtils.header(`📞 Call Function: \`${item.schema}.${item.label}\``, 'Execute the function with the arguments below.'))
       .addSql(FunctionSQL.call(item.schema!, item.label, functionInfo.arguments || ''))
       .show();
   });
@@ -113,7 +113,10 @@ export async function cmdDropFunction(item: DatabaseTreeItem, context: vscode.Ex
     const functionInfo = functionResult.rows[0];
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ❌ Drop Function: \`${item.schema}.${item.label}\`\n\n⚠️ **Warning:** This permanently deletes the function and cannot be undone.`)
+      .addMarkdown(
+        MarkdownUtils.header(`🗑️ Drop Function: \`${item.schema}.${item.label}\``, 'Drop the function from the database.') +
+        MarkdownUtils.dangerBox(`Dropping \`${item.schema}.${item.label}\` is permanent and will fail if dependent objects exist.`)
+      )
       .addSql(FunctionSQL.drop(item.schema!, item.label, functionInfo.arguments || ''))
       .show();
   });
@@ -128,8 +131,10 @@ export async function cmdShowFunctionProperties(item: DatabaseTreeItem, context:
     dbConn = await getDatabaseConnection(item);
     const { client, metadata } = dbConn;
 
+    const metadataWarnings: string[] = [];
+
     // Gather comprehensive function information
-    const [functionInfo, dependenciesInfo] = await Promise.all([
+    const [functionInfoResult, dependenciesInfoResult] = await Promise.allSettled([
       client.query(`
                     SELECT 
                         p.proname as function_name,
@@ -178,6 +183,18 @@ export async function cmdShowFunctionProperties(item: DatabaseTreeItem, context:
                 `, [item.schema, item.label])
     ]);
 
+    if (functionInfoResult.status !== 'fulfilled') {
+      throw functionInfoResult.reason;
+    }
+
+    const functionInfo = functionInfoResult.value;
+    const dependenciesInfo = dependenciesInfoResult.status === 'fulfilled'
+      ? dependenciesInfoResult.value
+      : { rows: [] as any[] };
+    if (dependenciesInfoResult.status !== 'fulfilled') {
+      metadataWarnings.push('Dependent objects could not be loaded.');
+    }
+
     if (functionInfo.rows.length === 0) {
       throw new Error('Function not found');
     }
@@ -205,6 +222,9 @@ export async function cmdShowFunctionProperties(item: DatabaseTreeItem, context:
     const ownerInfo = `${func.owner} | <strong>Language:</strong> ${func.language}${func.comment ? ` | <strong>Comment:</strong> ${func.comment}` : ''}`;
     const markdown = MarkdownUtils.header(`⚡ Function Properties: \`${item.schema}.${item.label}\``) +
       MarkdownUtils.infoBox(`<strong>Owner:</strong> ${ownerInfo}`) +
+      (metadataWarnings.length > 0
+        ? MarkdownUtils.warningBox(`Partial metadata loaded: ${metadataWarnings.join(' ')}`)
+        : '') +
       `\n\n#### 📊 General Information\n\n` +
       MarkdownUtils.propertiesTable({
         'Schema': func.schema_name,
@@ -249,7 +269,7 @@ ${dependencyRows}
       .addSql(func.definition)
       .addMarkdown('##### ⚡ Call Function')
       .addSql(FunctionSQL.call(item.schema!, item.label, func.arguments || ''))
-      .addMarkdown('##### ❌ DROP Function Script — ⚠️ Warning: permanently deletes the function')
+      .addMarkdown('##### 🗑️ DROP Function Script')
       .addSql(FunctionSQL.drop(item.schema!, item.label, func.arguments || ''))
       .addMarkdown('##### 📊 Function Metadata')
       .addSql(FunctionSQL.metadata(item.schema!, item.label))
@@ -276,7 +296,7 @@ export async function cmdCreateFunction(item: DatabaseTreeItem, context: vscode.
     const schema = item.schema!;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ➕ Create New Function in Schema: \`${schema}\`\n\nCreate or replace a function using the template below.`)
+      .addMarkdown(MarkdownUtils.header(`➕ Create New Function in Schema: \`${schema}\``, 'Create or replace a function using the template below.'))
       .addSql(FunctionSQL.createOrReplace(schema))
       .show();
   });

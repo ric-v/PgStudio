@@ -206,6 +206,42 @@ describe('ExplainHandlers', () => {
     expect(show.calledOnce).to.be.true;
   });
 
+  it('ConvertExplainHandler strips EXPLAIN ANALYZE prefix before JSON conversion', async () => {
+    sandbox.stub(vscode.workspace, 'getConfiguration').returns({
+      get: (k: string) =>
+        k === 'postgresExplorer.connections'
+          ? [{ id: 'c1', host: 'h', port: 5432, username: 'u', authMode: 'password', ssl: false }]
+          : undefined
+    });
+    sandbox.stub(SecretStorageService, 'getInstance').returns({
+      getPassword: sandbox.stub().resolves('secret')
+    } as unknown as SecretStorageService);
+
+    const poolQuery = sandbox.stub().resolves({
+      rows: [{ 'QUERY PLAN': JSON.stringify([{ Plan: { 'Node Type': 'Result' } }]) }]
+    });
+    const poolEnd = sandbox.stub().resolves();
+    const handler = new ConvertExplainHandler(
+      { extensionUri: vscode.Uri.file('/e') } as vscode.ExtensionContext,
+      () => ({ query: poolQuery, end: poolEnd } as unknown as Pool)
+    );
+
+    await handler.handle(
+      { query: 'EXPLAIN ANALYZE SELECT 1' },
+      {
+        editor: {
+          notebook: { metadata: { connectionId: 'c1', databaseName: 'postgres' } }
+        } as unknown as vscode.NotebookEditor
+      }
+    );
+
+    expect(poolQuery.calledOnce).to.be.true;
+    const executedSql = String(poolQuery.firstCall.args[0]);
+    expect(executedSql).to.match(/^EXPLAIN \(FORMAT JSON, ANALYZE, BUFFERS, VERBOSE\)/);
+    expect(executedSql).to.contain('SELECT 1');
+    expect(executedSql).to.not.match(/\n\s*ANALYZE\b/);
+  });
+
   it('ConvertExplainHandler shows error when EXPLAIN returns no rows', async () => {
     sandbox.stub(vscode.workspace, 'getConfiguration').returns({
       get: (k: string) =>

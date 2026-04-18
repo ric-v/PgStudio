@@ -22,16 +22,15 @@ export const createExportButton = (
 
     const menu = document.createElement('div');
     menu.className = 'export-dropdown';
-    menu.style.position = 'absolute';
-    menu.style.top = '100%';
-    menu.style.left = '0';
+    menu.style.position = 'fixed';
     menu.style.background = 'var(--vscode-menu-background)';
     menu.style.border = '1px solid var(--vscode-menu-border)';
     menu.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-    menu.style.zIndex = '100';
+    menu.style.zIndex = '1000';
     menu.style.minWidth = '150px';
     menu.style.borderRadius = '3px';
     menu.style.padding = '4px 0';
+    menu.style.visibility = 'hidden';
 
     const createMenuItem = (label: string, onClick: () => void) => {
       const item = document.createElement('div');
@@ -212,7 +211,29 @@ export const createExportButton = (
       }));
     }
 
-    exportBtn.appendChild(menu);
+    document.body.appendChild(menu);
+
+    const buttonRect = exportBtn.getBoundingClientRect();
+    const menuWidth = Math.max(180, menu.getBoundingClientRect().width || 180);
+    const menuHeight = menu.getBoundingClientRect().height || 0;
+    const viewportPadding = 8;
+    const spaceBelow = window.innerHeight - buttonRect.bottom - viewportPadding;
+    const spaceAbove = buttonRect.top - viewportPadding;
+
+    let top = buttonRect.bottom + 4;
+    if (menuHeight > 0 && spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+      top = Math.max(viewportPadding, buttonRect.top - menuHeight - 4);
+    }
+
+    let left = buttonRect.left;
+    if (left + menuWidth > window.innerWidth - viewportPadding) {
+      left = window.innerWidth - menuWidth - viewportPadding;
+    }
+    left = Math.max(viewportPadding, left);
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    menu.style.visibility = 'visible';
 
     // Close menu when clicking outside
     const closeMenu = () => {

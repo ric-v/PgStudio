@@ -9,7 +9,7 @@ export const ForeignTableSQL = {
     queryData: (schema: string, tableName: string) =>
         `-- Query data
 SELECT *
-FROM ${schema}.${tableName}
+FROM "${schema}"."${tableName}"
 LIMIT 100;`,
 
     /**
@@ -17,9 +17,9 @@ LIMIT 100;`,
      */
     edit: (schema: string, tableName: string) =>
         `-- Edit table (requires dropping and recreating)
-DROP FOREIGN TABLE IF EXISTS ${schema}.${tableName};
+DROP FOREIGN TABLE IF EXISTS "${schema}"."${tableName}";
 
-CREATE FOREIGN TABLE ${schema}.${tableName} (
+CREATE FOREIGN TABLE "${schema}"."${tableName}" (
     -- Define columns here
     column_name data_type
 ) SERVER server_name
@@ -33,7 +33,7 @@ OPTIONS (
      */
     drop: (schema: string, tableName: string) =>
         `-- Drop table
-DROP FOREIGN TABLE IF EXISTS ${schema}.${tableName};`,
+DROP FOREIGN TABLE IF EXISTS "${schema}"."${tableName}";`,
 
     /**
      * CREATE FOREIGN TABLE templates
@@ -58,7 +58,7 @@ OPTIONS (
 );
 
 -- Create foreign table
-CREATE FOREIGN TABLE ${schemaName}.foreign_table_name (
+CREATE FOREIGN TABLE "${schemaName}"."foreign_table_name" (
     id integer,
     name text,
     created_at timestamp
@@ -70,7 +70,7 @@ OPTIONS (
 );
 
 -- Add comment
-COMMENT ON FOREIGN TABLE ${schemaName}.foreign_table_name IS 'Foreign table description';`,
+COMMENT ON FOREIGN TABLE "${schemaName}"."foreign_table_name" IS 'Foreign table description';`,
 
         postgresRemote: (schemaName: string) =>
             `-- Enable postgres_fdw extension
@@ -94,7 +94,7 @@ OPTIONS (
 );
 
 -- Create foreign table
-CREATE FOREIGN TABLE ${schemaName}.remote_table (
+CREATE FOREIGN TABLE "${schemaName}"."remote_table" (
     id serial,
     name varchar(100),
     email varchar(255),
@@ -115,7 +115,7 @@ CREATE SERVER file_server
 FOREIGN DATA WRAPPER file_fdw;
 
 -- Create foreign table for CSV file
-CREATE FOREIGN TABLE ${schemaName}.csv_data (
+CREATE FOREIGN TABLE "${schemaName}"."csv_data" (
     id integer,
     name text,
     value numeric,

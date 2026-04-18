@@ -11,6 +11,7 @@ export { ExtensionSQL } from './extensions';
 export { ForeignDataWrapperSQL } from './foreignDataWrappers';
 export { ForeignTableSQL } from './foreignTables';
 export { FunctionSQL } from './functions';
+export { ProcedureSQL } from './procedures';
 export { IndexSQL } from './indexes';
 export { MaterializedViewSQL } from './materializedViews';
 export { PartitionSQL } from './partitions';

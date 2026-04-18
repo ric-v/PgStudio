@@ -211,7 +211,19 @@ export interface SortState {
   direction: 'asc' | 'desc' | 'none';
 }
 
-export type FilterState = Map<string, string>;
+export type FilterOperator = 'contains' | 'equals' | 'startsWith' | 'endsWith';
+
+export interface FilterClause {
+  id: string;
+  column: string;
+  operator: FilterOperator;
+  value: string;
+}
+
+export interface FilterState {
+  globalQuery: string;
+  clauses: FilterClause[];
+}
 
 export interface ColumnStatsData {
   column: string;

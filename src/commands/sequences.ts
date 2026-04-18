@@ -24,10 +24,7 @@ export async function cmdCreateSequence(item: DatabaseTreeItem, context: vscode.
   try {
     const schema = item.schema!;
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`Create Sequence in Schema: ${schema}`) +
-        MarkdownUtils.infoBox('Replace "new_sequence_name" with the desired sequence name.')
-      )
+      .addMarkdown(MarkdownUtils.header(`➕ Create Sequence in Schema: \`${schema}\``, 'Create a new sequence in the current schema.'))
       .addSql(SequenceSQL.create(schema))
       .show();
   } finally {
@@ -102,16 +99,7 @@ export async function cmdSequenceOperations(item: DatabaseTreeItem, context: vsc
     const schema = item.schema!;
     const seqName = item.label;
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`Sequence Operations: ${schema}.${seqName}`) +
-        MarkdownUtils.operationsTable([
-          { operation: 'Properties', description: 'View sequence properties and settings', riskLevel: 'Safe' },
-          { operation: 'Current Value', description: 'Get current sequence value', riskLevel: 'Safe' },
-          { operation: 'Next Value', description: 'Advance and get next value (irreversible)', riskLevel: 'Medium' },
-          { operation: 'Alter', description: 'Modify sequence parameters', riskLevel: 'Low' },
-          { operation: 'Drop', description: 'Permanently drop the sequence', riskLevel: 'High' },
-        ])
-      )
+      .addMarkdown(MarkdownUtils.header(`🔢 Sequence Operations: \`${schema}.${seqName}\``, 'Common sequence actions are rendered below as notebook cells.'))
       .addMarkdown('##### Sequence Properties')
       .addSql(SequenceSQL.getDefinition(schema, seqName))
       .addMarkdown('##### Current Value')
@@ -120,7 +108,7 @@ export async function cmdSequenceOperations(item: DatabaseTreeItem, context: vsc
       .addSql(SequenceSQL.nextValue(schema, seqName))
       .addMarkdown('##### Alter Sequence')
       .addSql(SequenceSQL.alter(schema, seqName))
-      .addMarkdown('##### Drop Sequence — WARNING: permanently deletes the sequence')
+        .addMarkdown('##### 🗑️ Drop Sequence')
       .addSql(SequenceSQL.drop(schema, seqName))
       .show();
   } finally {

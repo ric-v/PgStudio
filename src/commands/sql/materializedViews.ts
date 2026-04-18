@@ -8,7 +8,7 @@ export const MaterializedViewSQL = {
      */
     select: (schema: string, matviewName: string) =>
         `SELECT *
-FROM ${schema}.${matviewName}
+FROM "${schema}"."${matviewName}"
 LIMIT 100;`,
 
     /**
@@ -16,21 +16,21 @@ LIMIT 100;`,
      * Variant: CONCURRENTLY (non-blocking, requires unique index)
      */
     refresh: (schema: string, matviewName: string) =>
-        `REFRESH MATERIALIZED VIEW ${schema}.${matviewName};
+        `REFRESH MATERIALIZED VIEW "${schema}"."${matviewName}";
 
 -- Use CONCURRENTLY when you need non-blocking refresh (requires a unique index)
--- REFRESH MATERIALIZED VIEW CONCURRENTLY ${schema}.${matviewName};`,
+    -- REFRESH MATERIALIZED VIEW CONCURRENTLY "${schema}"."${matviewName}";`,
 
     /**
      * Create materialized view template
      */
     create: (schema: string, matviewName: string) =>
-        `CREATE MATERIALIZED VIEW ${schema}.${matviewName} AS
+        `CREATE MATERIALIZED VIEW "${schema}"."${matviewName}" AS
 SELECT
     column1,
     column2,
     COUNT(*) AS count
-FROM ${schema}.source_table
+FROM "${schema}".source_table
 WHERE condition = true
 WITH DATA;`,
 
@@ -39,16 +39,16 @@ WITH DATA;`,
      * Variant: CASCADE to also drop dependent objects
      */
     drop: (schema: string, matviewName: string) =>
-        `DROP MATERIALIZED VIEW ${schema}.${matviewName};
+        `DROP MATERIALIZED VIEW "${schema}"."${matviewName}";
 
 -- Use CASCADE to also drop dependent objects
--- DROP MATERIALIZED VIEW ${schema}.${matviewName} CASCADE;`,
+    -- DROP MATERIALIZED VIEW "${schema}"."${matviewName}" CASCADE;`,
 
     /**
      * Update query planner statistics
      */
     analyze: (schema: string, matviewName: string) =>
-        `ANALYZE ${schema}.${matviewName};`,
+        `ANALYZE "${schema}"."${matviewName}";`,
 
     /**
      * Create a unique index on the materialized view.
@@ -56,5 +56,5 @@ WITH DATA;`,
      */
     createIndex: (schema: string, matviewName: string) =>
         `CREATE UNIQUE INDEX ${matviewName}_unique_idx
-    ON ${schema}.${matviewName} (id);`,
+    ON "${schema}"."${matviewName}" (id);`,
 };

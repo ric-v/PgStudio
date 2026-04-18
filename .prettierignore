@@ -1,0 +1,8 @@
+coverage
+coverage-unit
+dist
+node_modules
+out_test
+tmp
+docs/.next
+docs/out

@@ -8,7 +8,7 @@ export const TypeSQL = {
      */
     createComposite: (schema: string) =>
         `-- Create composite type
-CREATE TYPE "${schema}".type_name AS (
+CREATE TYPE "${schema}"."type_name" AS (
     field1 text,
     field2 integer
 );`,
@@ -18,7 +18,7 @@ CREATE TYPE "${schema}".type_name AS (
      */
     createEnum: (schema: string) =>
         `-- Create enum type
-CREATE TYPE "${schema}".status_enum AS ENUM (
+CREATE TYPE "${schema}"."status_enum" AS ENUM (
     'active',
     'inactive',
     'pending'
@@ -29,7 +29,7 @@ CREATE TYPE "${schema}".status_enum AS ENUM (
      */
     drop: (schema: string, typeName: string) =>
         `-- Drop type
-DROP TYPE "${schema}"."${typeName}";
+DROP TYPE IF EXISTS "${schema}"."${typeName}";
 
 -- Use CASCADE to also drop dependent objects
 -- DROP TYPE "${schema}"."${typeName}" CASCADE;`,

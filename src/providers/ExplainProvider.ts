@@ -24,12 +24,20 @@ export class ExplainProvider {
       ExplainProvider.panel.onDidDispose(() => (ExplainProvider.panel = undefined));
     }
 
-    const plan = ExplainProvider.parsePlan(planJson);
-    ExplainProvider.panel.webview.html = ExplainProvider.renderHtml(plan, query);
+    try {
+      const plan = ExplainProvider.parsePlan(planJson);
+      ExplainProvider.panel.webview.html = ExplainProvider.renderHtml(plan, query);
+    } catch (err: any) {
+      ExplainProvider.panel.webview.html = ExplainProvider.renderHtml(
+        null,
+        query,
+        `Could not render explain plan: ${err?.message || String(err)}`
+      );
+    }
     ExplainProvider.panel.reveal(vscode.ViewColumn.Beside);
   }
 
-  private static parsePlan(planJson: any): ExplainNode {
+  private static parsePlan(planJson: any): ExplainNode | null {
     let root = planJson;
     if (Array.isArray(planJson)) {
       root = planJson[0];
@@ -37,6 +45,11 @@ export class ExplainProvider {
     if (root && root.Plan) {
       root = root.Plan;
     }
+
+    if (!root || typeof root !== 'object') {
+      return null;
+    }
+
     return ExplainProvider.toNode(root);
   }
 
@@ -83,10 +96,17 @@ export class ExplainProvider {
     return extras;
   }
 
-  private static renderHtml(root: ExplainNode, query?: string): string {
+  private static renderHtml(root: ExplainNode | null, query?: string, errorMessage?: string): string {
+    const escapeHtml = (value: any): string => String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
     const renderNode = (node: ExplainNode): string => {
       const extras = node.extra && Object.keys(node.extra).length > 0
-        ? `<div class="extras">${Object.entries(node.extra).map(([k, v]) => `<div><strong>${k}:</strong> ${v}</div>`).join('')}</div>`
+        ? `<div class="extras">${Object.entries(node.extra).map(([k, v]) => `<div><strong>${escapeHtml(k)}:</strong> ${escapeHtml(v)}</div>`).join('')}</div>`
         : '';
 
       const meta = [
@@ -103,7 +123,7 @@ export class ExplainProvider {
       return `
         <li>
           <div class="node">
-            <div class="title">${node.name}</div>
+            <div class="title">${escapeHtml(node.name)}</div>
             <div class="meta-row">${meta}</div>
             ${extras}
           </div>
@@ -111,6 +131,13 @@ export class ExplainProvider {
         </li>
       `;
     };
+
+    const emptyState = !root
+      ? `<div class="empty">
+           <strong>${escapeHtml(errorMessage || 'No visual EXPLAIN plan data available.')}</strong>
+           <div class="hint">Run <code>EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)</code> to view the graphical plan.</div>
+         </div>`
+      : '';
 
     return `
       <!DOCTYPE html>
@@ -128,13 +155,15 @@ export class ExplainProvider {
           .meta-row { display: flex; gap: 12px; flex-wrap: wrap; color: var(--vscode-descriptionForeground); font-size: 12px; margin-bottom: 6px; }
           .extras { font-size: 12px; color: var(--vscode-descriptionForeground); }
           .meta { background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 3px; }
+          .empty { border: 1px solid var(--vscode-widget-border); border-radius: 6px; padding: 12px; margin-top: 8px; background: var(--vscode-editor-background); }
+          .hint { margin-top: 6px; color: var(--vscode-descriptionForeground); }
+          code { font-family: var(--vscode-editor-font-family); }
         </style>
       </head>
       <body>
-        ${query ? `<div class="query">${query}</div>` : ''}
-        <ul>
-          ${renderNode(root)}
-        </ul>
+        ${query ? `<div class="query">${escapeHtml(query)}</div>` : ''}
+        ${emptyState}
+        ${root ? `<ul>${renderNode(root)}</ul>` : ''}
       </body>
       </html>
     `;

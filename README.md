@@ -7,11 +7,11 @@
 [![Version](https://img.shields.io/visual-studio-marketplace/v/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=0066CC)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
 [![Downloads](https://img.shields.io/visual-studio-marketplace/d/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=2ECC71)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
 [![Rating](https://img.shields.io/visual-studio-marketplace/r/ric-v.postgres-explorer?style=for-the-badge&logo=visual-studio-code&logoColor=white&color=F39C12)](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer)
-[![Status](https://img.shields.io/badge/status-beta-blue?style=for-the-badge&logo=git&logoColor=white)](https://github.com/dev-asterix/PgStudio)
+[![Status](https://img.shields.io/badge/status-stable%20v1.0.0-green?style=for-the-badge&logo=git&logoColor=white)](https://github.com/dev-asterix/PgStudio/releases/tag/v1.0.0)
 
 **PgStudio** (formerly YAPE) is a comprehensive PostgreSQL database management extension featuring interactive SQL notebooks, real-time monitoring dashboard, AI-powered assistance, and advanced database operations—all within VS Code.
 
-[📖 **Documentation**](https://pgstudio.astrx.dev/) • [🛒 **Marketplace**](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer) • [🤝 **Contributing**](#-contributing)
+[📖 **Documentation**](https://pgstudio.astrx.dev/) • [🛒 **Marketplace**](https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer) • [🤝 **Contributing**](#-contributing) • [📝 **v1.0.0 Release Notes**](docs/RELEASE_NOTES_v1.0.0.md)
 
 </div>
 
@@ -108,6 +108,29 @@
 
 ---
 
+## 📋 Feature Matrix
+
+| Area | PgStudio v1.0.0 | Notes |
+|---|---|---|
+| Core PostgreSQL object operations | ✅ | Tables, views, mat views, functions, roles, extensions, FDWs, and more |
+| AI-assisted SQL workflows | ✅ | Generate, optimize, explain, and analyze with notebook-first execution |
+| Production safety controls | ✅ | Read-only mode, risk scoring, confirmation prompts, Auto-LIMIT |
+| Real-time monitoring dashboard | ✅ | Activity and health views in VS Code |
+| Interactive SQL notebooks | ✅ | Native `.pgsql` notebook execution with completions |
+| In-grid result editing parity with desktop IDEs | ⚠️ Partial | Planned improvements post-v1.0.0 |
+| ERD/schema visualization parity | ⚠️ Partial | Schema designer exists; ERD depth still evolving |
+| Advanced replication administration | ⚠️ Partial | Additional publication/subscription depth planned |
+
+---
+
+## ⚠️ Known Limitations (v1.0.0)
+
+- In-grid editing is limited compared to full desktop DB IDEs.
+- ERD/schema visualization is still maturing.
+- Some advanced PostgreSQL administration areas are partial and will be expanded in v1.x.
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
@@ -129,10 +152,14 @@ Then: **PostgreSQL icon** → **Add Connection** → Enter details → **Connect
 - `docs/ARCHITECTURE.md` - System architecture and component/data-flow details
 - `docs/STYLING_GUIDE.md` - Centralized styling/templates and UI refactoring patterns
 - `docs/ROADMAP.md` - Active pipeline and upcoming phases
+- `docs/API_STABILITY.md` - v1.x API stability and deprecation policy
+- `docs/SECURITY_REVIEW.md` - v1.0 security controls and release checklist
+- `docs/RELEASE_NOTES_v1.0.0.md` - v1.0 highlights and release notes
+- `docs/MIGRATION_GUIDE_0.x_to_1.0.0.md` - upgrade path from 0.9.x to 1.0.0
 - `SECURITY.md` - Security policy and vulnerability reporting guidance
 - `CHANGELOG.md` - Release notes and what changed across versions
 
-**v0.9.5 (latest) —** SQL Assistant now supports image paste/upload with thumbnail previews, vision AI (OpenAI, Anthropic, Gemini, VS Code LM), click-to-preview for attached files, and GitHub Models sign-in via standard VS Code GitHub auth. Details: `CHANGELOG.md`.
+**v1.0.0 (Latest) —** Production-ready release with comprehensive security audit, expanded test coverage, API stability guarantees, and production deployment guides. See [Release Notes](docs/RELEASE_NOTES_v1.0.0.md) and [Migration Guide](docs/MIGRATION_GUIDE_0.x_to_1.0.0.md) for upgrade details.
 
 ---
 

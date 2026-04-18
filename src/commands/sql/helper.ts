@@ -12,17 +12,17 @@ export const SQL_TEMPLATES = {
         TABLE: (schema: string, name: string) =>
             `-- Drop table\nDROP TABLE IF EXISTS "${schema}"."${name}";`,
         VIEW: (schema: string, name: string) =>
-            `-- Drop view\nDROP VIEW IF EXISTS ${schema}.${name};`,
+            `-- Drop view\nDROP VIEW IF EXISTS "${schema}"."${name}";`,
         MATERIALIZED_VIEW: (schema: string, name: string) =>
-            `-- Drop materialized view\nDROP MATERIALIZED VIEW IF EXISTS ${schema}.${name};`,
+            `-- Drop materialized view\nDROP MATERIALIZED VIEW IF EXISTS "${schema}"."${name}";`,
         FUNCTION: (schema: string, name: string, args: string) =>
-            `-- Drop function\nDROP FUNCTION IF EXISTS ${schema}.${name}(${args});`,
+            `-- Drop function\nDROP FUNCTION IF EXISTS "${schema}"."${name}"(${args});`,
         INDEX: (schema: string, name: string) =>
             `-- Drop index\nDROP INDEX "${schema}"."${name}";`,
         CONSTRAINT: (schema: string, table: string, name: string) =>
             `-- Drop constraint\nALTER TABLE "${schema}"."${table}"\nDROP CONSTRAINT "${name}";`,
         TYPE: (schema: string, name: string) =>
-            `-- Drop type\nDROP TYPE IF EXISTS ${schema}.${name} CASCADE;`,
+            `-- Drop type\nDROP TYPE IF EXISTS "${schema}"."${name}" CASCADE;`,
         EXTENSION: (name: string) =>
             `-- Drop extension\nDROP EXTENSION IF EXISTS "${name}" CASCADE;`
     },
@@ -34,15 +34,17 @@ export const SQL_TEMPLATES = {
     },
     COMMENT: {
         TABLE: (schema: string, name: string, comment: string) =>
-            `COMMENT ON TABLE ${schema}.${name} IS '${comment.replace(/'/g, "''")}';`,
+            `COMMENT ON TABLE "${schema}"."${name}" IS '${comment.replace(/'/g, "''")}';`,
         COLUMN: (schema: string, table: string, column: string, comment: string) =>
-            `COMMENT ON COLUMN ${schema}.${table}.${column} IS '${comment.replace(/'/g, "''")}';`,
+            `COMMENT ON COLUMN "${schema}"."${table}"."${column}" IS '${comment.replace(/'/g, "''")}';`,
         VIEW: (schema: string, name: string, comment: string) =>
-            `COMMENT ON VIEW ${schema}.${name} IS '${comment.replace(/'/g, "''")}';`,
+            `COMMENT ON VIEW "${schema}"."${name}" IS '${comment.replace(/'/g, "''")}';`,
         FUNCTION: (schema: string, name: string, args: string, comment: string) =>
-            `COMMENT ON FUNCTION ${schema}.${name}(${args}) IS '${comment.replace(/'/g, "''")}';`,
+            `COMMENT ON FUNCTION "${schema}"."${name}"(${args}) IS '${comment.replace(/'/g, "''")}';`,
         TYPE: (schema: string, name: string, comment: string) =>
-            `COMMENT ON TYPE ${schema}.${name} IS '${comment.replace(/'/g, "''")}';`
+            `COMMENT ON TYPE "${schema}"."${name}" IS '${comment.replace(/'/g, "''")}';`,
+        on: (kind: string, schema: string, name: string, comment: string) =>
+            `COMMENT ON ${kind} "${schema}"."${name}" IS '${comment.replace(/'/g, "''")}';`
     }
 };
 
@@ -593,6 +595,7 @@ WHERE n.nspname = '${schema}'`,
     COUNT(*) FILTER (WHERE c.relkind = 'f') as foreign_table_count,
     COUNT(*) FILTER (WHERE c.relkind = 'p') as partitioned_table_count,
     (SELECT COUNT(*) FROM pg_proc p WHERE p.pronamespace = n.oid) as function_count,
+    (SELECT COUNT(*) FROM pg_proc p WHERE p.pronamespace = n.oid AND p.prokind = 'p') as procedure_count,
     (SELECT COUNT(*) FROM pg_type t WHERE t.typnamespace = n.oid AND t.typtype = 'c') as type_count,
     (SELECT COUNT(*) FROM pg_trigger t 
      JOIN pg_class tc ON t.tgrelid = tc.oid 

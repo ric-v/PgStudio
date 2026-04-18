@@ -282,10 +282,20 @@ export const MarkdownUtils = {
     `<div style="font-size: 12px; background-color: rgba(231, 76, 60, 0.1); border-left: 3px solid #e74c3c; padding: 6px 10px; margin-bottom: 15px; border-radius: 3px; color: var(--vscode-editor-foreground);">
     <strong>🛑 ${title}:</strong> ${message}
 </div>`,
+  dangerBoxDrop: (objectType: string, schema: string, name: string): string =>
+    MarkdownUtils.dangerBox(`Dropping \`${schema}.${name}\` is permanent and will fail if dependent objects exist.`, `Drop ${objectType}`),
   successBox: (message: string, title = 'Tip'): string =>
     `<div style="font-size: 12px; background-color: rgba(46, 204, 113, 0.1); border-left: 3px solid #2ecc71; padding: 6px 10px; margin-bottom: 15px; border-radius: 3px; color: var(--vscode-editor-foreground);">
     <strong>💡 ${title}:</strong> ${message}
 </div>`,
+  detailsFold: (title: string, body: string): string =>
+    `<details><summary>${title}</summary>
+
+${body}
+
+</details>`,
+  optionsList: (items: string[]): string =>
+    items.length ? `**Options:**\n${items.map(item => `- ${item}`).join('\n')}` : '',
   operationsTable: (operations: Array<{ operation: string, description: string, riskLevel?: string }>): string => {
     const rows = operations.map(op => {
       const risk = op.riskLevel ? `<td>${op.riskLevel}</td>` : '';

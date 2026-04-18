@@ -17,7 +17,7 @@ import { ViewSQL } from './sql';
 export async function cmdScriptSelect(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   await CommandBase.run(context, item, 'create SELECT script', async (conn: any, client: any, metadata: any) => {
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 📖 SELECT Script: \`${item.schema}.${item.label}\`\n\nQuery data from the view.`)
+      .addMarkdown(MarkdownUtils.header(`📖 SELECT Script: \`${item.schema}.${item.label}\``, 'Query data from the view.'))
       .addSql(ViewSQL.select(item.schema!, item.label))
       .show();
   });
@@ -44,7 +44,7 @@ export async function cmdEditView(item: DatabaseTreeItem, context: vscode.Extens
     const createViewStatement = `CREATE OR REPLACE VIEW ${item.schema}.${item.label} AS\n${viewResult.rows[0].definition} `;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ✏️ Edit View: \`${item.schema}.${item.label}\`\n\nModify the view definition below and execute to update.`)
+      .addMarkdown(MarkdownUtils.header(`✏️ Edit View: \`${item.schema}.${item.label}\``, 'Modify the view definition below and execute to update.'))
       .addMarkdown('##### 📝 View Definition')
       .addSql(createViewStatement)
       .show();
@@ -57,7 +57,7 @@ export async function cmdEditView(item: DatabaseTreeItem, context: vscode.Extens
 export async function cmdViewData(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   await CommandBase.run(context, item, 'create view data notebook', async (conn: any, client: any, metadata: any) => {
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 📖 View Data: \`${item.schema}.${item.label}\`\n\nQuery data from the view.`)
+      .addMarkdown(MarkdownUtils.header(`📖 View Data: \`${item.schema}.${item.label}\``, 'Query data from the view.'))
       .addSql(ViewSQL.select(item.schema!, item.label))
       .show();
   });
@@ -69,7 +69,10 @@ export async function cmdViewData(item: DatabaseTreeItem, context: vscode.Extens
 export async function cmdDropView(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   await CommandBase.run(context, item, 'create drop view notebook', async (conn: any, client: any, metadata: any) => {
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ❌ Drop View: \`${item.schema}.${item.label}\`\n\n⚠️ **Warning:** This permanently deletes the view and cannot be undone.`)
+      .addMarkdown(
+        MarkdownUtils.header(`🗑️ Drop View: \`${item.schema}.${item.label}\``, 'Drop the view from the database.') +
+        MarkdownUtils.dangerBox(`Dropping \`${item.schema}.${item.label}\` is permanent and will fail if dependent objects exist.`)
+      )
       .addSql(ViewSQL.drop(item.schema!, item.label))
       .show();
   });
@@ -82,14 +85,14 @@ export async function cmdDropView(item: DatabaseTreeItem, context: vscode.Extens
 export async function cmdViewOperations(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   await CommandBase.run(context, item, 'create view operations notebook', async (conn: any, client: any, metadata: any) => {
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 👁️ View Operations: \`${item.schema}.${item.label}\`\n\nCommon operations for this PostgreSQL view.`)
+      .addMarkdown(MarkdownUtils.header(`👁️ View Operations: \`${item.schema}.${item.label}\``, 'Common operations for this PostgreSQL view.'))
       .addMarkdown('##### 📖 SELECT')
       .addSql(ViewSQL.select(item.schema!, item.label))
       .addMarkdown('##### 📝 Definition')
       .addSql(ViewSQL.definition(item.schema!, item.label))
       .addMarkdown('##### ✏️ CREATE OR REPLACE')
       .addSql(ViewSQL.createOrReplace(item.schema!, item.label))
-      .addMarkdown('##### ❌ DROP — ⚠️ Warning: permanently deletes the view')
+      .addMarkdown('##### 🗑️ DROP')
       .addSql(ViewSQL.drop(item.schema!, item.label))
       .show();
   });
@@ -100,13 +103,49 @@ export async function cmdViewOperations(item: DatabaseTreeItem, context: vscode.
  */
 export async function cmdShowViewProperties(item: DatabaseTreeItem, context: vscode.ExtensionContext) {
   await CommandBase.run(context, item, 'view properties', async (conn: any, client: any, metadata: any) => {
-    const [viewInfo, columnInfo, dependenciesInfo, referencedInfo, sizeInfo] = await Promise.all([
+    const metadataWarnings: string[] = [];
+
+    const [viewInfoResult, columnInfoResult, dependenciesInfoResult, referencedInfoResult, sizeInfoResult] = await Promise.allSettled([
       client.query(QueryBuilder.viewInfo(item.schema!, item.label)),
       client.query(QueryBuilder.tableColumns(item.schema!, item.label)),
       client.query(QueryBuilder.objectDependencies(item.schema!, item.label)),
       client.query(QueryBuilder.objectReferences(item.schema!, item.label)),
       client.query(QueryBuilder.viewSize(item.schema!, item.label))
     ]);
+
+    if (viewInfoResult.status !== 'fulfilled') {
+      throw viewInfoResult.reason;
+    }
+
+    const viewInfo = viewInfoResult.value;
+
+    const columnInfo = columnInfoResult.status === 'fulfilled'
+      ? columnInfoResult.value
+      : { rows: [] as any[] };
+    if (columnInfoResult.status !== 'fulfilled') {
+      metadataWarnings.push('Columns could not be loaded.');
+    }
+
+    const dependenciesInfo = dependenciesInfoResult.status === 'fulfilled'
+      ? dependenciesInfoResult.value
+      : { rows: [] as any[] };
+    if (dependenciesInfoResult.status !== 'fulfilled') {
+      metadataWarnings.push('Dependent objects could not be loaded.');
+    }
+
+    const referencedInfo = referencedInfoResult.status === 'fulfilled'
+      ? referencedInfoResult.value
+      : { rows: [] as any[] };
+    if (referencedInfoResult.status !== 'fulfilled') {
+      metadataWarnings.push('Referenced objects could not be loaded.');
+    }
+
+    const sizeInfo = sizeInfoResult.status === 'fulfilled'
+      ? sizeInfoResult.value
+      : { rows: [{ view_size: 'N/A' }] as any[] };
+    if (sizeInfoResult.status !== 'fulfilled') {
+      metadataWarnings.push('Size information could not be loaded.');
+    }
 
     const view = viewInfo.rows[0];
     const columns = columnInfo.rows;
@@ -151,6 +190,9 @@ ${view.comment ? `COMMENT ON VIEW ${item.schema}.${item.label} IS '${view.commen
     const ownerInfo = view.owner + (view.comment ? ` | <strong>Comment:</strong> ${view.comment}` : '');
     const markdown = MarkdownUtils.header(`👁️ View Properties: \`${item.schema}.${item.label}\``) +
       MarkdownUtils.infoBox(`<strong>Owner:</strong> ${ownerInfo}`) +
+      (metadataWarnings.length > 0
+        ? MarkdownUtils.warningBox(`Partial metadata loaded: ${metadataWarnings.join(' ')}`)
+        : '') +
       `\n\n#### 📊 General Information\n\n` +
       MarkdownUtils.propertiesTable({
         'Schema': view.schema_name,
@@ -230,7 +272,7 @@ export async function cmdCreateView(item: DatabaseTreeItem, context: vscode.Exte
     const schema = item.schema!;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ➕ Create New View in Schema: \`${schema}\`\n\nCreate or replace a view using the template below.`)
+      .addMarkdown(MarkdownUtils.header(`➕ Create New View in Schema: \`${schema}\``, 'Create or replace a view using the template below.'))
       .addSql(ViewSQL.createOrReplace(schema, 'new_view'))
       .show();
   });

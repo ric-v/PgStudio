@@ -9,6 +9,7 @@ import { QueryHistoryProvider } from '../providers/QueryHistoryProvider';
 import { ProfilesTreeProvider, SavedQueriesTreeProvider } from '../providers/Phase7TreeProviders';
 import { NotebooksTreeProvider } from '../providers/NotebooksTreeProvider';
 import { AutoRefreshService } from '../services/AutoRefreshService';
+import { DdlViewerService } from '../services/DdlViewerService';
 
 export function registerProviders(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
   // Create database tree provider instance
@@ -20,6 +21,8 @@ export function registerProviders(context: vscode.ExtensionContext, outputChanne
     showCollapseAll: true
   });
   context.subscriptions.push(treeView);
+  const ddlViewerService = new DdlViewerService(context, treeView);
+  context.subscriptions.push(ddlViewerService);
 
   // Update context key when selection changes to enable Add/Remove favorites menu switching
   treeView.onDidChangeSelection(e => {
@@ -117,6 +120,7 @@ export function registerProviders(context: vscode.ExtensionContext, outputChanne
   return {
     databaseTreeProvider,
     treeView,
+    ddlViewerService,
     chatViewProviderInstance,
     queryHistoryProvider,
     savedQueriesTreeProvider,

@@ -569,7 +569,13 @@ export class ServerLogPanel {
 
       function highlightText(escaped, query) {
         if (!query) { return escaped; }
-        const parts = escaped.split(new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\\\]/g, '\\\\$&') + ')', 'gi'));
+        // Escape regex special characters
+        const specChars = {'.': 1, '*': 1, '+': 1, '?': 1, '^': 1, '$': 1, '{': 1, '}': 1, '(': 1, ')': 1, '|': 1, '[': 1, ']': 1, '\\': 1};
+        const safeQuery = query
+          .split('')
+          .map(c => specChars[c] ? '\\' + c : c)
+          .join('');
+        const parts = escaped.split(new RegExp('(' + safeQuery + ')', 'gi'));
         return parts.map((p, i) => i % 2 === 1 ? '<span class="highlight">' + p + '</span>' : p).join('');
       }
 

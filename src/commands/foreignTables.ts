@@ -37,17 +37,7 @@ export async function cmdForeignTableOperations(item: DatabaseTreeItem, context:
     const createTableStatement = `CREATE FOREIGN TABLE ${item.schema}.${item.label} (\n${columnDefinitions}\n) SERVER ${serverName}${options.length > 0 ? '\nOPTIONS (' + options.map((opt: any) => `${opt}`).join(', ') + ')' : ''};`;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`🔗 Foreign Table Operations: \`${item.schema}.${item.label}\``) +
-        MarkdownUtils.infoBox('This notebook contains operations for managing the PostgreSQL foreign table. Run the cells below to execute the operations.') +
-        `\n\n#### 🎯 Available Operations\n\n` +
-        MarkdownUtils.operationsTable([
-          { operation: '<strong>View Definition</strong>', description: 'Show the CREATE FOREIGN TABLE statement' },
-          { operation: '<strong>Query Data</strong>', description: 'Select the first 100 rows' },
-          { operation: '<strong>Edit Table</strong>', description: 'Template for modifying the table (requires recreation)' },
-          { operation: '<strong>Drop Table</strong>', description: 'Delete the table (Warning: Irreversible)' }
-        ])
-      )
+      .addMarkdown(MarkdownUtils.header(`🔗 Foreign Table Operations: \`${item.schema}.${item.label}\``, 'This notebook contains the primary actions for the PostgreSQL foreign table.'))
       .addMarkdown('##### 📝 Table Definition')
       .addSql(`-- Current table definition\n${createTableStatement}`)
       .addMarkdown('##### 📖 Query Data')
@@ -85,10 +75,7 @@ export async function cmdEditForeignTable(item: DatabaseTreeItem, context: vscod
     const createStatement = `CREATE FOREIGN TABLE ${item.schema}.${item.label} (\n${tableInfo.columns.map((col: string) => '    ' + col).join(',\n')}\n) SERVER ${tableInfo.server_name}${tableInfo.options ? '\nOPTIONS (\n    ' + tableInfo.options.map((opt: string) => opt).join(',\n    ') + '\n)' : ''};`;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`✏️ Edit Foreign Table: \`${item.schema}.${item.label}\``) +
-        MarkdownUtils.infoBox('Modify the foreign table definition below and execute the cells to update it.')
-      )
+      .addMarkdown(MarkdownUtils.header(`✏️ Edit Foreign Table: \`${item.schema}.${item.label}\``, 'Modify the foreign table definition below and execute the cells to update it.'))
       .addMarkdown('##### 📝 Table Definition')
       .addSql(`-- Drop existing foreign table\nDROP FOREIGN TABLE IF EXISTS ${item.schema}.${item.label};\n\n-- Create foreign table with new definition\n${createStatement}`)
       .show();
@@ -120,14 +107,6 @@ export async function cmdCreateForeignTable(item: DatabaseTreeItem, context: vsc
 
     const markdown = MarkdownUtils.header(`➕ Create New Foreign Table in Schema: \`${schemaName}\``) +
       MarkdownUtils.infoBox('This notebook provides templates for creating foreign tables. Modify the templates below and execute to create foreign tables.') +
-      `\n\n#### 📋 Foreign Table Design Guidelines\n\n` +
-      MarkdownUtils.operationsTable([
-        { operation: '<strong>Server Setup</strong>', description: 'Foreign tables require a foreign server. Create one using CREATE SERVER before creating the table.' },
-        { operation: '<strong>Column Mapping</strong>', description: 'Map local columns to remote columns. Data types should be compatible.' },
-        { operation: '<strong>Options</strong>', description: 'Use OPTIONS to specify remote schema, table name, and other connection parameters.' },
-        { operation: '<strong>Permissions</strong>', description: 'Ensure user has USAGE privilege on the foreign server and appropriate permissions on the remote database.' },
-        { operation: '<strong>Performance</strong>', description: 'Foreign tables can be slower than local tables. Consider materialized views for frequently accessed data.' }
-      ]) +
       `\n\n#### 🏷️ Common Foreign Table Patterns\n\n` +
       MarkdownUtils.propertiesTable({
         'Remote PostgreSQL': 'Connect to another PostgreSQL database',
@@ -170,10 +149,7 @@ export async function cmdViewForeignTableData(item: DatabaseTreeItem, context: v
     const { metadata } = dbConn;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`📖 Query Foreign Table Data: \`${item.schema}.${item.label}\``) +
-        MarkdownUtils.infoBox('Runs a safe preview query so you can validate mapping and connectivity to the remote source.')
-      )
+      .addMarkdown(MarkdownUtils.header(`📖 Query Foreign Table Data: \`${item.schema}.${item.label}\``, 'Runs a safe preview query so you can validate mapping and connectivity to the remote source.'))
       .addMarkdown('##### 📖 SELECT')
       .addSql(ForeignTableSQL.queryData(item.schema!, item.label))
       .show();
@@ -248,7 +224,7 @@ ${columnRows}
       .addSql(createStatement)
       .addMarkdown('##### 📖 Query Data')
       .addSql(ForeignTableSQL.queryData(item.schema!, item.label))
-      .addMarkdown('##### ❌ DROP Foreign Table Script — ⚠️ Warning: permanently deletes the foreign table')
+      .addMarkdown('##### 🗑️ DROP Foreign Table Script')
       .addSql(ForeignTableSQL.drop(item.schema!, item.label))
       .show();
 
@@ -270,8 +246,8 @@ export async function cmdDropForeignTable(item: DatabaseTreeItem, context: vscod
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        MarkdownUtils.header(`❌ Drop Foreign Table: \`${item.schema}.${item.label}\``) +
-        MarkdownUtils.warningBox('This permanently deletes the foreign table mapping. Remote source data is not deleted, but local access via this object is removed.')
+        MarkdownUtils.header(`🗑️ Drop Foreign Table: \`${item.schema}.${item.label}\``, 'Drop the foreign table mapping from the database.') +
+        MarkdownUtils.dangerBox(`Dropping \`${item.schema}.${item.label}\` is permanent and will fail if dependent objects exist.`)
       )
       .addMarkdown('##### ❌ DROP')
       .addSql(ForeignTableSQL.drop(item.schema!, item.label))

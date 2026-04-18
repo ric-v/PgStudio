@@ -7,6 +7,7 @@
 import { IMessageHandler } from '../MessageHandler';
 import { ConnectionManager } from '../ConnectionManager';
 import { PostgresMetadata, TableInfo } from '../../common/types';
+import { safelyPostMessage } from './messaging';
 
 interface InsertRowMessage {
   type: 'insertRow';
@@ -32,7 +33,10 @@ export class InsertRowHandler implements IMessageHandler {
 
     const editor = context.editor;
     if (!editor?.notebook?.metadata?.connectionId) {
-      postMessage({ type: 'insertFailed', tempId, error: 'No active connection found' });
+      await safelyPostMessage(postMessage, { type: 'insertFailed', tempId, error: 'No active connection found' }, {
+        contextLabel: 'Insert Row',
+        notifyOnFailure: true,
+      });
       return;
     }
 
@@ -54,7 +58,10 @@ export class InsertRowHandler implements IMessageHandler {
       const schema = tableInfo.schema || 'public';
       const table = tableInfo.table;
       if (!table) {
-        postMessage({ type: 'insertFailed', tempId, error: 'No table name in tableInfo' });
+        await safelyPostMessage(postMessage, { type: 'insertFailed', tempId, error: 'No table name in tableInfo' }, {
+          contextLabel: 'Insert Row',
+          notifyOnFailure: true,
+        });
         return;
       }
 
@@ -68,7 +75,10 @@ export class InsertRowHandler implements IMessageHandler {
       }
 
       if (Object.keys(filteredValues).length === 0) {
-        postMessage({ type: 'insertFailed', tempId, error: 'No values provided for INSERT' });
+        await safelyPostMessage(postMessage, { type: 'insertFailed', tempId, error: 'No values provided for INSERT' }, {
+          contextLabel: 'Insert Row',
+          notifyOnFailure: true,
+        });
         return;
       }
 
@@ -83,13 +93,22 @@ export class InsertRowHandler implements IMessageHandler {
       const result = await client.query(sql, paramValues);
 
       if (result.rows.length > 0) {
-        postMessage({ type: 'insertSuccess', tempId, actualRow: result.rows[0] });
+        await safelyPostMessage(postMessage, { type: 'insertSuccess', tempId, actualRow: result.rows[0] }, {
+          contextLabel: 'Insert Row',
+          notifyOnFailure: true,
+        });
       } else {
-        postMessage({ type: 'insertFailed', tempId, error: 'INSERT did not return a row' });
+        await safelyPostMessage(postMessage, { type: 'insertFailed', tempId, error: 'INSERT did not return a row' }, {
+          contextLabel: 'Insert Row',
+          notifyOnFailure: true,
+        });
       }
     } catch (err: any) {
       const errorMsg = err?.message || String(err);
-      postMessage({ type: 'insertFailed', tempId, error: errorMsg });
+      await safelyPostMessage(postMessage, { type: 'insertFailed', tempId, error: errorMsg }, {
+        contextLabel: 'Insert Row',
+        notifyOnFailure: true,
+      });
     } finally {
       if (client) { client.release(); }
     }

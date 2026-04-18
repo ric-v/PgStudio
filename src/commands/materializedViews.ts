@@ -24,7 +24,7 @@ export async function cmdRefreshMatView(item: DatabaseTreeItem, context: vscode.
     const { metadata } = dbConn;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 🔄 Refresh Materialized View: \`${item.schema}.${item.label}\`\n\nRefresh the materialized view data from underlying tables.`)
+      .addMarkdown(MarkdownUtils.header(`🔄 Refresh Materialized View: \`${item.schema}.${item.label}\``, 'Refresh the materialized view data from underlying tables.'))
       .addMarkdown('##### 🔄 REFRESH')
       .addSql(MaterializedViewSQL.refresh(item.schema!, item.label))
       .show();
@@ -51,11 +51,10 @@ export async function cmdEditMatView(item: DatabaseTreeItem, context: vscode.Ext
       const createMatViewStatement = `CREATE MATERIALIZED VIEW ${item.schema}.${item.label} AS\n${viewDef}\nWITH DATA;`;
 
       await new NotebookBuilder(metadata)
-        .addMarkdown(
-          MarkdownUtils.header(`✏️ Edit Materialized View: \`${item.schema}.${item.label}\``) +
-          MarkdownUtils.infoBox('Modify the materialized view definition below and execute the cell to update it.') +
-          MarkdownUtils.warningBox('This will drop and recreate the materialized view.')
-        )
+          .addMarkdown(
+            MarkdownUtils.header(`✏️ Edit Materialized View: \`${item.schema}.${item.label}\``, 'Modify the materialized view definition below and execute the cell to update it.') +
+            MarkdownUtils.warningBox('This will drop and recreate the materialized view.')
+          )
         .addMarkdown('##### 📝 View Definition')
         .addSql(`DROP MATERIALIZED VIEW IF EXISTS ${item.schema}.${item.label};\n\n${createMatViewStatement}`)
         .show();
@@ -79,7 +78,7 @@ export async function cmdViewMatViewData(item: DatabaseTreeItem, context: vscode
     const { metadata } = dbConn;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 📖 View Data: \`${item.schema}.${item.label}\`\n\nQuery data from the materialized view.`)
+      .addMarkdown(MarkdownUtils.header(`📖 View Data: \`${item.schema}.${item.label}\``, 'Query data from the materialized view.'))
       .addMarkdown('##### 📖 SELECT')
       .addSql(MaterializedViewSQL.select(item.schema!, item.label))
       .show();
@@ -248,7 +247,7 @@ ${dependencyRows}
         .addSql(MaterializedViewSQL.select(item.schema!, item.label))
         .addMarkdown('##### 📊 Statistics and Metadata')
         .addSql(`-- Get detailed statistics\nSELECT \n    schemaname,\n    matviewname,\n    matviewowner,\n    tablespace,\n    hasindexes,\n    ispopulated,\n    pg_size_pretty(pg_total_relation_size(schemaname||'.'||matviewname)) as total_size\nFROM pg_matviews\nWHERE schemaname = '${item.schema}' AND matviewname = '${item.label}';\n\n-- Check when it was last refreshed\nSELECT \n    schemaname,\n    relname,\n    last_vacuum,\n    last_autovacuum,\n    last_analyze,\n    last_autoanalyze,\n    n_live_tup,\n    n_dead_tup\nFROM pg_stat_user_tables\nWHERE schemaname = '${item.schema}' AND relname = '${item.label}';`)
-        .addMarkdown('##### ❌ DROP Materialized View Script — ⚠️ Warning: permanently deletes the materialized view')
+        .addMarkdown('##### 🗑️ DROP Materialized View Script')
         .addSql(MaterializedViewSQL.drop(item.schema!, item.label))
         .show();
     } finally {
@@ -271,8 +270,11 @@ export async function cmdDropMatView(item: DatabaseTreeItem, context: vscode.Ext
     const { metadata } = dbConn;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ❌ Drop Materialized View: \`${item.schema}.${item.label}\`\n\n⚠️ **Warning:** This permanently deletes the materialized view and cannot be undone.`)
-      .addMarkdown('##### ❌ DROP — ⚠️ Warning: permanently deletes the materialized view')
+      .addMarkdown(
+        MarkdownUtils.header(`🗑️ Drop Materialized View: \`${item.schema}.${item.label}\``, 'Drop the materialized view from the database.') +
+        MarkdownUtils.dangerBox(`Dropping \`${item.schema}.${item.label}\` is permanent and will fail if dependent objects exist.`)
+      )
+      .addMarkdown('##### 🗑️ DROP')
       .addSql(MaterializedViewSQL.drop(item.schema!, item.label))
       .show();
   } catch (err: any) {

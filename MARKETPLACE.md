@@ -109,6 +109,29 @@
 
 ---
 
+## 📋 Feature Matrix
+
+| Area | PgStudio v1.0.0 | Notes |
+|---|---|---|
+| Core PostgreSQL object operations | ✅ | Tables, views, mat views, functions, roles, extensions, FDWs, and more |
+| AI-assisted SQL workflows | ✅ | Generate, optimize, explain, analyze, and notebook handoff |
+| Production safety controls | ✅ | Read-only mode, query risk scoring, confirmation prompts, Auto-LIMIT |
+| Real-time monitoring dashboard | ✅ | Activity and performance telemetry in VS Code |
+| Interactive SQL notebooks | ✅ | Native `.pgsql` notebook workflow |
+| In-grid editing parity with desktop IDEs | ⚠️ Partial | Planned enhancements in v1.x |
+| ERD/schema visualization parity | ⚠️ Partial | Under active expansion |
+| Advanced replication administration | ⚠️ Partial | Additional publication/subscription workflows planned |
+
+---
+
+## ⚠️ Known Limitations (v1.0.0)
+
+- In-grid editing is currently more limited than full desktop DB IDEs.
+- ERD/schema visualization is available but not yet feature-complete.
+- Some advanced PostgreSQL admin workflows are partial and are scheduled for incremental v1.x updates.
+
+---
+
 ## 🌳 Database Explorer
 
 Navigate your database with an intuitive hierarchical tree view:

@@ -90,9 +90,88 @@ export class ConvertExplainHandler implements IMessageHandler {
       return;
     }
 
-    // Extract the actual query from EXPLAIN statement
-    const explainMatch = originalQuery.match(/^\s*EXPLAIN\s*(?:\([^)]*\))?\s*(.+)$/is);
-    const innerQuery = explainMatch ? explainMatch[1].trim() : originalQuery;
+    // Extract the actual SQL statement after EXPLAIN options.
+    // Supports:
+    // - EXPLAIN SELECT ...
+    // - EXPLAIN ANALYZE SELECT ...
+    // - EXPLAIN (ANALYZE, BUFFERS) SELECT ...
+    const extractInnerQuery = (query: string): string => {
+      const src = query.trim();
+      const explainPrefix = src.match(/^EXPLAIN\b/i);
+      if (!explainPrefix) {
+        return src;
+      }
+
+      let i = explainPrefix[0].length;
+      const len = src.length;
+      const skipWs = () => {
+        while (i < len && /\s/.test(src[i])) i++;
+      };
+
+      skipWs();
+
+      // Optional parenthesized options: EXPLAIN (...)
+      if (src[i] === '(') {
+        let depth = 0;
+        while (i < len) {
+          const ch = src[i];
+          if (ch === '(') depth++;
+          if (ch === ')') {
+            depth--;
+            if (depth === 0) {
+              i++;
+              break;
+            }
+          }
+          i++;
+        }
+      } else {
+        // Legacy option tokens before the actual statement.
+        const optionTokens = new Set([
+          'ANALYZE',
+          'ANALYSE',
+          'VERBOSE',
+          'COSTS',
+          'SETTINGS',
+          'BUFFERS',
+          'WAL',
+          'TIMING',
+          'SUMMARY',
+          'FORMAT',
+          'TRUE',
+          'FALSE',
+          'TEXT',
+          'XML',
+          'JSON',
+          'YAML',
+          'ON',
+          'OFF'
+        ]);
+
+        while (i < len) {
+          skipWs();
+          const tokenMatch = src.slice(i).match(/^([A-Za-z_]+)/);
+          if (!tokenMatch) {
+            break;
+          }
+          const token = tokenMatch[1].toUpperCase();
+          if (!optionTokens.has(token)) {
+            break;
+          }
+          i += tokenMatch[1].length;
+        }
+      }
+
+      skipWs();
+      return src.slice(i).trim();
+    };
+
+    const innerQuery = extractInnerQuery(originalQuery);
+
+    if (!innerQuery) {
+      vscode.window.showErrorMessage('Could not extract query after EXPLAIN');
+      return;
+    }
 
     // Create new query with FORMAT JSON
     const jsonQuery = `EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS, VERBOSE)\n${innerQuery}`;

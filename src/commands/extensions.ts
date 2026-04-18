@@ -99,7 +99,7 @@ export async function cmdDropExtension(item: DatabaseTreeItem, context: vscode.E
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        MarkdownUtils.header(`❌ Drop Extension: \`${extensionName}\``) +
+        MarkdownUtils.header(`🗑️ Drop Extension: \`${extensionName}\``) +
         MarkdownUtils.dangerBox('This action will remove the PostgreSQL extension and all its objects. This operation cannot be undone.')
       )
       .addMarkdown('##### ❌ Drop Command')

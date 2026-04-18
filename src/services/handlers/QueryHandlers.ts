@@ -5,6 +5,7 @@ import { ConnectionManager } from '../../services/ConnectionManager';
 import { ErrorHandlers } from '../../commands/helper';
 import { ConnectionUtils } from '../../utils/connectionUtils';
 import { SqlExecutor } from '../../providers/kernel/SqlExecutor';
+import { safelyPostMessage } from './messaging';
 export { FkLookupHandler } from './FkLookupHandler';
 
 function quoteIdentifier(identifier: string): string {
@@ -301,7 +302,14 @@ export class SaveChangesHandler implements IMessageHandler {
         vscode.window.showInformationMessage(`✅ Successfully saved ${parts.join(', ')}${errorCount > 0 ? `, ${errorCount} failed` : ''}`);
         // Notify renderer to clear modified cells and remove deleted rows
         if (context.postMessage) {
-          context.postMessage({ type: 'saveSuccess', successCount, errorCount, deletedCount });
+          await safelyPostMessage(
+            context.postMessage,
+            { type: 'saveSuccess', successCount, errorCount, deletedCount },
+            {
+              contextLabel: 'Save Changes',
+              notifyOnFailure: true,
+            },
+          );
         }
       } else if (errorCount > 0) {
         vscode.window.showErrorMessage(`Failed to save changes: ${errorCount} error(s)`);
@@ -318,7 +326,14 @@ export class SaveChangesHandler implements IMessageHandler {
       vscode.window.showErrorMessage(`Failed to save changes: ${err.message}`);
       // Notify renderer to restore the save button
       if (context.postMessage) {
-        context.postMessage({ type: 'saveFailed' });
+        await safelyPostMessage(
+          context.postMessage,
+          { type: 'saveFailed' },
+          {
+            contextLabel: 'Save Changes',
+            notifyOnFailure: true,
+          },
+        );
       }
     } finally {
       if (client) client.release();

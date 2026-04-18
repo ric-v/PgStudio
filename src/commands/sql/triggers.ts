@@ -34,7 +34,7 @@ WHERE n.nspname = '${schema}' AND c.relname = '${table}' AND t.tgname = '${trigg
     `ALTER TABLE "${schema}"."${table}" DISABLE TRIGGER "${triggerName}";`,
 
   create: (schema: string, table: string) => `-- Create a new trigger on ${schema}.${table}
-CREATE OR REPLACE FUNCTION ${schema}.trigger_function_name()
+CREATE OR REPLACE FUNCTION "${schema}".trigger_function_name()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Trigger logic here
@@ -46,6 +46,6 @@ CREATE TRIGGER trigger_name
   BEFORE INSERT OR UPDATE OR DELETE
   ON "${schema}"."${table}"
   FOR EACH ROW
-  EXECUTE FUNCTION ${schema}.trigger_function_name();
+  EXECUTE FUNCTION "${schema}".trigger_function_name();
 `,
 };

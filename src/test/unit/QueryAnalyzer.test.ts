@@ -227,4 +227,24 @@ describe('QueryAnalyzer', () => {
     expect(withinBaseline.degradationPercent).to.equal(0);
     expect(withinBaseline.analysis).to.contain('Query performance is within baseline');
   });
+
+  it('caps aggregate risk score, applies staging warnings, and treats safe reads as non-dangerous', () => {
+    const staging = { environment: 'staging' } as any;
+
+    const heavy = analyzer.analyzeQuery('DROP TABLE users; TRUNCATE audit_logs;', staging);
+    expect(heavy.isDangerous).to.be.true;
+    expect(heavy.operations).to.have.length.greaterThan(0);
+    expect(heavy.riskScore).to.equal(60);
+    expect(heavy.warningMessage).to.contain('STAGING DATABASE');
+
+    const readOnly = analyzer.analyzeQuery('SELECT * FROM users WHERE id = 1');
+    expect(readOnly.isDangerous).to.be.false;
+    expect(readOnly.operations).to.deep.equal([]);
+    expect(readOnly.riskScore).to.equal(0);
+    expect(readOnly.requiresConfirmation).to.be.false;
+    expect(readOnly.warningMessage).to.equal(undefined);
+
+    expect(analyzer.isReadOnlyQuery('/* cleanup */\nWITH x AS (SELECT 1) SELECT * FROM x;')).to.be.true;
+    expect(analyzer.isReadOnlyQuery('WITH d AS (DELETE FROM users WHERE id=1) SELECT * FROM d;')).to.be.false;
+  });
 });

@@ -1,0 +1,42 @@
+<section class="minimized-overview" id="minimized-overview" aria-hidden="false">
+  <div class="minimized-hero-wrap">
+    <p class="min-badge">VS Code Marketplace <strong>0.9.20260409</strong></p>
+    <h2>Powerful PostgreSQL <span>Management Inside VS Code</span></h2>
+    <p class="min-lead">Write SQL, manage databases, and leverage AI - all without leaving your editor. Interactive
+      notebooks, live dashboards, and intelligent assistance in one seamless extension.</p>
+  </div>
+  <div class="minimized-actions">
+    <a class="min-cta primary" href="https://marketplace.visualstudio.com/items?itemName=ric-v.postgres-explorer"
+      target="_blank" rel="noopener noreferrer">⬇ Install Now</a>
+    <button class="min-cta secondary" id="open-editor-shortcut" type="button">✨ Open Demo</button>
+  </div>
+  <div class="mini-editor-preview" aria-label="PgStudio preview">
+    <div class="mini-preview-toolbar">
+      <button class="mini-terminal-btn" type="button">▶ Run</button>
+      <button class="mini-terminal-btn" type="button">✨ Ask AI</button>
+      <button class="mini-terminal-btn" type="button">💬 Chat</button>
+      <button class="mini-terminal-btn" type="button">Optimize</button>
+      <button class="mini-terminal-btn" type="button">Explain</button>
+    </div>
+    <pre class="mini-preview-code"><code><span class="comment">-- Real-time database insights</span>
+<span class="kw">SELECT</span>
+  <span class="fn">date_trunc</span>(<span class="str">'day'</span>, created_at) <span class="kw">AS</span> day,
+  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> users,
+  <span class="fn">SUM</span>(amount) <span class="kw">AS</span> revenue
+<span class="kw">FROM</span> orders
+<span class="kw">WHERE</span> created_at &gt;= <span class="fn">NOW</span>() - <span class="kw">INTERVAL</span> <span class="str">'7 days'</span>
+<span class="kw">GROUP BY</span> day <span class="kw">ORDER BY</span> day;</code></pre>
+    <div class="mini-preview-foot">✓ 7 rows in 45ms</div>
+  </div>
+  <div class="minimized-links">
+    <a class="min-link" href="https://github.com/dev-asterix/PgStudio#readme" target="_blank"
+      rel="noopener noreferrer">Documentation</a>
+    <a class="min-link" href="https://github.com/dev-asterix/PgStudio/blob/main/CHANGELOG.md" target="_blank"
+      rel="noopener noreferrer">Changelog</a>
+    <a class="min-link" href="https://open-vsx.org/extension/ric-v/postgres-explorer" target="_blank"
+      rel="noopener noreferrer">Open VSX</a>
+    <a class="min-link" href="https://github.com/dev-asterix/PgStudio" target="_blank"
+      rel="noopener noreferrer">GitHub</a>
+    <a class="min-link min-link-home" href="https://astrx.dev/" target="_blank" rel="noopener noreferrer">Home</a>
+  </div>
+</section>

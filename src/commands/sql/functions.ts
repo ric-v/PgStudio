@@ -8,17 +8,17 @@ export const FunctionSQL = {
    */
   call: (schema: string, name: string, args: string) =>
     `-- Call function (returns single value)
-SELECT ${schema}.${name}(${args});
+SELECT "${schema}"."${name}"(${args});
 
 -- Use SELECT * FROM when the function returns a table or set of rows
--- SELECT * FROM ${schema}.${name}(${args});`,
+-- SELECT * FROM "${schema}"."${name}"(${args});`,
 
   /**
    * Create or replace function template
    */
   createOrReplace: (schema: string) =>
     `-- Create or replace function
-CREATE OR REPLACE FUNCTION ${schema}.function_name(param1 integer, param2 text)
+CREATE OR REPLACE FUNCTION "${schema}"."function_name"(param1 integer, param2 text)
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
@@ -31,10 +31,10 @@ $$;`,
    */
   drop: (schema: string, name: string, args: string) =>
     `-- Drop function
-DROP FUNCTION IF EXISTS ${schema}.${name}(${args});
+DROP FUNCTION IF EXISTS "${schema}"."${name}"(${args});
 
 -- Use CASCADE to also drop dependent objects (views, other functions, etc.)
--- DROP FUNCTION IF EXISTS ${schema}.${name}(${args}) CASCADE;`,
+-- DROP FUNCTION IF EXISTS "${schema}"."${name}"(${args}) CASCADE;`,
 
   /**
    * Function metadata query

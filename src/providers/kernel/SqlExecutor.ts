@@ -270,9 +270,24 @@ export class SqlExecutor {
             const planCell = result.rows[0]['QUERY PLAN'] ?? result.rows[0]['query_plan'];
             if (planCell) {
               try {
-                explainPlan = typeof planCell === 'string' ? JSON.parse(planCell) : planCell;
+                const parsed = typeof planCell === 'string' ? JSON.parse(planCell) : planCell;
+
+                const hasPlanNode = (value: any): boolean => {
+                  if (!value) return false;
+                  if (Array.isArray(value)) {
+                    const first = value[0];
+                    return Boolean(first && typeof first === 'object' && first.Plan);
+                  }
+                  return Boolean(typeof value === 'object' && (value.Plan || value['Node Type']));
+                };
+
+                // Keep visual explain payload limited to JSON plans only.
+                // Text EXPLAIN output remains in table view and can be converted via the UI action.
+                if (hasPlanNode(parsed)) {
+                  explainPlan = parsed;
+                }
               } catch {
-                explainPlan = planCell;
+                // Ignore non-JSON EXPLAIN text output for explainPlan.
               }
             }
           }

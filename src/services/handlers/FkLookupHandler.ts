@@ -9,6 +9,7 @@ import { IMessageHandler } from '../MessageHandler';
 import { ConnectionManager } from '../ConnectionManager';
 import { ConnectionUtils } from '../../utils/connectionUtils';
 import { PostgresMetadata, FkLookupRequest } from '../../common/types';
+import { safelyPostMessage } from './messaging';
 
 export class FkLookupHandler implements IMessageHandler {
   async handle(message: FkLookupRequest, context: {
@@ -74,17 +75,31 @@ export class FkLookupHandler implements IMessageHandler {
         ? result.fields.map((field: any) => field.name)
         : Object.keys(result.rows?.[0] || {});
 
-      postMessage({
-        type: 'fkLookupResponse',
-        requestId,
-        rows: result.rows,
-        columns,
-      });
+      await safelyPostMessage(
+        postMessage,
+        {
+          type: 'fkLookupResponse',
+          requestId,
+          rows: result.rows,
+          columns,
+        },
+        {
+          contextLabel: 'FK Lookup',
+          notifyOnFailure: false,
+        },
+      );
     } catch (err) {
       console.error('FkLookupHandler error:', err);
       const message = err instanceof Error ? err.message : String(err);
       await vscode.window.showErrorMessage(`FK lookup failed: ${message}`);
-      await postMessage({ type: 'fkLookupResponse', requestId, rows: [], columns: [] });
+      await safelyPostMessage(
+        postMessage,
+        { type: 'fkLookupResponse', requestId, rows: [], columns: [] },
+        {
+          contextLabel: 'FK Lookup',
+          notifyOnFailure: false,
+        },
+      );
     } finally {
       if (client) { client.release(); }
     }

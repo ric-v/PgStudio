@@ -20,3 +20,11 @@ src/test/unit/PgPassSupport.test.ts
 .nightly/
 CLAUDE.md
 .claude/
+docs/.next/
+.c8rc.phase-handlers.json
+.c8rc.phase-utils.json
+.c8rc.phase-report.json
+.c8rc.phase-*.json
+.nycrc
+roadmap.md
+FIXES_APPLIED.md

@@ -21,8 +21,7 @@ export async function cmdAllOperationsTypes(item: DatabaseTreeItem, context: vsc
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### 🔧 Type Operations: \`${schema}.${typeName}\`\n\n` +
-        `Manage composite and enum types: find usage, rename, create, and drop.`
+        MarkdownUtils.header(`🔧 Type Operations: \`${schema}.${typeName}\``, 'Manage composite and enum types: find usage, rename, create, and drop.')
       )
       .addMarkdown(`##### 🔍 Find Usage`)
       .addSql(TypeSQL.findUsage(schema, typeName))
@@ -32,7 +31,7 @@ export async function cmdAllOperationsTypes(item: DatabaseTreeItem, context: vsc
       .addSql(TypeSQL.createComposite(schema))
       .addMarkdown(`##### ➕ Create Enum Type`)
       .addSql(TypeSQL.createEnum(schema))
-      .addMarkdown(`##### ❌ Drop Type — ⚠️ warning: permanently removes the type and may break dependent objects.`)
+      .addMarkdown(`##### 🗑️ Drop Type`)
       .addSql(TypeSQL.drop(schema, typeName))
       .show();
   } catch (err: any) {
@@ -58,8 +57,7 @@ export async function cmdEditTypes(item: DatabaseTreeItem, context: vscode.Exten
 
       await new NotebookBuilder(metadata)
         .addMarkdown(
-          `### ✏️ Edit Type: \`${item.schema}.${item.label}\`\n\n` +
-          `Modify the type definition below and execute the cells to update it.`
+          MarkdownUtils.header(`✏️ Edit Type: \`${item.schema}.${item.label}\``, 'Modify the type definition below and execute the cells to update it.')
         )
         .addMarkdown(`##### 📝 Type Definition`)
         .addSql(`-- Drop existing type\nDROP TYPE IF EXISTS ${item.schema}.${item.label} CASCADE;\n\n-- Create type with new definition\nCREATE TYPE ${item.schema}.${item.label} AS (\n${fields}\n);`)
@@ -211,8 +209,8 @@ export async function cmdDropType(item: DatabaseTreeItem, context: vscode.Extens
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### ❌ Drop Type: \`${item.schema}.${item.label}\`\n\n` +
-        `⚠️ warning: permanently removes the type and may break dependent objects.`
+        MarkdownUtils.header(`🗑️ Drop Type: \`${item.schema}.${item.label}\``, 'Drop the type from the database.') +
+        MarkdownUtils.dangerBox(`Dropping \`${item.schema}.${item.label}\` is permanent and will fail if dependent objects exist.`)
       )
       .addSql(TypeSQL.drop(item.schema!, item.label))
       .show();
@@ -241,8 +239,7 @@ export async function cmdCreateType(item: DatabaseTreeItem, context: vscode.Exte
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### ➕ Create New Type in Schema: \`${item.schema}\`\n\n` +
-        `Templates for creating composite and enum types.`
+        MarkdownUtils.header(`➕ Create New Type in Schema: \`${item.schema}\``, 'Templates for creating composite and enum types.')
       )
       .addMarkdown(`##### ➕ Create Composite Type`)
       .addSql(TypeSQL.createComposite(item.schema!))

@@ -10,6 +10,8 @@ function buildItemKey(item: DatabaseTreeItem): string {
   return [item.type, item.connectionId || '', item.databaseName || '', item.schema || '', item.label].join(':');
 }
 
+const SYSTEM_DATABASES = new Set(['postgres', 'template0', 'template1']);
+
 export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<DatabaseTreeItem | undefined | null | void> = new vscode.EventEmitter<DatabaseTreeItem | undefined | null | void>();
   readonly onDidChangeTreeData: vscode.Event<DatabaseTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
@@ -179,7 +181,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
   }
 
   /**
-   * Get database objects (tables, views, functions) for a connection
+   * Get database objects (tables, views, functions, procedures) for a connection
    * Used by AI Generate Query feature to provide schema context
    */
   public async getDbObjectsForConnection(connection: any): Promise<Array<{ type: string, schema: string, name: string, columns?: string[] }>> {
@@ -258,6 +260,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
         FROM pg_proc p
         JOIN pg_namespace n ON p.pronamespace = n.oid
         WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND p.prokind = 'f'
         ORDER BY n.nspname, p.proname
         LIMIT 50
       `;
@@ -268,6 +271,28 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
           type: 'function',
           schema: row.schema_name,
           name: row.function_name
+        });
+      });
+
+      // Fetch procedures
+      const proceduresQuery = `
+        SELECT 
+          n.nspname as schema_name,
+          p.proname as procedure_name
+        FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND p.prokind = 'p'
+        ORDER BY n.nspname, p.proname
+        LIMIT 50
+      `;
+
+      const proceduresResult = await client.query(proceduresQuery);
+      proceduresResult.rows.forEach((row: any) => {
+        objects.push({
+          type: 'procedure',
+          schema: row.schema_name,
+          name: row.procedure_name
         });
       });
 
@@ -468,7 +493,61 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
               ORDER BY datname
             `);
           });
-          return dbResult.rows.map(row => new DatabaseTreeItem(
+          const systemDatabases = dbResult.rows.filter((row: any) => SYSTEM_DATABASES.has(row.datname));
+          const userDatabases = dbResult.rows.filter((row: any) => !SYSTEM_DATABASES.has(row.datname));
+
+          const databaseItems = userDatabases.map((row: any) => new DatabaseTreeItem(
+            row.datname,
+            vscode.TreeItemCollapsibleState.Collapsed,
+            'database',
+            element.connectionId,
+            row.datname,
+            undefined, // schema
+            undefined, // tableName
+            undefined, // columnName
+            undefined, // comment
+            undefined, // isInstalled
+            undefined, // installedVersion
+            undefined, // roleAttributes
+            undefined, // isDisconnected
+            undefined, // isFavorite
+            undefined, // count
+            undefined, // rowCount
+            row.size   // size
+          ));
+
+          if (systemDatabases.length > 0) {
+            databaseItems.push(new DatabaseTreeItem(
+              'System Databases',
+              vscode.TreeItemCollapsibleState.Collapsed,
+              'system-databases-group',
+              element.connectionId,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              systemDatabases.length
+            ));
+          }
+
+          return databaseItems;
+
+        case 'system-databases-group':
+          const systemDbResult = await client.query(
+            `SELECT datname, pg_size_pretty(pg_database_size(datname)) as size
+             FROM pg_database
+             WHERE datname = ANY($1)
+             ORDER BY datname`,
+            [Array.from(SYSTEM_DATABASES)]
+          );
+
+          return systemDbResult.rows.map((row: any) => new DatabaseTreeItem(
             row.datname,
             vscode.TreeItemCollapsibleState.Collapsed,
             'database',
@@ -495,7 +574,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
           for (const key of favoriteKeys) {
             const parts = key.split(':');
             // Key format: type:connectionId:database:schema:name
-            const itemType = parts[0] as 'table' | 'view' | 'function' | 'materialized-view';
+            const itemType = parts[0] as 'table' | 'view' | 'function' | 'procedure' | 'materialized-view';
             const dbName = parts[2];
             const schemaName = parts[3];
             const itemName = parts[4];
@@ -536,7 +615,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
           for (const key of recentKeys) {
             const parts = key.split(':');
             // Key format: type:connectionId:database:schema:name
-            const itemType = parts[0] as 'table' | 'view' | 'function' | 'materialized-view';
+            const itemType = parts[0] as 'table' | 'view' | 'function' | 'procedure' | 'materialized-view';
             const dbName = parts[2];
             const schemaName = parts[3];
             const itemName = parts[4];
@@ -829,7 +908,11 @@ i.relname as index_name,
                  FROM information_schema.tables t
                  JOIN pg_class c ON c.relname = t.table_name
                  JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
-                 WHERE t.table_schema = $1 AND t.table_type = 'BASE TABLE'
+                 WHERE t.table_schema = $1
+                   AND t.table_type = 'BASE TABLE'
+                   AND NOT c.relispartition
+                   AND t.table_name NOT LIKE 'pg\_%' ESCAPE '\\'
+                   AND t.table_name NOT LIKE 'sql\_%' ESCAPE '\\'
                  ORDER BY t.table_name`,
                 [element.schema]
               );
@@ -856,6 +939,42 @@ i.relname as index_name,
                     row.size   // size
                   );
                 });
+
+            case 'System Tables':
+              const systemTableResult = await client.query(
+                `SELECT 
+                   t.table_name,
+                   c.reltuples::bigint as estimated_rows,
+                   pg_size_pretty(pg_total_relation_size(c.oid)) as size
+                 FROM information_schema.tables t
+                 JOIN pg_class c ON c.relname = t.table_name
+                 JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+                 WHERE t.table_schema = $1
+                   AND t.table_type = 'BASE TABLE'
+                   AND (t.table_name LIKE 'pg\_%' ESCAPE '\\' OR t.table_name LIKE 'sql\_%' ESCAPE '\\')
+                 ORDER BY t.table_name`,
+                [element.schema]
+              );
+
+              return systemTableResult.rows.map((row: any) => new DatabaseTreeItem(
+                row.table_name,
+                vscode.TreeItemCollapsibleState.Collapsed,
+                'table',
+                element.connectionId,
+                element.databaseName,
+                element.schema,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                false,
+                undefined,
+                row.estimated_rows,
+                row.size
+              ));
 
             case 'Views':
               const viewResult = await client.query(
@@ -889,6 +1008,30 @@ i.relname as index_name,
                     row.routine_name,
                     vscode.TreeItemCollapsibleState.None,
                     'function',
+                    element.connectionId,
+                    element.databaseName,
+                    element.schema,
+                    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+                    isFav
+                  );
+                });
+
+            case 'Procedures':
+              const procedureResult = await client.query(
+                `SELECT p.proname AS procedure_name
+                 FROM pg_proc p
+                 JOIN pg_namespace n ON n.oid = p.pronamespace
+                 WHERE n.nspname = $1 AND p.prokind = 'p'
+                 ORDER BY p.proname`,
+                [element.schema]
+              );
+              return procedureResult.rows
+                .map(row => {
+                  const isFav = this.isFavoriteItem('procedure', element.connectionId, element.databaseName, element.schema, row.procedure_name);
+                  return new DatabaseTreeItem(
+                    row.procedure_name,
+                    vscode.TreeItemCollapsibleState.None,
+                    'procedure',
                     element.connectionId,
                     element.databaseName,
                     element.schema,
@@ -1124,7 +1267,20 @@ i.relname as index_name,
 
         case 'schema':
           const tablesCountResult = await client.query(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'",
+            `SELECT COUNT(*)
+             FROM information_schema.tables t
+             JOIN pg_class c ON c.relname = t.table_name
+             JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+             WHERE t.table_schema = $1
+               AND t.table_type = 'BASE TABLE'
+               AND NOT c.relispartition
+               AND t.table_name NOT LIKE 'pg\\_%' ESCAPE E'\\\\'
+               AND t.table_name NOT LIKE 'sql\\_%' ESCAPE E'\\\\'`,
+            [element.schema]
+          );
+
+          const systemTablesCountResult = await client.query(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE' AND (table_name LIKE 'pg\\_%' ESCAPE E'\\\\' OR table_name LIKE 'sql\\_%' ESCAPE E'\\\\')",
             [element.schema]
           );
 
@@ -1135,6 +1291,14 @@ i.relname as index_name,
 
           const functionsCountResult = await client.query(
             "SELECT COUNT(*) FROM information_schema.routines WHERE routine_schema = $1 AND routine_type = 'FUNCTION'",
+            [element.schema]
+          );
+
+          const proceduresCountResult = await client.query(
+            `SELECT COUNT(*)
+             FROM pg_proc p
+             JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = $1 AND p.prokind = 'p'`,
             [element.schema]
           );
 
@@ -1178,10 +1342,11 @@ i.relname as index_name,
             [element.schema]
           );
 
-          return [
+          const schemaItems: DatabaseTreeItem[] = [
             new DatabaseTreeItem('Tables', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, tablesCountResult.rows[0].count),
             new DatabaseTreeItem('Views', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, viewsCountResult.rows[0].count),
             new DatabaseTreeItem('Functions', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, functionsCountResult.rows[0].count),
+            new DatabaseTreeItem('Procedures', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, proceduresCountResult.rows[0].count),
             new DatabaseTreeItem('Materialized Views', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, materializedViewsCountResult.rows[0].count),
             new DatabaseTreeItem('Types', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, typesCountResult.rows[0].count),
             new DatabaseTreeItem('Foreign Tables', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, foreignTablesCountResult.rows[0].count),
@@ -1191,6 +1356,29 @@ i.relname as index_name,
             new DatabaseTreeItem('Aggregates', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, aggCountResult.rows[0].count),
             new DatabaseTreeItem('Rules', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ruleCountResult.rows[0].count)
           ];
+
+          const systemTableCount = Number(systemTablesCountResult.rows[0].count || 0);
+          if (systemTableCount > 0) {
+            schemaItems.splice(1, 0, new DatabaseTreeItem(
+              'System Tables',
+              vscode.TreeItemCollapsibleState.Collapsed,
+              'category',
+              element.connectionId,
+              element.databaseName,
+              element.schema,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              systemTableCount
+            ));
+          }
+
+          return schemaItems;
 
         case 'table':
           // Show hierarchical structure for tables
@@ -1280,7 +1468,7 @@ export class DatabaseTreeItem extends vscode.TreeItem {
   constructor(
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-    public readonly type: 'connection' | 'database' | 'schema' | 'table' | 'view' | 'function' | 'column' | 'category' | 'materialized-view' | 'type' | 'foreign-table' | 'extension' | 'role' | 'databases-group' | 'favorites-group' | 'recent-group' | 'constraint' | 'index' | 'foreign-data-wrapper' | 'foreign-server' | 'user-mapping' | 'connection-group' | 'trigger' | 'sequence' | 'partition' | 'domain' | 'aggregate' | 'event-trigger' | 'rule' | 'tablespace' | 'publication' | 'subscription',
+    public readonly type: 'connection' | 'database' | 'schema' | 'table' | 'view' | 'function' | 'procedure' | 'column' | 'category' | 'materialized-view' | 'type' | 'foreign-table' | 'extension' | 'role' | 'databases-group' | 'system-databases-group' | 'favorites-group' | 'recent-group' | 'constraint' | 'index' | 'foreign-data-wrapper' | 'foreign-server' | 'user-mapping' | 'connection-group' | 'trigger' | 'sequence' | 'partition' | 'domain' | 'aggregate' | 'event-trigger' | 'rule' | 'tablespace' | 'publication' | 'subscription',
     public readonly connectionId?: string,
     public readonly databaseName?: string,
     public readonly schema?: string,
@@ -1316,12 +1504,14 @@ export class DatabaseTreeItem extends vscode.TreeItem {
       connection: new vscode.ThemeIcon('plug', isDisconnected ? new vscode.ThemeColor('disabledForeground') : new vscode.ThemeColor('charts.blue')),
       database: new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.purple')),
       'databases-group': new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.purple')),
+      'system-databases-group': new vscode.ThemeIcon('folder-library', new vscode.ThemeColor('charts.gray')),
       'favorites-group': new vscode.ThemeIcon('star-full', new vscode.ThemeColor('charts.yellow')),
       'recent-group': new vscode.ThemeIcon('history', new vscode.ThemeColor('charts.green')),
       schema: new vscode.ThemeIcon('symbol-namespace', new vscode.ThemeColor('charts.yellow')),
       table: new vscode.ThemeIcon('table', new vscode.ThemeColor('charts.blue')),
       view: new vscode.ThemeIcon('eye', new vscode.ThemeColor('charts.green')),
       function: new vscode.ThemeIcon('symbol-method', new vscode.ThemeColor('charts.orange')),
+      procedure: new vscode.ThemeIcon('symbol-method', new vscode.ThemeColor('charts.red')),
       column: new vscode.ThemeIcon('symbol-field', new vscode.ThemeColor('charts.blue')),
       category: new vscode.ThemeIcon('list-tree'),
       'materialized-view': new vscode.ThemeIcon('symbol-structure', new vscode.ThemeColor('charts.green')),

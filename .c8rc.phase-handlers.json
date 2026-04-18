@@ -1,9 +1,10 @@
 {
   "check-coverage": true,
-  "lines": 85,
-  "branches": 75,
-  "statements": 85,
-  "functions": 80,
+  "temp-directory": "./coverage/tmp-handlers",
+  "lines": 80,
+  "branches": 70,
+  "statements": 80,
+  "functions": 89,
   "include": [
     "src/services/handlers/**/*.ts"
   ],

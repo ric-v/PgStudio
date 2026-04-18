@@ -14,6 +14,7 @@ import { cmdDropExtension, cmdEnableExtension, cmdExtensionOperations, cmdRefres
 import { cmdCreateForeignTable, cmdDropForeignTable, cmdEditForeignTable, cmdForeignTableOperations, cmdRefreshForeignTable, cmdShowForeignTableProperties, cmdViewForeignTableData } from '../commands/foreignTables';
 import { cmdForeignDataWrapperOperations, cmdShowForeignDataWrapperProperties, cmdCreateForeignServer, cmdForeignServerOperations, cmdShowForeignServerProperties, cmdDropForeignServer, cmdCreateUserMapping, cmdUserMappingOperations, cmdShowUserMappingProperties, cmdDropUserMapping, cmdRefreshForeignDataWrapper, cmdRefreshForeignServer, cmdRefreshUserMapping } from '../commands/foreignDataWrappers';
 import { cmdCallFunction, cmdCreateFunction, cmdDropFunction, cmdEditFunction, cmdFunctionOperations, cmdRefreshFunction, cmdShowFunctionProperties } from '../commands/functions';
+import { cmdCallProcedure, cmdCreateProcedure, cmdDropProcedure, cmdEditProcedure, cmdProcedureOperations, cmdRefreshProcedure, cmdShowProcedureProperties } from '../commands/procedures';
 import { cmdCreateMaterializedView, cmdDropMatView, cmdEditMatView, cmdMatViewOperations, cmdRefreshMatView, cmdViewMatViewData, cmdViewMatViewProperties } from '../commands/materializedViews';
 import { cmdNewNotebook, cmdExplainQuery, cmdJumpToSection } from '../commands/notebook';
 import { cmdCreateObjectInSchema, cmdCreateSchema, cmdSchemaOperations, cmdShowSchemaProperties, cmdPasteTable } from '../commands/schema';
@@ -348,7 +349,7 @@ export function registerAllCommands(
     },
     {
       command: 'postgres-explorer.newNotebook',
-      callback: async (item: any) => await cmdNewNotebook(item)
+      callback: async (item: any) => await cmdNewNotebook(item, context)
     },
     {
       command: 'postgres-explorer.jumpToSection',
@@ -393,6 +394,21 @@ export function registerAllCommands(
         );
         if (confirm !== 'Delete') { return; }
         await vscode.workspace.fs.delete(item.uri, { recursive: false });
+        notebooksTreeProvider?.refresh();
+      }
+    },
+    {
+      command: 'postgres-explorer.notebooks.deleteFolder',
+      callback: async (item: NotebookTreeItem) => {
+        if (!item?.uri) { return; }
+        const folderName = item.label as string;
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete folder "${folderName}" and all notebooks inside it? This cannot be undone.`,
+          { modal: true },
+          'Delete Folder'
+        );
+        if (confirm !== 'Delete Folder') { return; }
+        await vscode.workspace.fs.delete(item.uri, { recursive: true, useTrash: false });
         notebooksTreeProvider?.refresh();
       }
     },
@@ -616,6 +632,38 @@ export function registerAllCommands(
     {
       command: 'postgres-explorer.dropFunction',
       callback: async (item: DatabaseTreeItem) => await cmdDropFunction(item, context)
+    },
+    // Add procedure commands
+    {
+      command: 'postgres-explorer.refreshProcedure',
+      callback: async (item: DatabaseTreeItem) => await cmdRefreshProcedure(item, context, databaseTreeProvider)
+    },
+    {
+      command: 'postgres-explorer.showProcedureProperties',
+      callback: async (item: DatabaseTreeItem) => {
+        await databaseTreeProvider.addToRecent(item);
+        await cmdShowProcedureProperties(item, context);
+      }
+    },
+    {
+      command: 'postgres-explorer.procedureOperations',
+      callback: async (item: DatabaseTreeItem) => await cmdProcedureOperations(item, context)
+    },
+    {
+      command: 'postgres-explorer.createReplaceProcedure',
+      callback: async (item: DatabaseTreeItem) => await cmdEditProcedure(item, context)
+    },
+    {
+      command: 'postgres-explorer.callProcedure',
+      callback: async (item: DatabaseTreeItem) => await cmdCallProcedure(item, context)
+    },
+    {
+      command: 'postgres-explorer.dropProcedure',
+      callback: async (item: DatabaseTreeItem) => await cmdDropProcedure(item, context)
+    },
+    {
+      command: 'postgres-explorer.createProcedure',
+      callback: async (item: DatabaseTreeItem) => await cmdCreateProcedure(item, context)
     },
     // Add materialized view commands
     {

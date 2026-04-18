@@ -1,5 +1,6 @@
 {
   "check-coverage": true,
+  "temp-directory": "./coverage/tmp-utils",
   "lines": 85,
   "branches": 75,
   "statements": 85,

@@ -91,10 +91,10 @@ export async function generateDropConstraintScript(treeItem: DatabaseTreeItem): 
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### 🗑️ Drop Constraint: \`${constraintName}\`\n\n` +
-        `Removes constraint from \`${schema}.${tableName}\`.`
+        MarkdownUtils.header(`🗑️ Drop Constraint: \`${constraintName}\``, `Removes constraint from \`${schema}.${tableName}\`.`) +
+        MarkdownUtils.dangerBox(`Dropping \`${schema}.${tableName}.${constraintName}\` is permanent and will fail if dependent objects exist.`)
       )
-      .addMarkdown(`##### ⚠️ Drop Constraint — danger: this permanently removes the constraint and its data integrity enforcement.`)
+      .addMarkdown(`##### 🗑️ Drop Constraint`)
       .addSql(ConstraintSQL.drop(schema, tableName, constraintName))
       .show();
   } catch (err: any) {
@@ -118,8 +118,7 @@ export async function generateAlterConstraintScript(treeItem: DatabaseTreeItem):
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### ✏️ Rename Constraint: \`${constraintName}\`\n\n` +
-        `Renames constraint on \`${schema}.${tableName}\`.`
+        MarkdownUtils.header(`✏️ Rename Constraint: \`${constraintName}\``, `Renames constraint on \`${schema}.${tableName}\`. `)
       )
       .addMarkdown(`##### ✏️ Rename Constraint`)
       .addSql(
@@ -149,8 +148,7 @@ export async function validateConstraint(treeItem: DatabaseTreeItem): Promise<vo
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### ✅ Validate Constraint: \`${constraintName}\`\n\n` +
-        `Validates a NOT VALID constraint on \`${schema}.${tableName}\` by scanning existing rows.`
+        MarkdownUtils.header(`✅ Validate Constraint: \`${constraintName}\``, `Validates a NOT VALID constraint on \`${schema}.${tableName}\` by scanning existing rows.`)
       )
       .addMarkdown(`##### ✅ Validate Constraint`)
       .addSql(ConstraintSQL.validate(schema, tableName, constraintName))
@@ -175,8 +173,7 @@ export async function generateAddConstraintScript(treeItem: DatabaseTreeItem): P
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### ➕ Add Constraint: \`${schema}.${tableName}\`\n\n` +
-        `Templates for adding primary key, foreign key, unique, and check constraints.`
+        MarkdownUtils.header(`➕ Add Constraint: \`${schema}.${tableName}\``, 'Templates for adding primary key, foreign key, unique, and check constraints.')
       )
       .addMarkdown(`##### 🔑 Add Primary Key`)
       .addSql(ConstraintSQL.addPrimaryKey(schema, tableName))
@@ -208,8 +205,7 @@ export async function viewConstraintDependencies(treeItem: DatabaseTreeItem): Pr
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### 🕸️ Constraint Dependencies: \`${constraintName}\`\n\n` +
-        `Shows objects that depend on this constraint in \`${schema}.${tableName}\`.`
+        MarkdownUtils.header(`🕸️ Constraint Dependencies: \`${constraintName}\``, `Shows objects that depend on this constraint in \`${schema}.${tableName}\`.`)
       )
       .addMarkdown(`##### 🕸️ Find Dependencies`)
       .addSql(`-- Find all dependencies for this constraint
@@ -255,8 +251,7 @@ export async function cmdConstraintOperations(item: DatabaseTreeItem, _context?:
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### 🛡️ Constraint Operations: \`${constraintName}\`\n\n` +
-        `Manage constraint on \`${schema}.${tableName}\`: validate, add variants, and drop.`
+        MarkdownUtils.header(`🛡️ Constraint Operations: \`${constraintName}\``, `Manage constraint on \`${schema}.${tableName}\`: validate, add variants, and drop.`)
       )
       .addMarkdown(`##### ✅ Validate Constraint`)
       .addSql(ConstraintSQL.validate(schema, tableName, constraintName))
@@ -268,7 +263,7 @@ export async function cmdConstraintOperations(item: DatabaseTreeItem, _context?:
       .addSql(ConstraintSQL.addUnique(schema, tableName))
       .addMarkdown(`##### ✓ Add Check Constraint`)
       .addSql(ConstraintSQL.addCheck(schema, tableName))
-      .addMarkdown(`##### ❌ Drop Constraint — ⚠️ warning: permanently removes the constraint and its data integrity enforcement.`)
+      .addMarkdown(`##### 🗑️ Drop Constraint`)
       .addSql(ConstraintSQL.drop(schema, tableName, constraintName))
       .show();
   } catch (err: any) {
@@ -291,8 +286,7 @@ export async function cmdAddConstraint(item: DatabaseTreeItem): Promise<void> {
 
     await new NotebookBuilder(metadata)
       .addMarkdown(
-        `### ➕ Add Constraint: \`${schema}.${tableName}\`\n\n` +
-        `Templates for adding constraints to enforce data integrity.`
+        MarkdownUtils.header(`➕ Add Constraint: \`${schema}.${tableName}\``, 'Templates for adding constraints to enforce data integrity.')
       )
       .addMarkdown(`##### 🔑 Add Primary Key`)
       .addSql(ConstraintSQL.addPrimaryKey(schema, tableName))

@@ -9,10 +9,7 @@ export async function cmdListRules(item: DatabaseTreeItem, context: vscode.Exten
     const schema = item.schema!;
     const table = item.tableName || item.label;
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`Rules on ${schema}.${table}`) +
-        MarkdownUtils.infoBox('Rules redirect or suppress SQL commands on a table or view.')
-      )
+      .addMarkdown(MarkdownUtils.header(`⚙️ Rules on \`${schema}.${table}\``, 'Rules redirect or suppress SQL commands on a table or view.'))
       .addSql(RuleSQL.list(schema, table))
       .show();
   } finally {
@@ -69,19 +66,12 @@ export async function cmdRuleOperations(item: DatabaseTreeItem, context: vscode.
     const table = item.tableName!;
     const ruleName = item.label;
     await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`Rule Operations: ${ruleName}`) +
-        MarkdownUtils.operationsTable([
-          { operation: 'Definition', description: 'Show rule definition', riskLevel: 'Safe' },
-          { operation: 'Drop', description: 'Permanently drop the rule', riskLevel: 'High' },
-          { operation: 'Drop CASCADE', description: 'Drop rule and dependent objects', riskLevel: 'Very High' },
-        ])
-      )
+      .addMarkdown(MarkdownUtils.header(`⚙️ Rule Operations: \`${ruleName}\``, 'Common rule actions are rendered below as notebook cells.'))
       .addMarkdown('##### Rule Definition')
       .addSql(RuleSQL.getDefinition(schema, table, ruleName))
-      .addMarkdown('##### Drop Rule — WARNING: permanently deletes the rule')
+      .addMarkdown('##### 🗑️ Drop Rule')
       .addSql(RuleSQL.drop(schema, table, ruleName))
-      .addMarkdown('##### Drop Rule CASCADE — WARNING: also drops dependent objects')
+      .addMarkdown('##### 🗑️ Drop Rule CASCADE')
       .addSql(RuleSQL.dropCascade(schema, table, ruleName))
       .show();
   } finally {

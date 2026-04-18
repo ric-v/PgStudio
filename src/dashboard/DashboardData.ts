@@ -24,6 +24,9 @@ export interface DashboardStats {
     usename: string;
     datname: string;
     state: string;
+    waitEventType?: string;
+    waitEvent?: string;
+    xactStart?: string;
     duration: string;
     startTime: string;
     query: string;
@@ -61,13 +64,16 @@ export interface DashboardStats {
   }[];
   waitEvents: { type: string; count: number }[];
   longRunningQueries: number;
+  indexHitRatio: number;
+  oldestTransactionAgeSeconds: number;
+  vacuumTablesNeedingAttention: number;
 }
 
 import { Client, PoolClient } from 'pg';
 
 export async function fetchStats(client: Client | PoolClient, dbName: string): Promise<DashboardStats> {
   // Fetch data with error handling for each query to prevent one failure from breaking the entire dashboard
-  const [dbInfoRes, connRes, tableRes, extRes, countsRes, activeQueriesRes, locksRes, metricsRes, settingsRes, pgStatRes, waitsRes, longQueriesRes] = await Promise.allSettled([
+  const [dbInfoRes, connRes, tableRes, extRes, countsRes, activeQueriesRes, locksRes, metricsRes, settingsRes, pgStatRes, waitsRes, longQueriesRes, indexHitRes, oldestTxRes, vacuumHealthRes] = await Promise.allSettled([
     // DB Info
     client.query(`
             SELECT pg_catalog.pg_get_userbyid(d.datdba) as owner,
@@ -110,7 +116,10 @@ export async function fetchStats(client: Client | PoolClient, dbName: string): P
 
     // Active Queries (including idle)
     client.query(`
-            SELECT pid, usename, datname, state, 
+           SELECT pid, usename, datname, state,
+             wait_event_type,
+             wait_event,
+            xact_start,
                    (now() - query_start)::text as duration,
                    query_start,
                    query
@@ -192,6 +201,34 @@ export async function fetchStats(client: Client | PoolClient, dbName: string): P
             AND (now() - query_start) > interval '5 seconds'
             AND datname = $1
     `, [dbName])
+
+        ,
+
+        // Index hit ratio (different from shared buffer cache hit ratio)
+        client.query(`
+          SELECT
+            COALESCE(
+        100.0 * SUM(idx_blks_hit) / NULLIF(SUM(idx_blks_hit + idx_blks_read), 0),
+        100.0
+            ) AS index_hit_ratio
+          FROM pg_statio_user_tables
+        `),
+
+        // Oldest open transaction age (seconds)
+        client.query(`
+          SELECT COALESCE(MAX(EXTRACT(EPOCH FROM (now() - xact_start))), 0)::bigint AS oldest_tx_age_seconds
+          FROM pg_stat_activity
+          WHERE datname = $1
+            AND xact_start IS NOT NULL
+            AND pid != pg_backend_pid()
+        `, [dbName]),
+
+        // Vacuum attention signal: user tables with substantial dead tuples
+        client.query(`
+          SELECT COUNT(*)::int AS tables_needing_attention
+          FROM pg_stat_user_tables
+          WHERE n_dead_tup > GREATEST((n_live_tup * 0.2)::bigint, 1000)
+        `)
   ]);
 
   // Helper to safely extract result or return empty default
@@ -220,6 +257,9 @@ export async function fetchStats(client: Client | PoolClient, dbName: string): P
   const pgStatRows = getResult(pgStatRes).rows || [];
   const waitEventsRows = getResult(waitsRes).rows;
   const longQueriesRow = getResult(longQueriesRes).rows[0] || { count: 0 };
+  const indexHitRow = getResult(indexHitRes).rows[0] || { index_hit_ratio: 100 };
+  const oldestTxRow = getResult(oldestTxRes).rows[0] || { oldest_tx_age_seconds: 0 };
+  const vacuumHealthRow = getResult(vacuumHealthRes).rows[0] || { tables_needing_attention: 0 };
 
   let active = 0;
   let idle = 0;
@@ -273,6 +313,9 @@ export async function fetchStats(client: Client | PoolClient, dbName: string): P
         usename: r.usename,
         datname: r.datname,
         state: r.state,
+        waitEventType: r.wait_event_type,
+        waitEvent: r.wait_event,
+        xactStart: r.xact_start ? new Date(r.xact_start).toLocaleString() : '-',
         duration: duration,
         startTime: r.query_start ? new Date(r.query_start).toLocaleString() : '-',
         query: r.query
@@ -304,7 +347,10 @@ export async function fetchStats(client: Client | PoolClient, dbName: string): P
       type: r.wait_event_type,
       count: parseInt(r.count)
     })),
-    longRunningQueries: parseInt(longQueriesRow.count)
+    longRunningQueries: parseInt(longQueriesRow.count),
+    indexHitRatio: Math.max(0, Math.min(100, Number(indexHitRow.index_hit_ratio || 100))),
+    oldestTransactionAgeSeconds: parseInt(oldestTxRow.oldest_tx_age_seconds || '0'),
+    vacuumTablesNeedingAttention: parseInt(vacuumHealthRow.tables_needing_attention || '0')
   };
 }
 

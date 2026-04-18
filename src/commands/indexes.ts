@@ -152,7 +152,10 @@ export async function generateDropIndexScript(treeItem: DatabaseTreeItem): Promi
     const indexName = treeItem.label.replace(/^[🔑⭐🔍]\s+/, '');
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 🗑️ Drop Index: \`${schema}.${indexName}\`\n\n⚠️ **Warning:** Dropping this index is permanent and may affect query performance.`)
+      .addMarkdown(
+        MarkdownUtils.header(`🗑️ Drop Index: \`${schema}.${indexName}\``, 'Drop the index from the database.') +
+        MarkdownUtils.dangerBox(`Dropping \`${schema}.${indexName}\` is permanent and will fail if dependent objects exist.`)
+      )
       .addSql(IndexSQL.drop(schema, indexName))
       .show();
   } catch (err: any) {
@@ -174,7 +177,7 @@ export async function generateReindexScript(treeItem: DatabaseTreeItem): Promise
     const indexName = treeItem.label;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 🔄 Reindex: \`${schema}.${indexName}\`\n\nRebuild the index to reclaim space and improve performance.`)
+      .addMarkdown(MarkdownUtils.header(`🔄 Reindex: \`${schema}.${indexName}\``, 'Rebuild the index to reclaim space and improve performance.'))
       .addSql(IndexSQL.reindex(schema, indexName))
       .show();
   } catch (err: any) {
@@ -196,7 +199,7 @@ export async function generateCreateIndexScript(treeItem: DatabaseTreeItem): Pro
     const tableName = treeItem.tableName!;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 📐 Create Index: \`${schema}.${tableName}\`\n\nCreate a new index on the table using the template below.`)
+      .addMarkdown(MarkdownUtils.header(`➕ Create Index: \`${schema}.${tableName}\``, 'Create a new index on the table using the template below.'))
       .addSql(`-- Create B-tree index (default)
 CREATE INDEX idx_${tableName}_column_name
 ON "${schema}"."${tableName}" (column_name);
@@ -233,7 +236,7 @@ export async function analyzeIndexUsage(treeItem: DatabaseTreeItem): Promise<voi
     const indexName = treeItem.label;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 📊 Index Usage Analysis: \`${schema}.${indexName}\`\n\nQuery usage statistics for this index.`)
+      .addMarkdown(MarkdownUtils.header(`📊 Index Usage Analysis: \`${schema}.${indexName}\``, 'Query usage statistics for this index.'))
       .addSql(IndexSQL.usageStats(schema, indexName))
       .show();
   } catch (err: any) {
@@ -255,7 +258,7 @@ export async function generateAlterIndexScript(treeItem: DatabaseTreeItem): Prom
     const indexName = treeItem.label;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ✏️ Alter Index: \`${schema}.${indexName}\`\n\nModify index properties using the template below.`)
+      .addMarkdown(MarkdownUtils.header(`✏️ Alter Index: \`${schema}.${indexName}\``, 'Modify index properties using the template below.'))
       .addSql(IndexSQL.alter(schema, indexName))
       .show();
   } catch (err: any) {
@@ -315,14 +318,14 @@ export async function cmdIndexOperations(item: DatabaseTreeItem, context: vscode
     const indexName = item.label;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### 🔧 Index Operations: \`${schema}.${indexName}\`\n\nCommon operations for managing this index.`)
+      .addMarkdown(MarkdownUtils.header(`🔧 Index Operations: \`${schema}.${indexName}\``, 'Common operations for managing this index.'))
       .addMarkdown('##### 📊 Usage Statistics')
       .addSql(IndexSQL.usageStats(schema, indexName))
       .addMarkdown('##### 🔄 Reindex')
       .addSql(IndexSQL.reindex(schema, indexName))
       .addMarkdown('##### ✏️ Alter Index')
       .addSql(IndexSQL.alter(schema, indexName))
-      .addMarkdown('##### 🗑️ Drop Index\n\n⚠️ **Warning:** Dropping this index is permanent and may affect query performance.')
+      .addMarkdown('##### 🗑️ Drop Index')
       .addSql(IndexSQL.drop(schema, indexName))
       .show();
   } catch (err: any) {
@@ -344,7 +347,7 @@ export async function cmdAddIndex(item: DatabaseTreeItem): Promise<void> {
     const tableName = item.tableName!;
 
     await new NotebookBuilder(metadata)
-      .addMarkdown(`### ➕ Add Index to \`${schema}.${tableName}\`\n\nCreate a new index using the template below.`)
+      .addMarkdown(MarkdownUtils.header(`➕ Add Index to \`${schema}.${tableName}\``, 'Create a new index using the template below.'))
       .addSql(`-- Create B-tree index (default)
 CREATE INDEX idx_${tableName}_column_name
 ON "${schema}"."${tableName}" (column_name);

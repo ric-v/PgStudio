@@ -51,6 +51,7 @@ export async function cmdCreateObjectInSchema(item: DatabaseTreeItem, context: v
       { label: 'Table', detail: 'Create a new table in this schema', query: `CREATE TABLE ${item.schema}.table_name(\n    id serial PRIMARY KEY, \n    column_name data_type, \n    created_at timestamptz DEFAULT current_timestamp\n); ` },
       { label: 'View', detail: 'Create a new view in this schema', query: `CREATE VIEW ${item.schema}.view_name AS\nSELECT column1, column2\nFROM some_table\nWHERE condition; ` },
       { label: 'Function', detail: 'Create a new function in this schema', query: `CREATE OR REPLACE FUNCTION ${item.schema}.function_name(\n    param1 data_type, \n    param2 data_type\n) RETURNS return_type AS $\nBEGIN\n-- Function logic here\n    RETURN result; \nEND; \n$ LANGUAGE plpgsql; ` },
+      { label: 'Procedure', detail: 'Create a new procedure in this schema', query: `CREATE OR REPLACE PROCEDURE ${item.schema}.procedure_name(\n    IN param1 data_type,\n    IN param2 data_type\n)\nLANGUAGE plpgsql\nAS $$\nBEGIN\n    -- Procedure logic here\n    RAISE NOTICE 'param1: %, param2: %', param1, param2;\nEND;\n$$; ` },
       { label: 'Materialized View', detail: 'Create a new materialized view in this schema', query: `CREATE MATERIALIZED VIEW ${item.schema}.matview_name AS\nSELECT column1, column2\nFROM source_table\nWHERE condition\nWITH DATA; ` },
       { label: 'Type', detail: 'Create a new composite type in this schema', query: `CREATE TYPE ${item.schema}.type_name AS(\n    field1 data_type, \n    field2 data_type\n); ` },
       { label: 'Foreign Table', detail: 'Create a new foreign table in this schema', query: `CREATE FOREIGN TABLE ${item.schema}.foreign_table_name(\n    column1 data_type, \n    column2 data_type\n) SERVER foreign_server_name\nOPTIONS(schema_name 'remote_schema', table_name 'remote_table'); ` }
@@ -170,6 +171,7 @@ export async function cmdShowSchemaProperties(item: DatabaseTreeItem, context: v
       (parseInt(objects.foreign_table_count) || 0) +
       (parseInt(objects.partitioned_table_count) || 0) +
       (parseInt(objects.function_count) || 0) +
+      (parseInt(objects.procedure_count) || 0) +
       (parseInt(objects.type_count) || 0);
 
     const ownerInfo = `${schema.owner} | <strong>Database:</strong> ${item.databaseName}${schema.comment ? ` | <strong>Comment:</strong> ${schema.comment}` : ''}`;
@@ -191,6 +193,7 @@ export async function cmdShowSchemaProperties(item: DatabaseTreeItem, context: v
         '🔗 Foreign Tables': `${objects.foreign_table_count || 0}`,
         '📂 Partitioned Tables': `${objects.partitioned_table_count || 0}`,
         '⚙️ Functions': `${objects.function_count || 0}`,
+        '🧩 Procedures': `${objects.procedure_count || 0}`,
         '🏷️ Types': `${objects.type_count || 0}`,
         '⚡ Triggers': `${objects.trigger_count || 0}`
       });

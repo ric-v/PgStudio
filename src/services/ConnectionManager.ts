@@ -1,14 +1,11 @@
-import { Client, Pool, PoolClient, ClientConfig, PoolConfig } from "pg";
-import * as vscode from "vscode";
-import * as fs from "fs";
-import { ConnectionConfig } from "../common/types";
-import { SecretStorageService } from "./SecretStorageService";
-import { SSHService } from "./SSHService";
-import { ErrorService } from "./ErrorService";
-import {
-  resolvePgPassPassword,
-  pgPassFileDescription,
-} from "../utils/pgPassUtils";
+import { Client, Pool, PoolClient, ClientConfig, PoolConfig } from 'pg';
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import { ConnectionConfig } from '../common/types';
+import { SecretStorageService } from './SecretStorageService';
+import { SSHService } from './SSHService';
+import { ErrorService } from './ErrorService';
+import { resolvePgPassPassword, pgPassFileDescription } from '../utils/pgPassUtils';
 
 export interface PoolMetrics {
   connectionId: string;
@@ -49,6 +46,7 @@ export class ConnectionManager {
     this.cleanupTimer = setInterval(() => {
       this.cleanupIdlePools();
     }, this.CLEANUP_INTERVAL);
+    this.cleanupTimer?.unref();
   }
 
   /**
@@ -59,10 +57,7 @@ export class ConnectionManager {
     const poolsToClose: string[] = [];
 
     for (const [key, metrics] of this.poolMetrics.entries()) {
-      if (
-        now - metrics.lastActivity > this.IDLE_TIMEOUT &&
-        metrics.totalConnections === 0
-      ) {
+      if (now - metrics.lastActivity > this.IDLE_TIMEOUT && metrics.totalConnections === 0) {
         poolsToClose.push(key);
       }
     }
@@ -97,20 +92,20 @@ export class ConnectionManager {
 
   private isSSLFailure(err: any): boolean {
     if (!err) return false;
-    const msg = (err.message || "").toString().toLowerCase();
+    const msg = (err.message || '').toString().toLowerCase();
     // Common errors when server doesn't support SSL or handshake fails gracefully
     return (
-      msg.includes("server does not support ssl") ||
-      err.code === "ECONNRESET" ||
-      err.code === "EPROTO"
+      msg.includes('server does not support ssl') ||
+      err.code === 'ECONNRESET' ||
+      err.code === 'EPROTO'
     );
   }
 
   private shouldFallback(config: ConnectionConfig, err: any): boolean {
-    const sslMode = config.sslmode || "prefer";
+    const sslMode = config.sslmode || 'prefer';
     // Only fallback if mode is prefer (or 'allow' - rare)
     // require, verify-ca, verify-full should NOT fallback
-    if (sslMode !== "prefer" && sslMode !== "allow") {
+    if (sslMode !== 'prefer' && sslMode !== 'allow') {
       return false;
     }
     return this.isSSLFailure(err);
@@ -133,9 +128,9 @@ export class ConnectionManager {
       // Apply read-only mode if configured
       if (config.readOnlyMode) {
         try {
-          await client.query("SET default_transaction_read_only = ON");
+          await client.query('SET default_transaction_read_only = ON');
         } catch (err) {
-          console.warn("Failed to set read-only mode:", err);
+          console.warn('Failed to set read-only mode:', err);
         }
       }
 
@@ -143,10 +138,7 @@ export class ConnectionManager {
     } catch (err: any) {
       // Handle SSL Fallback
       if (this.shouldFallback(config, err)) {
-        console.warn(
-          `SSL connection failed for ${key}, falling back to non-SSL`,
-          err,
-        );
+        console.warn(`SSL connection failed for ${key}, falling back to non-SSL`, err);
 
         // Remove the failed pool
         this.pools.delete(key);
@@ -166,9 +158,9 @@ export class ConnectionManager {
         // Apply read-only mode if configured
         if (config.readOnlyMode) {
           try {
-            await client.query("SET default_transaction_read_only = ON");
+            await client.query('SET default_transaction_read_only = ON');
           } catch (err) {
-            console.warn("Failed to set read-only mode:", err);
+            console.warn('Failed to set read-only mode:', err);
           }
         }
 
@@ -185,7 +177,7 @@ export class ConnectionManager {
       idleTimeoutMillis: 30000,
     };
     const pool = new Pool(poolConfig);
-    pool.on("error", (err) => {
+    pool.on('error', (err) => {
       console.error(`Pool error for ${key}`, err);
       // Don't show modal for background pool errors, but could log to output channel in future
     });
@@ -193,10 +185,7 @@ export class ConnectionManager {
   }
 
   /** Get a persistent client for a session (notebooks, transactions). */
-  public async getSessionClient(
-    config: ConnectionConfig,
-    sessionId: string,
-  ): Promise<Client> {
+  public async getSessionClient(config: ConnectionConfig, sessionId: string): Promise<Client> {
     const key = `${this.getConnectionKey(config)}:session:${sessionId}`;
     if (this.sessions.has(key)) return this.sessions.get(key)!;
 
@@ -210,17 +199,14 @@ export class ConnectionManager {
       // Apply read-only mode if configured
       if (config.readOnlyMode) {
         try {
-          await client.query("SET default_transaction_read_only = ON");
+          await client.query('SET default_transaction_read_only = ON');
         } catch (err) {
-          console.warn("Failed to set read-only mode:", err);
+          console.warn('Failed to set read-only mode:', err);
         }
       }
     } catch (err: any) {
       if (this.shouldFallback(config, err)) {
-        console.warn(
-          `Session SSL connection failed for ${key}, falling back to non-SSL`,
-          err,
-        );
+        console.warn(`Session SSL connection failed for ${key}, falling back to non-SSL`, err);
 
         // Retry with SSL disabled
         const nonSSLConfig = await this.createClientConfig(config, true);
@@ -230,9 +216,9 @@ export class ConnectionManager {
         // Apply read-only mode if configured
         if (config.readOnlyMode) {
           try {
-            await client.query("SET default_transaction_read_only = ON");
+            await client.query('SET default_transaction_read_only = ON');
           } catch (err) {
-            console.warn("Failed to set read-only mode:", err);
+            console.warn('Failed to set read-only mode:', err);
           }
         }
       } else {
@@ -240,8 +226,8 @@ export class ConnectionManager {
       }
     }
 
-    client.on("end", () => this.sessions.delete(key));
-    client.on("error", (err) => {
+    client.on('end', () => this.sessions.delete(key));
+    client.on('error', (err) => {
       console.error(`Session client error for ${key}`, err);
       ErrorService.getInstance().showError(
         `Session connection error (${config.name}): ${err.message}`,
@@ -252,10 +238,7 @@ export class ConnectionManager {
     return client;
   }
 
-  public async closeSession(
-    config: ConnectionConfig,
-    sessionId: string,
-  ): Promise<void> {
+  public async closeSession(config: ConnectionConfig, sessionId: string): Promise<void> {
     const key = `${this.getConnectionKey(config)}:session:${sessionId}`;
     const client = this.sessions.get(key);
     if (client) {
@@ -304,9 +287,7 @@ export class ConnectionManager {
     for (const key of poolKeysToRemove) {
       const pool = this.pools.get(key);
       if (pool) {
-        await pool
-          .end()
-          .catch((e) => console.error(`Error ending pool ${key}`, e));
+        await pool.end().catch((e) => console.error(`Error ending pool ${key}`, e));
         this.pools.delete(key);
       }
     }
@@ -318,9 +299,7 @@ export class ConnectionManager {
     for (const key of sessionKeysToRemove) {
       const client = this.sessions.get(key);
       if (client) {
-        await client
-          .end()
-          .catch((e) => console.error(`Error ending session ${key}`, e));
+        await client.end().catch((e) => console.error(`Error ending session ${key}`, e));
         this.sessions.delete(key);
       }
     }
@@ -330,20 +309,18 @@ export class ConnectionManager {
 
   public async closeAll(): Promise<void> {
     for (const pool of this.pools.values()) {
-      await pool.end().catch((e) => console.error("Error closing pool", e));
+      await pool.end().catch((e) => console.error('Error closing pool', e));
     }
     this.pools.clear();
 
     for (const client of this.sessions.values()) {
-      await client
-        .end()
-        .catch((e) => console.error("Error closing session", e));
+      await client.end().catch((e) => console.error('Error closing session', e));
     }
     this.sessions.clear();
   }
 
   private getConnectionKey(config: ConnectionConfig): string {
-    return `${config.id}:${config.database || "postgres"}`;
+    return `${config.id}:${config.database || 'postgres'}`;
   }
 
   private async createClientConfig(
@@ -368,57 +345,62 @@ export class ConnectionManager {
     //    resolve a wrong .pgpass entry for connections that rely on trust auth.
     if (!password && config.username) {
       const targetDb = config.database || 'postgres';
-      const pgpassPwd = resolvePgPassPassword(
-        config.host, config.port, targetDb, config.username,
-      );
+      const pgpassPwd = resolvePgPassPassword(config.host, config.port, targetDb, config.username);
       if (pgpassPwd !== undefined) {
         password = pgpassPwd;
-        console.log(`[ConnectionManager] Password resolved from .pgpass for ${config.username}@${config.host}:${config.port}/${targetDb}`);
+        console.log(
+          `[ConnectionManager] Password resolved from .pgpass for ${config.username}@${config.host}:${config.port}/${targetDb}`,
+        );
       } else if (targetDb !== 'postgres') {
         const fallback = resolvePgPassPassword(
-          config.host, config.port, 'postgres', config.username,
+          config.host,
+          config.port,
+          'postgres',
+          config.username,
         );
         if (fallback !== undefined) {
           password = fallback;
-          console.log(`[ConnectionManager] Password resolved from .pgpass (postgres fallback) for ${config.username}@${config.host}:${config.port}`);
+          console.log(
+            `[ConnectionManager] Password resolved from .pgpass (postgres fallback) for ${config.username}@${config.host}:${config.port}`,
+          );
         }
       }
       if (!password) {
-        console.log(`[ConnectionManager] No password found in SecretStorage or .pgpass for ${config.username}@${config.host}. Expected: ${pgPassFileDescription()}`);
+        console.log(
+          `[ConnectionManager] No password found in SecretStorage or .pgpass for ${config.username}@${config.host}. Expected: ${pgPassFileDescription()}`,
+        );
       }
     }
-
 
     let sslConfig: boolean | any = false;
     // Default to 'prefer' if empty/undefined.
     // If forceDisableSSL is true, we ignore sslmode and leave sslConfig as false.
-    const sslMode = config.sslmode || "prefer";
+    const sslMode = config.sslmode || 'prefer';
 
-    if (!forceDisableSSL && sslMode !== "disable") {
+    if (!forceDisableSSL && sslMode !== 'disable') {
       sslConfig = {
-        rejectUnauthorized:
-          sslMode === "verify-ca" || sslMode === "verify-full",
+        rejectUnauthorized: sslMode === 'verify-ca' || sslMode === 'verify-full',
       };
 
       if (config.sslRootCertPath) {
         try {
           sslConfig.ca = fs.readFileSync(config.sslRootCertPath).toString();
         } catch (e) {
-          console.warn("Failed to read SSL CA:", e);
+          console.warn('Failed to read SSL CA:', e);
         }
       }
       if (config.sslCertPath) {
         try {
           sslConfig.cert = fs.readFileSync(config.sslCertPath).toString();
         } catch (e) {
-          console.warn("Failed to read SSL Cert:", e);
+          console.warn('Failed to read SSL Cert:', e);
         }
       }
       if (config.sslKeyPath) {
         try {
           sslConfig.key = fs.readFileSync(config.sslKeyPath).toString();
         } catch (e) {
-          console.warn("Failed to read SSL Key:", e);
+          console.warn('Failed to read SSL Key:', e);
         }
       }
     }
@@ -426,15 +408,13 @@ export class ConnectionManager {
     const clientConfig: ClientConfig = {
       user: config.username || undefined,
       password: password || undefined,
-      database: config.database || "postgres",
+      database: config.database || 'postgres',
       connectionTimeoutMillis: (config.connectTimeout || 15) * 1000,
       statement_timeout:
         config.statementTimeout ||
-        vscode.workspace
-          .getConfiguration("postgresExplorer")
-          .get<number>("queryTimeout") ||
+        vscode.workspace.getConfiguration('postgresExplorer').get<number>('queryTimeout') ||
         undefined,
-      application_name: config.applicationName || "PgStudio",
+      application_name: config.applicationName || 'PgStudio',
       ssl: sslConfig || undefined,
       ...(config.options ? { options: config.options } : {}),
     };
@@ -449,9 +429,7 @@ export class ConnectionManager {
         clientConfig.stream = stream as any;
       } catch (err: any) {
         // SSH errors are critical for connection creation
-        ErrorService.getInstance().showError(
-          `SSH Connection failed: ${err.message}`,
-        );
+        ErrorService.getInstance().showError(`SSH Connection failed: ${err.message}`);
         throw new Error(`SSH Connection failed: ${err.message}`);
       }
     } else {

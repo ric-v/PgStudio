@@ -1,3 +1,5 @@
+import { createButton } from './ui';
+
 /**
  * ActionBar component for the Result Panel table data view.
  * Renders a split bar with data actions on the left and AI actions on the right,
@@ -34,14 +36,17 @@ export function createActionBar(options: ActionBarOptions): HTMLElement {
   leftGroup.style.cssText = `
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
   `;
-  leftGroup.appendChild(createButton('☐ Select All', options.onSelectAll));
-  leftGroup.appendChild(createButton('⎘ Copy', options.onCopy));
-  leftGroup.appendChild(createButton('⬆ Import', options.onImport));
+  leftGroup.appendChild(createButton('☐ Select All', true, 'neutral'));
+  leftGroup.lastElementChild?.addEventListener('click', options.onSelectAll);
+  leftGroup.appendChild(createButton('⎘ Copy', true, 'neutral'));
+  leftGroup.lastElementChild?.addEventListener('click', options.onCopy);
+  leftGroup.appendChild(createButton('⬆ Import', true, 'neutral'));
+  leftGroup.lastElementChild?.addEventListener('click', options.onImport);
 
   // Export button — passed to onExport so the dropdown can anchor to it
-  const exportBtn = createButton('↓ Export', () => {});
+  const exportBtn = createButton('↓ Export', true, 'neutral');
   exportBtn.style.position = 'relative';
   exportBtn.onclick = () => options.onExport(exportBtn);
   leftGroup.appendChild(exportBtn);
@@ -59,40 +64,18 @@ export function createActionBar(options: ActionBarOptions): HTMLElement {
   rightGroup.style.cssText = `
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
   `;
-  rightGroup.appendChild(createButton('✦ Send to Chat', options.onSendToChat));
-  rightGroup.appendChild(createButton('◎ Analyze with AI', options.onAnalyzeWithAI));
-  rightGroup.appendChild(createButton('⚡ Optimize', options.onOptimize));
+  rightGroup.appendChild(createButton('✦ Send to Chat', true, 'ai'));
+  rightGroup.lastElementChild?.addEventListener('click', options.onSendToChat);
+  rightGroup.appendChild(createButton('◎ Analyze with AI', true, 'ai'));
+  rightGroup.lastElementChild?.addEventListener('click', options.onAnalyzeWithAI);
+  rightGroup.appendChild(createButton('⚡ Optimize', true, 'ai'));
+  rightGroup.lastElementChild?.addEventListener('click', options.onOptimize);
 
   container.appendChild(leftGroup);
   container.appendChild(divider);
   container.appendChild(rightGroup);
 
   return container;
-}
-
-function createButton(label: string, onClick: () => void): HTMLElement {
-  const btn = document.createElement('button');
-  btn.textContent = label;
-  btn.style.cssText = `
-    padding: 3px 8px;
-    font-size: 11px;
-    font-family: var(--vscode-font-family);
-    color: var(--vscode-button-secondaryForeground);
-    background: var(--vscode-button-secondaryBackground);
-    border: 1px solid var(--vscode-button-border, transparent);
-    border-radius: 3px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: background 0.15s;
-  `;
-  btn.onmouseover = () => {
-    btn.style.background = 'var(--vscode-button-secondaryHoverBackground)';
-  };
-  btn.onmouseout = () => {
-    btn.style.background = 'var(--vscode-button-secondaryBackground)';
-  };
-  btn.onclick = () => onClick();
-  return btn;
 }

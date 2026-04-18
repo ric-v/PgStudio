@@ -1,6 +1,11 @@
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 import { Chart, registerables } from 'chart.js';
-import { createButton, createTab, createBreadcrumb, BreadcrumbSegment } from './renderer/components/ui';
+import {
+  createButton,
+  createTab,
+  createBreadcrumb,
+  BreadcrumbSegment,
+} from './renderer/components/ui';
 import { createExportButton } from './renderer/features/export';
 import { TableRenderer, TableEvents } from './renderer/components/table/TableRenderer';
 import { ChartRenderer } from './renderer/components/chart/ChartRenderer';
@@ -11,7 +16,11 @@ import { createActionBar } from './renderer/components/ActionBar';
 import { showImportModal } from './renderer/features/import';
 import { createTransactionBanner } from './renderer/components/TransactionBanner';
 import { parseBreadcrumbFromSql } from './renderer/utils/sqlParsing';
-import { addResultToHistory, getResultHistory, renderTabStrip } from './renderer/components/ResultTabStrip';
+import {
+  addResultToHistory,
+  getResultHistory,
+  renderTabStrip,
+} from './renderer/components/ResultTabStrip';
 import { renderTransposeTable } from './renderer/components/TransposeView';
 
 // Register Chart.js components
@@ -68,11 +77,11 @@ function ensureAmberGutterStyle(): void {
 
 /** Remove all transaction banners and amber gutters from the document */
 function clearTransactionUI(): void {
-  document.querySelectorAll('[data-transaction-banner="true"]').forEach(el => el.remove());
-  document.querySelectorAll('.amber-gutter').forEach(el => el.classList.remove('amber-gutter'));
+  document.querySelectorAll('[data-transaction-banner="true"]').forEach((el) => el.remove());
+  document.querySelectorAll('.amber-gutter').forEach((el) => el.classList.remove('amber-gutter'));
 }
 
-export const activate: ActivationFunction = context => {
+export const activate: ActivationFunction = (context) => {
   return {
     renderOutputItem(data, element) {
       // Silently ignore the legacy TopBar header output (removed feature)
@@ -88,17 +97,31 @@ export const activate: ActivationFunction = context => {
         return;
       }
 
-      const { columns = [], rows, rowCount, command, query, notices, executionTime, tableInfo, success, columnTypes, backendPid, breadcrumb } = json;
+      const {
+        columns = [],
+        rows,
+        rowCount,
+        command,
+        query,
+        notices,
+        executionTime,
+        tableInfo,
+        success,
+        columnTypes,
+        backendPid,
+        breadcrumb,
+      } = json;
 
       // Transaction state from payload
-      const transactionState: { isActive: boolean; statementCount: number } | undefined = json.transactionState;
+      const transactionState: { isActive: boolean; statementCount: number } | undefined =
+        json.transactionState;
       const pendingCommit: boolean = !!json.pendingCommit;
 
       // Data Management
       const originalRows: any[] = rows ? JSON.parse(JSON.stringify(rows)) : [];
       let currentRows: any[] = rows ? JSON.parse(JSON.stringify(rows)) : [];
       const selectedIndices = new Set<number>();
-      const modifiedCells = new Map<string, { originalValue: any, newValue: any }>();
+      const modifiedCells = new Map<string, { originalValue: any; newValue: any }>();
       const rowsMarkedForDeletion = new Set<number>();
 
       // FK lookup pending callbacks — keyed by requestId
@@ -106,8 +129,15 @@ export const activate: ActivationFunction = context => {
 
       // Result history for tab strip — persists across re-renders in same output element
       const historyEntry = {
-        columns, rows: currentRows, columnTypes, tableInfo,
-        command, rowCount, executionTime, query, timestamp: Date.now()
+        columns,
+        rows: currentRows,
+        columnTypes,
+        tableInfo,
+        command,
+        rowCount,
+        executionTime,
+        query,
+        timestamp: Date.now(),
       };
       const resultHistory = addResultToHistory(element, historyEntry);
 
@@ -152,8 +182,12 @@ export const activate: ActivationFunction = context => {
 
       let summaryText = '';
       if (rowCount !== undefined && rowCount !== null) summaryText += `${rowCount} rows`;
-      if (notices?.length) summaryText += summaryText ? `, ${notices.length} messages` : `${notices.length} messages`;
-      if (executionTime !== undefined) summaryText += summaryText ? `, ${executionTime.toFixed(3)}s` : `${executionTime.toFixed(3)}s`;
+      if (notices?.length)
+        summaryText += summaryText ? `, ${notices.length} messages` : `${notices.length} messages`;
+      if (executionTime !== undefined)
+        summaryText += summaryText
+          ? `, ${executionTime.toFixed(3)}s`
+          : `${executionTime.toFixed(3)}s`;
       if (!summaryText) summaryText = 'No results';
       summary.textContent = summaryText;
 
@@ -230,8 +264,12 @@ export const activate: ActivationFunction = context => {
             id: 'schema',
             type: 'schema',
             onClick: () => {
-              context.postMessage?.({ type: 'breadcrumbNavigate', segment: resolvedSchema, segmentType: 'schema' });
-            }
+              context.postMessage?.({
+                type: 'breadcrumbNavigate',
+                segment: resolvedSchema,
+                segmentType: 'schema',
+              });
+            },
           });
         }
         if (resolvedTable) {
@@ -239,7 +277,7 @@ export const activate: ActivationFunction = context => {
             label: resolvedTable,
             id: 'object',
             type: 'object',
-            isLast: true
+            isLast: true,
           });
         }
 
@@ -251,21 +289,29 @@ export const activate: ActivationFunction = context => {
         const breadcrumbEl = createBreadcrumb(segments, {
           onConnectionDropdown: (anchorEl: HTMLElement) => {
             // Also emit breadcrumbNavigate for connection (12.2)
-            context.postMessage?.({ type: 'breadcrumbNavigate', segment: breadcrumb.connectionName, segmentType: 'connection' });
+            context.postMessage?.({
+              type: 'breadcrumbNavigate',
+              segment: breadcrumb.connectionName,
+              segmentType: 'connection',
+            });
             context.postMessage?.({
               type: 'showConnectionSwitcher',
-              connectionId: breadcrumb.connectionId
+              connectionId: breadcrumb.connectionId,
             });
           },
           onDatabaseDropdown: (anchorEl: HTMLElement) => {
             // Also emit breadcrumbNavigate for database (12.2)
-            context.postMessage?.({ type: 'breadcrumbNavigate', segment: breadcrumb.database, segmentType: 'database' });
+            context.postMessage?.({
+              type: 'breadcrumbNavigate',
+              segment: breadcrumb.database,
+              segmentType: 'database',
+            });
             context.postMessage?.({
               type: 'showDatabaseSwitcher',
               connectionId: breadcrumb.connectionId,
-              currentDatabase: breadcrumb.database
+              currentDatabase: breadcrumb.database,
             });
-          }
+          },
         });
         mainContainer.appendChild(breadcrumbEl);
       }
@@ -298,7 +344,7 @@ export const activate: ActivationFunction = context => {
           onRetry: () => {
             // Client-side retry: re-execute the cell by posting retryCell to the kernel
             context.postMessage?.({ type: 'retryCell', query: json.query });
-          }
+          },
         });
         contentContainer.appendChild(errorPanel);
       }
@@ -343,9 +389,10 @@ export const activate: ActivationFunction = context => {
         },
         onCopy: () => {
           // Copy selected rows (or all rows if none selected) to clipboard as CSV
-          const rowsToCopy = selectedIndices.size > 0
-            ? Array.from(selectedIndices).map(i => currentRows[i])
-            : currentRows;
+          const rowsToCopy =
+            selectedIndices.size > 0
+              ? Array.from(selectedIndices).map((i) => currentRows[i])
+              : currentRows;
           const escapeCSV = (val: any): string => {
             if (val === null || val === undefined) return '';
             const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
@@ -356,7 +403,7 @@ export const activate: ActivationFunction = context => {
           };
           const csv = [
             columns.map((c: string) => `"${c.replace(/"/g, '""')}"`).join(','),
-            ...rowsToCopy.map((r: any) => columns.map((c: string) => escapeCSV(r[c])).join(','))
+            ...rowsToCopy.map((r: any) => columns.map((c: string) => escapeCSV(r[c])).join(',')),
           ].join('\n');
           navigator.clipboard?.writeText(csv);
         },
@@ -366,7 +413,10 @@ export const activate: ActivationFunction = context => {
         onExport: (anchorBtn: HTMLElement) => {
           // Remove existing dropdown if open (toggle)
           const existing = document.querySelector('.export-dropdown');
-          if (existing) { existing.remove(); return; }
+          if (existing) {
+            existing.remove();
+            return;
+          }
 
           const stringifyValue = (val: any): string => {
             if (val === null || val === undefined) return '';
@@ -375,75 +425,146 @@ export const activate: ActivationFunction = context => {
           };
           const getCSV = () => {
             const header = columns.map((c: string) => `"${c.replace(/"/g, '""')}"`).join(',');
-            const body = currentRows.map((row: any) => columns.map((col: string) => {
-              const str = stringifyValue(row[col]);
-              return (str.includes(',') || str.includes('"') || str.includes('\n'))
-                ? `"${str.replace(/"/g, '""')}"` : str;
-            }).join(',')).join('\n');
+            const body = currentRows
+              .map((row: any) =>
+                columns
+                  .map((col: string) => {
+                    const str = stringifyValue(row[col]);
+                    return str.includes(',') || str.includes('"') || str.includes('\n')
+                      ? `"${str.replace(/"/g, '""')}"`
+                      : str;
+                  })
+                  .join(','),
+              )
+              .join('\n');
             return `${header}\n${body}`;
           };
           const downloadFile = (content: string, filename: string, type: string) => {
             const blob = new Blob([content], { type });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = filename;
-            document.body.appendChild(a); a.click();
-            document.body.removeChild(a); URL.revokeObjectURL(url);
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
           };
 
           const menu = document.createElement('div');
           menu.className = 'export-dropdown';
-          menu.style.cssText = 'position:absolute;top:100%;left:0;background:var(--vscode-menu-background);border:1px solid var(--vscode-menu-border);box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:100;min-width:160px;border-radius:3px;padding:4px 0;';
+          menu.style.cssText =
+            'position:fixed;background:var(--vscode-menu-background);border:1px solid var(--vscode-menu-border);box-shadow:0 2px 8px rgba(0,0,0,0.15);z-index:1000;min-width:160px;border-radius:3px;padding:4px 0;visibility:hidden;';
 
           const addItem = (label: string, onClick: () => void) => {
             const item = document.createElement('div');
             item.textContent = label;
-            item.style.cssText = 'padding:6px 12px;cursor:pointer;color:var(--vscode-menu-foreground);font-size:12px;';
-            item.onmouseenter = () => { item.style.background = 'var(--vscode-menu-selectionBackground)'; item.style.color = 'var(--vscode-menu-selectionForeground)'; };
-            item.onmouseleave = () => { item.style.background = 'transparent'; item.style.color = 'var(--vscode-menu-foreground)'; };
-            item.onclick = (e) => { e.stopPropagation(); onClick(); menu.remove(); };
+            item.style.cssText =
+              'padding:6px 12px;cursor:pointer;color:var(--vscode-menu-foreground);font-size:12px;';
+            item.onmouseenter = () => {
+              item.style.background = 'var(--vscode-menu-selectionBackground)';
+              item.style.color = 'var(--vscode-menu-selectionForeground)';
+            };
+            item.onmouseleave = () => {
+              item.style.background = 'transparent';
+              item.style.color = 'var(--vscode-menu-foreground)';
+            };
+            item.onclick = (e) => {
+              e.stopPropagation();
+              onClick();
+              menu.remove();
+            };
             menu.appendChild(item);
           };
 
-          addItem('Save as CSV', () => downloadFile(getCSV(), `export_${Date.now()}.csv`, 'text/csv'));
-          addItem('Save as JSON', () => downloadFile(JSON.stringify(currentRows, null, 2), `export_${Date.now()}.json`, 'application/json'));
+          addItem('Save as CSV', () =>
+            downloadFile(getCSV(), `export_${Date.now()}.csv`, 'text/csv'),
+          );
+          addItem('Save as JSON', () =>
+            downloadFile(
+              JSON.stringify(currentRows, null, 2),
+              `export_${Date.now()}.json`,
+              'application/json',
+            ),
+          );
           addItem('Save as Markdown', () => {
             const header = `| ${columns.join(' | ')} |`;
             const sep = `| ${columns.map(() => '---').join(' | ')} |`;
-            const body = currentRows.map((row: any) => `| ${columns.map((col: string) => {
-              const v = row[col]; if (v === null || v === undefined) return 'NULL';
-              return (typeof v === 'object' ? JSON.stringify(v) : String(v)).replace(/\|/g, '\\|').replace(/\n/g, ' ');
-            }).join(' | ')} |`).join('\n');
+            const body = currentRows
+              .map(
+                (row: any) =>
+                  `| ${columns
+                    .map((col: string) => {
+                      const v = row[col];
+                      if (v === null || v === undefined) return 'NULL';
+                      return (typeof v === 'object' ? JSON.stringify(v) : String(v))
+                        .replace(/\|/g, '\\|')
+                        .replace(/\n/g, ' ');
+                    })
+                    .join(' | ')} |`,
+              )
+              .join('\n');
             downloadFile(`${header}\n${sep}\n${body}`, `export_${Date.now()}.md`, 'text/markdown');
           });
           addItem('Copy to Clipboard', () => {
             navigator.clipboard?.writeText(getCSV()).then(() => {
               anchorBtn.textContent = 'Copied!';
-              setTimeout(() => { anchorBtn.textContent = '↓ Export'; }, 2000);
+              setTimeout(() => {
+                anchorBtn.textContent = '↓ Export';
+              }, 2000);
             });
           });
           if (tableInfo) {
             addItem('Copy SQL INSERT', () => {
               const tableName = `"${tableInfo.schema}"."${tableInfo.table}"`;
               const cols = columns.map((c: string) => `"${c}"`).join(', ');
-              const inserts = currentRows.map((row: any) => {
-                const vals = columns.map((col: string) => {
-                  const v = row[col];
-                  if (v === null || v === undefined) return 'NULL';
-                  if (typeof v === 'number') return v;
-                  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
-                  const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
-                  return `'${s.replace(/'/g, "''")}'`;
-                }).join(', ');
-                return `INSERT INTO ${tableName} (${cols}) VALUES (${vals});`;
-              }).join('\n');
+              const inserts = currentRows
+                .map((row: any) => {
+                  const vals = columns
+                    .map((col: string) => {
+                      const v = row[col];
+                      if (v === null || v === undefined) return 'NULL';
+                      if (typeof v === 'number') return v;
+                      if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+                      const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+                      return `'${s.replace(/'/g, "''")}'`;
+                    })
+                    .join(', ');
+                  return `INSERT INTO ${tableName} (${cols}) VALUES (${vals});`;
+                })
+                .join('\n');
               navigator.clipboard?.writeText(inserts);
             });
           }
 
-          anchorBtn.appendChild(menu);
+          document.body.appendChild(menu);
+
+          const buttonRect = anchorBtn.getBoundingClientRect();
+          const menuWidth = Math.max(180, menu.getBoundingClientRect().width || 180);
+          const menuHeight = menu.getBoundingClientRect().height || 0;
+          const viewportPadding = 8;
+          const spaceBelow = window.innerHeight - buttonRect.bottom - viewportPadding;
+          const spaceAbove = buttonRect.top - viewportPadding;
+
+          let top = buttonRect.bottom + 4;
+          if (menuHeight > 0 && spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+            top = Math.max(viewportPadding, buttonRect.top - menuHeight - 4);
+          }
+
+          let left = buttonRect.left;
+          if (left + menuWidth > window.innerWidth - viewportPadding) {
+            left = window.innerWidth - menuWidth - viewportPadding;
+          }
+          left = Math.max(viewportPadding, left);
+
+          menu.style.left = `${left}px`;
+          menu.style.top = `${top}px`;
+          menu.style.visibility = 'visible';
           setTimeout(() => {
-            const close = () => { menu.remove(); document.removeEventListener('click', close); };
+            const close = () => {
+              menu.remove();
+              document.removeEventListener('click', close);
+            };
             document.addEventListener('click', close);
           }, 0);
         },
@@ -454,8 +575,8 @@ export const activate: ActivationFunction = context => {
             data: {
               query: json.query || '',
               results: resultsJson,
-              message: 'I ran this query and got these results. Please help me understand them.'
-            }
+              message: 'I ran this query and got these results. Please help me understand them.',
+            },
           });
         },
         onAnalyzeWithAI: () => {
@@ -468,18 +589,24 @@ export const activate: ActivationFunction = context => {
             return str;
           };
           const csvHeader = columns.map((c: string) => `"${c.replace(/"/g, '""')}"`).join(',');
-          const csvRows = currentRows.map((r: any) => columns.map((c: string) => escapeCSV(r[c])).join(','));
+          const csvRows = currentRows.map((r: any) =>
+            columns.map((c: string) => escapeCSV(r[c])).join(','),
+          );
           const dataCsv = [csvHeader, ...csvRows].join('\n');
           context.postMessage?.({
             type: 'analyzeData',
             data: dataCsv,
             query: json.query || '',
-            rowCount: currentRows.length
+            rowCount: currentRows.length,
           });
         },
         onOptimize: () => {
-          context.postMessage?.({ type: 'optimizeQuery', query: json.query, executionTime: json.executionTime });
-        }
+          context.postMessage?.({
+            type: 'optimizeQuery',
+            query: json.query,
+            executionTime: json.executionTime,
+          });
+        },
       });
 
       // Capture left/right groups before appending extra elements
@@ -487,18 +614,20 @@ export const activate: ActivationFunction = context => {
       const rightActions = actionsBar.children[2] as HTMLElement; // index 2: right group (0=left, 1=divider, 2=right)
 
       // Delete button — appended to leftActions, shown when rows are selected
-      const deleteBtn = createButton('🗑️ Delete Selected', true);
-      deleteBtn.style.cssText = 'display: none; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); margin-left: 8px;';
+      const deleteBtn = createButton('🗑️ Delete Selected', true, 'destructive');
+      deleteBtn.style.display = 'none';
+      deleteBtn.style.marginLeft = '8px';
       leftActions.appendChild(deleteBtn);
 
       // Detect if this is an EXPLAIN query (either JSON or text format)
-      const isExplainQuery = json.explainPlan ||
+      const isExplainQuery =
+        json.explainPlan ||
         (query && /^\s*EXPLAIN/i.test(query)) ||
         command === 'EXPLAIN' ||
         (columns.length === 1 && columns[0] === 'QUERY PLAN');
 
       if (isExplainQuery) {
-        const explainPlanBtn = createButton('🧭 View Plan', true);
+        const explainPlanBtn = createButton('🧭 View Plan', true, 'ai');
         explainPlanBtn.title = json.explainPlan
           ? 'Open EXPLAIN ANALYZE plan view'
           : 'Convert to JSON format and open visual plan view';
@@ -511,7 +640,7 @@ export const activate: ActivationFunction = context => {
               context.postMessage?.({
                 type: 'showExplainPlan',
                 plan: json.explainPlan,
-                query: query || ''
+                query: query || '',
               });
             }
           } else {
@@ -522,7 +651,7 @@ export const activate: ActivationFunction = context => {
             }
             context.postMessage?.({
               type: 'convertExplainToJson',
-              query: query
+              query: query,
             });
           }
         };
@@ -534,7 +663,7 @@ export const activate: ActivationFunction = context => {
       }
 
       // Save Changes Logic
-      const saveBtn = createButton('Save Changes', true);
+      const saveBtn = createButton('Save Changes', true, 'success');
       saveBtn.style.marginRight = '8px';
 
       const updateSaveButtonVisibility = () => {
@@ -546,8 +675,12 @@ export const activate: ActivationFunction = context => {
 
           // Build button text with counts
           const parts = [];
-          if (modifiedCells.size > 0) parts.push(`${modifiedCells.size} edit${modifiedCells.size !== 1 ? 's' : ''}`);
-          if (rowsMarkedForDeletion.size > 0) parts.push(`${rowsMarkedForDeletion.size} deletion${rowsMarkedForDeletion.size !== 1 ? 's' : ''}`);
+          if (modifiedCells.size > 0)
+            parts.push(`${modifiedCells.size} edit${modifiedCells.size !== 1 ? 's' : ''}`);
+          if (rowsMarkedForDeletion.size > 0)
+            parts.push(
+              `${rowsMarkedForDeletion.size} deletion${rowsMarkedForDeletion.size !== 1 ? 's' : ''}`,
+            );
           saveBtn.innerText = `💾 Save Changes (${parts.join(', ')})`;
         } else {
           if (rightActions.contains(saveBtn)) rightActions.removeChild(saveBtn);
@@ -575,7 +708,7 @@ export const activate: ActivationFunction = context => {
               keys: pkValues,
               column: colName,
               value: diff.newValue,
-              originalValue: diff.originalValue
+              originalValue: diff.originalValue,
             });
           } else {
             console.warn('Renderer: No primary keys found in tableInfo', tableInfo);
@@ -592,7 +725,7 @@ export const activate: ActivationFunction = context => {
             });
             deletions.push({
               keys: pkValues,
-              row: originalRows[rowIndex]  // Include full row for reference
+              row: originalRows[rowIndex], // Include full row for reference
             });
           }
         });
@@ -609,16 +742,18 @@ export const activate: ActivationFunction = context => {
             type: 'saveChanges',
             updates,
             deletions,
-            tableInfo
+            tableInfo,
           });
         } else {
-          const reason = !tableInfo?.primaryKeys ? 'No primary keys found for this table.' : 'Unknown error preparing updates.';
+          const reason = !tableInfo?.primaryKeys
+            ? 'No primary keys found for this table.'
+            : 'Unknown error preparing updates.';
           console.warn(`Renderer: Save failed. ${reason}`);
 
           // Inform user nicely
           context.postMessage?.({
             type: 'showErrorMessage',
-            message: `Cannot save changes: ${reason} (Primary keys are required to identify rows)`
+            message: `Cannot save changes: ${reason} (Primary keys are required to identify rows)`,
           });
         }
       };
@@ -646,26 +781,30 @@ export const activate: ActivationFunction = context => {
         }
 
         if (message.type === 'saveSuccess') {
-          console.log('Renderer: Received saveSuccess, clearing modified cells and removing deleted rows');
+          console.log(
+            'Renderer: Received saveSuccess, clearing modified cells and removing deleted rows',
+          );
 
           // Stop the loading spinner on the save button
           (saveBtn as any)._stopLoading?.();
           (saveBtn as any)._stopLoading = undefined;
 
-          // Remove deleted rows from arrays (in reverse order to maintain indices)
-          const deletedIndices = Array.from(rowsMarkedForDeletion).sort((a, b) => b - a);
-          deletedIndices.forEach(index => {
-            currentRows.splice(index, 1);
-            originalRows.splice(index, 1);
-          });
-
-          // Update originalRows with edited values
+          // Update originalRows with edited values before removing any rows.
+          // The renderer now tracks edits by stable source index, so applying
+          // edits first keeps those indices aligned for the remaining rows.
           modifiedCells.forEach((diff, key) => {
             const [rowIndexStr, colName] = key.split('-');
             const rowIndex = parseInt(rowIndexStr);
-            if (rowIndex < originalRows.length) {  // Check bounds after deletions
+            if (rowIndex >= 0 && rowIndex < originalRows.length) {
               originalRows[rowIndex][colName] = diff.newValue;
             }
+          });
+
+          // Remove deleted rows from arrays (in reverse order to maintain indices)
+          const deletedIndices = Array.from(rowsMarkedForDeletion).sort((a, b) => b - a);
+          deletedIndices.forEach((index) => {
+            currentRows.splice(index, 1);
+            originalRows.splice(index, 1);
           });
 
           // Clear all pending changes
@@ -684,7 +823,7 @@ export const activate: ActivationFunction = context => {
               columnTypes,
               tableInfo,
               initialSelectedIndices: selectedIndices,
-              modifiedCells
+              modifiedCells,
             });
           }
         }
@@ -698,7 +837,8 @@ export const activate: ActivationFunction = context => {
 
       // Tabs
       const tabs = document.createElement('div');
-      tabs.style.cssText = 'display: flex; padding: 0 12px; margin-top: 8px; border-bottom: 1px solid var(--vscode-panel-border);';
+      tabs.style.cssText =
+        'display: flex; padding: 0 12px; margin-top: 8px; border-bottom: 1px solid var(--vscode-panel-border);';
 
       const tableTab = createTab('Table', 'table', true, () => switchTab('table'));
       const chartTab = createTab('Chart', 'chart', false, () => switchTab('chart'));
@@ -708,7 +848,9 @@ export const activate: ActivationFunction = context => {
         explainTab = createTab('Explain Plan', 'explain', false, () => switchTab('explain'));
       }
 
-      const transposeTab = createTab('⇄ Transpose', 'transpose', false, () => switchTab('transpose'));
+      const transposeTab = createTab('⇄ Transpose', 'transpose', false, () =>
+        switchTab('transpose'),
+      );
 
       tabs.appendChild(tableTab);
       tabs.appendChild(chartTab);
@@ -718,10 +860,10 @@ export const activate: ActivationFunction = context => {
         contentContainer.appendChild(tabs);
       }
 
-
       // Views Containers
       const viewContainer = document.createElement('div');
-      viewContainer.style.cssText = 'flex: 1; overflow: hidden; display: flex; flex-direction: column; position: relative; max-height: 500px;';
+      viewContainer.style.cssText =
+        'flex: 1; overflow: hidden; display: flex; flex-direction: column; position: relative; max-height: 500px;';
       if (!json.error) {
         contentContainer.appendChild(viewContainer);
       }
@@ -730,7 +872,7 @@ export const activate: ActivationFunction = context => {
       const tableRenderer = new TableRenderer(viewContainer, {
         onSelectionChange: (indices) => {
           selectedIndices.clear();
-          indices.forEach(i => selectedIndices.add(i));
+          indices.forEach((i) => selectedIndices.add(i));
           updateActionsVisibility();
         },
         onDataChange: (_rowIndex, _col, _newVal, _originalVal) => {
@@ -742,7 +884,15 @@ export const activate: ActivationFunction = context => {
         },
         onFkLookup: (requestId, fkSchema, fkTable, fkColumn, searchText, callback) => {
           fkCallbacks.set(requestId, callback);
-          context.postMessage?.({ type: 'fkLookup', requestId, fkSchema, fkTable, fkColumn, searchText, limit: 50 });
+          context.postMessage?.({
+            type: 'fkLookup',
+            requestId,
+            fkSchema,
+            fkTable,
+            fkColumn,
+            searchText,
+            limit: 50,
+          });
         },
       });
 
@@ -801,7 +951,7 @@ export const activate: ActivationFunction = context => {
         if (selectedCount === 0) return;
 
         // Mark selected rows for deletion
-        selectedIndices.forEach(index => {
+        selectedIndices.forEach((index) => {
           rowsMarkedForDeletion.add(index);
         });
 
@@ -823,7 +973,7 @@ export const activate: ActivationFunction = context => {
             tableInfo,
             initialSelectedIndices: selectedIndices,
             modifiedCells,
-            rowsMarkedForDeletion  // Pass to renderer for styling
+            rowsMarkedForDeletion, // Pass to renderer for styling
           });
         }
 
@@ -835,7 +985,7 @@ export const activate: ActivationFunction = context => {
       let currentMode = 'table';
       const allTabs = () => [tableTab, chartTab, transposeTab, ...(explainTab ? [explainTab] : [])];
       const setActiveTab = (activeTab: HTMLElement) => {
-        allTabs().forEach(t => {
+        allTabs().forEach((t) => {
           t.style.borderBottom = '2px solid transparent';
           t.style.opacity = '0.6';
         });
@@ -858,7 +1008,7 @@ export const activate: ActivationFunction = context => {
             tableInfo,
             foreignKeys: tableInfo?.foreignKeys,
             initialSelectedIndices: selectedIndices,
-            modifiedCells
+            modifiedCells,
           });
         } else if (mode === 'transpose') {
           setActiveTab(transposeTab);
@@ -876,7 +1026,8 @@ export const activate: ActivationFunction = context => {
           updateActionsVisibility();
 
           const explainWrapper = document.createElement('div');
-          explainWrapper.style.cssText = 'flex: 1; overflow: auto; height: 100%; display: flex; flex-direction: column;';
+          explainWrapper.style.cssText =
+            'flex: 1; overflow: auto; height: 100%; display: flex; flex-direction: column;';
           viewContainer.appendChild(explainWrapper);
 
           if (json.explainPlan) {
@@ -886,21 +1037,24 @@ export const activate: ActivationFunction = context => {
               explainWrapper.textContent = 'Failed to render explain plan: ' + String(e);
             }
           } else {
-            explainWrapper.textContent = 'No explain plan data available. Run EXPLAIN (ANALYZE, FORMAT JSON) to get a visual plan.';
+            explainWrapper.textContent =
+              'No explain plan data available. Run EXPLAIN (ANALYZE, FORMAT JSON) to get a visual plan.';
           }
-
         } else {
           setActiveTab(chartTab);
           updateActionsVisibility();
 
           const chartWrapper = document.createElement('div');
-          chartWrapper.style.cssText = 'flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden;';
+          chartWrapper.style.cssText =
+            'flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden;';
 
           const controlsContainer = document.createElement('div');
-          controlsContainer.style.cssText = 'width: 140px; min-width: 140px; max-width: 140px; display: flex; flex-direction: column;';
+          controlsContainer.style.cssText =
+            'width: 140px; min-width: 140px; max-width: 140px; display: flex; flex-direction: column;';
 
           const canvasContainer = document.createElement('div');
-          canvasContainer.style.cssText = 'flex: 1; padding: 8px; position: relative; min-height: 0;';
+          canvasContainer.style.cssText =
+            'flex: 1; padding: 8px; position: relative; min-height: 0;';
           canvasContainer.appendChild(chartCanvas);
 
           const innerContainer = document.createElement('div');
@@ -916,7 +1070,7 @@ export const activate: ActivationFunction = context => {
             rows: currentRows,
             onConfigChange: (config) => {
               chartRenderer.render(currentRows, config);
-            }
+            },
           });
         }
       };
@@ -925,7 +1079,8 @@ export const activate: ActivationFunction = context => {
       if (columns.length > 0) {
         switchTab('table');
       } else {
-        if (rowCount === 0) mainContainer.innerHTML += '<div style="padding:12px">Query returned no data</div>';
+        if (rowCount === 0)
+          mainContainer.innerHTML += '<div style="padding:12px">Query returned no data</div>';
       }
 
       // Result history tab strip — rendered above mainContainer when >1 result exists
@@ -937,7 +1092,8 @@ export const activate: ActivationFunction = context => {
         // Re-trigger renderOutputItem with the historical data by re-building the output
         // For now: show history entry as a read-only view
         const histContainer = document.createElement('div');
-        histContainer.style.cssText = 'padding:6px 12px;font-size:11px;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editor-background);';
+        histContainer.style.cssText =
+          'padding:6px 12px;font-size:11px;color:var(--vscode-descriptionForeground);border-bottom:1px solid var(--vscode-widget-border);background:var(--vscode-editor-background);';
         histContainer.textContent = `Showing result from ${new Date(entry.timestamp).toLocaleTimeString()} — ${(entry.rowCount ?? entry.rows?.length ?? 0).toLocaleString()} rows`;
         element.appendChild(histContainer);
 
@@ -972,7 +1128,7 @@ export const activate: ActivationFunction = context => {
             },
             onRollback: () => {
               context.postMessage?.({ type: 'rollbackTransaction' });
-            }
+            },
           });
           // Insert banner before the first output container in the element's parent
           const outputHost = element.parentElement || element;
@@ -982,6 +1138,6 @@ export const activate: ActivationFunction = context => {
         // Transaction closed — clear all transaction UI
         clearTransactionUI();
       }
-    }
+    },
   };
 };

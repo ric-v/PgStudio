@@ -13,6 +13,7 @@ import {
   MaintenanceTemplates,
   validateCategoryItem
 } from './helper';
+import { openOrCreateNotebookWithPicker } from './notebook';
 
 
 
@@ -763,14 +764,24 @@ export async function cmdQueryTool(item: DatabaseTreeItem, context: vscode.Exten
     dbConn = await getDatabaseConnection(item, validateCategoryItem);
     const { metadata } = dbConn;
 
-    await new NotebookBuilder(metadata)
-      .addMarkdown(
-        MarkdownUtils.header(`📝 Query Tool: \`${item.label}\``) +
-        MarkdownUtils.infoBox('Write and execute SQL queries against this database.')
-      )
-      .addSql(`-- Write your SQL query here
-SELECT 1;`)
-      .showNew();  // always open a fresh notebook
+    await openOrCreateNotebookWithPicker(
+      metadata,
+      [
+        {
+          kind: 'markdown',
+          value:
+            MarkdownUtils.header(`📝 Query Tool: \`${item.label}\``) +
+            MarkdownUtils.infoBox('Write and execute SQL queries against this database.'),
+        },
+        {
+          kind: 'sql',
+          value: `-- Write your SQL query here
+SELECT 1;`,
+        },
+      ],
+      context,
+      `Open or Create Notebook (${item.label})`
+    );
   } catch (err: any) {
     await ErrorHandlers.handleCommandError(err, 'open query tool');
   } finally {

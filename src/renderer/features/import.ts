@@ -15,10 +15,10 @@ export const createImportButton = (
 
   importBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Delegate entirely to the extension host — it will open a native file picker
-    // and handle parsing + inserting. No in-iframe modal needed.
+    // Delegate to the extension host so it can open the same Import Data wizard
+    // used by the table context menu.
     context?.postMessage?.({
-      type: 'import_pick_file',
+      type: 'openImportData',
       table: tableInfo.table,
       schema: tableInfo.schema,
       columns,
@@ -35,7 +35,7 @@ export function showImportModal(
   context?: { postMessage?: (msg: any) => void }
 ) {
   context?.postMessage?.({
-    type: 'import_pick_file',
+    type: 'openImportData',
     table: tableInfo.table,
     schema: tableInfo.schema,
     columns: tableColumns,

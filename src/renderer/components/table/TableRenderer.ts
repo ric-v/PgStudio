@@ -11,8 +11,14 @@ export interface TableEvents {
   onExplainError?: (error: string, query: string) => void;
   onFixQuery?: (error: string, query: string) => void;
   onInsertRow?: (values: Record<string, any>, tempId: string) => void;
-  onFkLookup?: (requestId: string, fkSchema: string, fkTable: string, fkColumn: string,
-                searchText: string, callback: (rows: any[], cols: string[]) => void) => void;
+  onFkLookup?: (
+    requestId: string,
+    fkSchema: string,
+    fkTable: string,
+    fkColumn: string,
+    searchText: string,
+    callback: (rows: any[], cols: string[]) => void,
+  ) => void;
   onSortChange?: (column: string | null, direction: 'asc' | 'desc' | 'none') => void;
   onFilterChange?: (filterState: FilterState) => void;
 }
@@ -22,6 +28,11 @@ interface PendingInsertRow {
   values: Record<string, any>;
   status: 'pending' | 'saving' | 'error';
   errorMsg?: string;
+}
+
+interface RowEntry {
+  row: any;
+  sourceIndex: number;
 }
 
 export class TableRenderer {
@@ -34,13 +45,14 @@ export class TableRenderer {
   // Core state
   private columns: string[] = [];
   private rows: any[] = [];
-  private displayRows: any[] = [];   // rows after sort+filter applied
+  private displayRows: any[] = []; // rows after sort+filter applied
+  private displayRowSourceIndices: number[] = [];
   private originalRows: any[] = [];
   private columnTypes: Record<string, string> = {};
   private tableInfo?: TableInfo;
   private foreignKeys: FkColumnInfo[] = [];
   private selectedIndices: Set<number> = new Set();
-  private modifiedCells: Map<string, { originalValue: any, newValue: any }> = new Map();
+  private modifiedCells: Map<string, { originalValue: any; newValue: any }> = new Map();
   private rowsMarkedForDeletion: Set<number> = new Set();
   private dateTimeDisplayMode: Map<string, boolean> = new Map();
   private pendingInserts: PendingInsertRow[] = [];
@@ -48,7 +60,7 @@ export class TableRenderer {
   // Sort & filter state
   private sortColumn: string | null = null;
   private sortDirection: 'asc' | 'desc' | 'none' = 'none';
-  private filterState: FilterState = new Map();
+  private filterState: FilterState = { globalQuery: '', clauses: [] };
 
   // UI sub-components
   private filterBar: FilterBar | null = null;
@@ -86,7 +98,9 @@ export class TableRenderer {
     this.columnTypes = options.columnTypes || {};
     this.tableInfo = options.tableInfo;
     this.foreignKeys = options.foreignKeys || [];
-    this.selectedIndices = options.initialSelectedIndices ? new Set(options.initialSelectedIndices) : new Set();
+    this.selectedIndices = options.initialSelectedIndices
+      ? new Set(options.initialSelectedIndices)
+      : new Set();
     this.modifiedCells = options.modifiedCells || new Map();
     this.rowsMarkedForDeletion = options.rowsMarkedForDeletion || new Set();
 
@@ -96,7 +110,7 @@ export class TableRenderer {
       this.sortDirection = options.sortState.direction;
     }
     if (options.filterState) {
-      this.filterState = new Map(options.filterState);
+      this.filterState = this.cloneFilterState(options.filterState);
     }
 
     // Apply sort + filter to produce displayRows
@@ -121,16 +135,26 @@ export class TableRenderer {
     // Create fresh tooltip instance
     this.statsTooltip = new ColumnStatsTooltip();
 
+    // Remove the previous filter bar before rendering a new one.
+    // Table rerenders happen on every filter/edit/sort change, so failing to
+    // clear the old bar causes duplicate controls to accumulate.
+    const existingFilterBar = this.filterBar?.getElement();
+    if (existingFilterBar?.parentElement) {
+      existingFilterBar.parentElement.removeChild(existingFilterBar);
+    }
+
     // Render filter bar above the scroll area
     this.filterBar = new FilterBar({
       columns: this.columns,
+      rows: this.rows,
       filterState: this.filterState,
+      onAddRow: () => this.addPendingRow(),
       onFilterChange: (state) => {
-        this.filterState = state;
+        this.filterState = this.cloneFilterState(state);
         this.events.onFilterChange?.(state);
         this.applyTransforms();
-        this.rerenderTable();
-      }
+        this.refreshTableContent();
+      },
     });
     this.mainContainer.insertBefore(this.filterBar.getElement(), this.tableContainer);
 
@@ -144,27 +168,86 @@ export class TableRenderer {
     this.setupInfiniteScroll();
   }
 
+  private addPendingRow() {
+    const tempId = `insert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const emptyValues: Record<string, any> = {};
+    this.columns.forEach((col) => {
+      emptyValues[col] = '';
+    });
+    this.pendingInserts.unshift({ tempId, values: emptyValues, status: 'pending' });
+    this.refreshTableContent();
+    this.focusPendingInsertRow(tempId);
+  }
+
+  private focusPendingInsertRow(tempId: string) {
+    requestAnimationFrame(() => {
+      const row = this.tableBody?.querySelector(`tr[data-temp-id="${tempId}"]`) as HTMLElement | null;
+      if (!row) {
+        return;
+      }
+
+      this.tableContainer.scrollTop = 0;
+
+      requestAnimationFrame(() => {
+        this.tableContainer.scrollTop = 0;
+
+        const firstInput = row.querySelector('input') as HTMLInputElement | null;
+        if (firstInput) {
+          firstInput.focus({ preventScroll: true });
+          firstInput.select();
+        }
+      });
+    });
+  }
+
+  private refreshTableContent() {
+    this.tableContainer.innerHTML = '';
+    this.renderedCount = 0;
+    this.tableBody = null;
+    if (this.loadMoreObserver) {
+      this.loadMoreObserver.disconnect();
+      this.loadMoreObserver = null;
+    }
+    this.loadMoreSentinel = null;
+
+    if (this.statsTooltip) {
+      this.statsTooltip.destroy();
+      this.statsTooltip = null;
+    }
+
+    this.statsTooltip = new ColumnStatsTooltip();
+    this.createTableStructure();
+    this.renderNextChunk();
+    this.setupInfiniteScroll();
+  }
+
   /** Apply current sort + filter, storing result in displayRows */
   private applyTransforms() {
-    // 1. Filter
-    let result = FilterBar.applyFilter(this.rows, this.filterState, this.columns);
+    const filteredRows = FilterBar.applyFilter(this.rows, this.filterState, this.columns);
+    const filteredRowSet = new Set(filteredRows);
+    let result: RowEntry[] = this.rows
+      .map((row, sourceIndex) => ({ row, sourceIndex }))
+      .filter((entry) => filteredRowSet.has(entry.row));
 
     // 2. Sort
     if (this.sortColumn && this.sortDirection !== 'none') {
       const col = this.sortColumn;
       const dir = this.sortDirection;
       result = [...result].sort((a, b) => {
-        const av = a[col]; const bv = b[col];
+        const av = a.row[col];
+        const bv = b.row[col];
         if (av === null || av === undefined) return 1;
         if (bv === null || bv === undefined) return -1;
-        const cmp = typeof av === 'number' && typeof bv === 'number'
-          ? av - bv
-          : String(av).localeCompare(String(bv));
+        const cmp =
+          typeof av === 'number' && typeof bv === 'number'
+            ? av - bv
+            : String(av).localeCompare(String(bv));
         return dir === 'asc' ? cmp : -cmp;
       });
     }
 
-    this.displayRows = result;
+    this.displayRows = result.map((entry) => entry.row);
+    this.displayRowSourceIndices = result.map((entry) => entry.sourceIndex);
   }
 
   public updateSelection(indices: Set<number>) {
@@ -174,7 +257,7 @@ export class TableRenderer {
 
   /** Called from renderer_v2 when an insertSuccess comes back */
   public replaceInsertRow(tempId: string, actualRow: Record<string, any>) {
-    const idx = this.pendingInserts.findIndex(p => p.tempId === tempId);
+    const idx = this.pendingInserts.findIndex((p) => p.tempId === tempId);
     if (idx !== -1) {
       this.pendingInserts.splice(idx, 1);
     }
@@ -186,7 +269,7 @@ export class TableRenderer {
 
   /** Mark a pending insert as failed */
   public markInsertFailed(tempId: string, errorMsg: string) {
-    const insert = this.pendingInserts.find(p => p.tempId === tempId);
+    const insert = this.pendingInserts.find((p) => p.tempId === tempId);
     if (insert) {
       insert.status = 'error';
       insert.errorMsg = errorMsg;
@@ -206,7 +289,8 @@ export class TableRenderer {
 
   private createTableStructure() {
     const table = document.createElement('table');
-    table.style.cssText = 'width:100%;border-collapse:separate;border-spacing:0;font-size:13px;white-space:nowrap;line-height:1.5;';
+    table.style.cssText =
+      'width:100%;border-collapse:separate;border-spacing:0;font-size:13px;white-space:nowrap;line-height:1.5;';
 
     const thead = document.createElement('thead');
     this.tableBody = document.createElement('tbody');
@@ -226,7 +310,7 @@ export class TableRenderer {
     `;
     headerRow.appendChild(selectTh);
 
-    this.columns.forEach(col => {
+    this.columns.forEach((col) => {
       headerRow.appendChild(this.createHeaderCell(col));
     });
 
@@ -248,7 +332,8 @@ export class TableRenderer {
     `;
 
     const container = document.createElement('div');
-    container.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:4px;';
+    container.style.cssText =
+      'display:flex;justify-content:space-between;align-items:center;gap:4px;';
 
     const leftSide = document.createElement('div');
     leftSide.style.cssText = 'display:flex;align-items:center;gap:4px;overflow:hidden;';
@@ -257,12 +342,13 @@ export class TableRenderer {
       const pkIcon = document.createElement('span');
       pkIcon.textContent = '⚿';
       pkIcon.title = 'Primary Key';
-      pkIcon.style.cssText = 'color:var(--vscode-textLink-foreground);font-size:12px;flex-shrink:0;';
+      pkIcon.style.cssText =
+        'color:var(--vscode-textLink-foreground);font-size:12px;flex-shrink:0;';
       leftSide.appendChild(pkIcon);
     }
 
     // FK icon
-    if (this.foreignKeys.some(fk => fk.column === col)) {
+    if (this.foreignKeys.some((fk) => fk.column === col)) {
       const fkIcon = document.createElement('span');
       fkIcon.textContent = '🔗';
       fkIcon.title = 'Foreign Key';
@@ -306,9 +392,14 @@ export class TableRenderer {
     // Sort click handler — cycles none → asc → desc → none
     th.addEventListener('click', () => {
       if (this.sortColumn === col) {
-        if (this.sortDirection === 'none') { this.sortDirection = 'asc'; }
-        else if (this.sortDirection === 'asc') { this.sortDirection = 'desc'; }
-        else { this.sortColumn = null; this.sortDirection = 'none'; }
+        if (this.sortDirection === 'none') {
+          this.sortDirection = 'asc';
+        } else if (this.sortDirection === 'asc') {
+          this.sortDirection = 'desc';
+        } else {
+          this.sortColumn = null;
+          this.sortDirection = 'none';
+        }
       } else {
         this.sortColumn = col;
         this.sortDirection = 'asc';
@@ -321,8 +412,12 @@ export class TableRenderer {
     // DateTime toggle row
     if (this.columnTypes[col]) {
       const lowerType = this.columnTypes[col].toLowerCase();
-      const isDateTime = lowerType.includes('timestamp') || lowerType === 'timestamptz' ||
-        lowerType === 'date' || lowerType === 'time' || lowerType === 'timetz';
+      const isDateTime =
+        lowerType.includes('timestamp') ||
+        lowerType === 'timestamptz' ||
+        lowerType === 'date' ||
+        lowerType === 'time' ||
+        lowerType === 'timetz';
       if (isDateTime) {
         if (!this.dateTimeDisplayMode.has(col)) {
           this.dateTimeDisplayMode.set(col, false);
@@ -332,7 +427,9 @@ export class TableRenderer {
         const toggle = document.createElement('button');
         const isFormatted = this.dateTimeDisplayMode.get(col);
         toggle.textContent = isFormatted ? '📆' : '#';
-        toggle.title = isFormatted ? 'Showing formatted — click for raw' : 'Showing raw — click for formatted';
+        toggle.title = isFormatted
+          ? 'Showing formatted — click for raw'
+          : 'Showing raw — click for formatted';
         toggle.style.cssText = `
           background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);
           border:none;border-radius:3px;padding:1px 4px;cursor:pointer;font-size:10px;line-height:1;
@@ -362,15 +459,16 @@ export class TableRenderer {
       position:absolute;right:0;top:0;height:100%;width:6px;
       cursor:col-resize;user-select:none;z-index:11;
     `;
-    handle.onmouseenter = () => handle.style.borderRight = '2px solid var(--vscode-focusBorder)';
-    handle.onmouseleave = () => handle.style.borderRight = '';
+    handle.onmouseenter = () => (handle.style.borderRight = '2px solid var(--vscode-focusBorder)');
+    handle.onmouseleave = () => (handle.style.borderRight = '');
     th.appendChild(handle);
   }
 
   private renderNextChunk = () => {
     if (!this.tableBody) return;
 
-    const allRows = [...this.displayRows, ...this.pendingInserts.map(p => p.values)];
+    const pendingCount = this.pendingInserts.length;
+    const allRows = [...this.pendingInserts.map((p) => p.values), ...this.displayRows];
     const start = this.renderedCount;
     const end = Math.min(start + this.CHUNK_SIZE, allRows.length);
     if (start >= end) {
@@ -380,22 +478,21 @@ export class TableRenderer {
         this.loadMoreObserver?.disconnect();
         this.loadMoreObserver = null;
       }
-      // Render add-row button after all rows
-      this.renderAddRowButton();
       return;
     }
 
     for (let i = start; i < end; i++) {
-      if (i < this.displayRows.length) {
-        const tr = this.createRow(this.displayRows[i], i);
-        this.tableBody!.appendChild(tr);
-      } else {
-        const pendingIdx = i - this.displayRows.length;
-        const pending = this.pendingInserts[pendingIdx];
+      if (i < pendingCount) {
+        const pending = this.pendingInserts[i];
         if (pending) {
           const tr = this.createPendingInsertRow(pending);
           this.tableBody!.appendChild(tr);
         }
+      } else {
+        const displayIndex = i - pendingCount;
+        const sourceIndex = this.displayRowSourceIndices[displayIndex] ?? displayIndex;
+        const tr = this.createRow(this.displayRows[displayIndex], displayIndex, sourceIndex);
+        this.tableBody!.appendChild(tr);
       }
     }
 
@@ -404,70 +501,92 @@ export class TableRenderer {
     if (this.loadMoreSentinel) {
       this.tableContainer.appendChild(this.loadMoreSentinel);
     }
-  }
+  };
 
   /** Row gutter: 4px left border indicating change status */
-  private getRowGutterStyle(index: number): string {
-    if (this.rowsMarkedForDeletion.has(index)) return 'border-left:4px solid var(--vscode-testing-iconFailed,#f44336)';
-    const hasEdit = Array.from(this.modifiedCells.keys()).some(k => k.startsWith(`${index}-`));
+  private getRowGutterStyle(sourceIndex: number): string {
+    if (this.rowsMarkedForDeletion.has(sourceIndex))
+      return 'border-left:4px solid var(--vscode-testing-iconFailed,#f44336)';
+    const hasEdit = Array.from(this.modifiedCells.keys()).some((k) =>
+      k.startsWith(`${sourceIndex}-`),
+    );
     if (hasEdit) return 'border-left:4px solid #f59e0b';
     return 'border-left:4px solid transparent';
   }
 
-  private createRow(row: any, index: number): HTMLElement {
+  private getRowCellStyle(sourceIndex: number, displayIndex: number, cellKind: 'row-number' | 'data'): string {
+    if (this.rowsMarkedForDeletion.has(sourceIndex)) {
+      return cellKind === 'row-number'
+        ? 'background:rgba(244,67,54,0.08);color:var(--vscode-errorForeground);'
+        : 'background:rgba(244,67,54,0.08);color:var(--vscode-errorForeground);';
+    }
+
+    if (this.selectedIndices.has(sourceIndex)) {
+      return cellKind === 'row-number'
+        ? 'background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground);'
+        : 'background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground);';
+    }
+
+    if (cellKind === 'row-number') {
+      return 'background:var(--vscode-editor-background);color:var(--vscode-descriptionForeground);';
+    }
+
+    const base = displayIndex % 2 === 0 ? 'transparent' : 'var(--vscode-keybindingTable-rowsBackground)';
+    return `background:${base};color:var(--vscode-editor-foreground);`;
+  }
+
+  private applyCellStyle(cell: HTMLElement, sourceIndex: number, displayIndex: number, cellKind: 'row-number' | 'data'): void {
+    const style = this.getRowCellStyle(sourceIndex, displayIndex, cellKind);
+    cell.style.background = '';
+    cell.style.backgroundColor = '';
+    cell.style.color = '';
+    cell.style.textDecoration = '';
+    cell.style.opacity = '';
+    cell.style.borderLeft = '';
+    cell.style.cssText = `${cell.style.cssText};${style}`;
+  }
+
+  private createRow(row: any, displayIndex: number, sourceIndex: number): HTMLElement {
     const tr = document.createElement('tr');
-    tr.dataset.index = String(index);
+    tr.dataset.index = String(displayIndex);
+    tr.dataset.sourceIndex = String(sourceIndex);
     tr.style.cursor = 'pointer';
 
-    this.applyRowStyle(tr, index);
+    this.applyRowStyle(tr, sourceIndex, displayIndex);
 
     tr.onclick = (e) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (this.selectedIndices.has(index)) this.selectedIndices.delete(index);
-        else this.selectedIndices.add(index);
-      } else {
-        this.selectedIndices.clear();
-        this.selectedIndices.add(index);
-      }
-      this.updateRowSelectionStyles();
-      this.events.onSelectionChange?.(this.selectedIndices);
+      this.handleRowSelection(sourceIndex, e.ctrlKey || e.metaKey);
     };
 
     tr.onmouseenter = () => {
-      if (!this.selectedIndices.has(index)) tr.style.background = 'var(--vscode-list-hoverBackground)';
+      if (!this.selectedIndices.has(sourceIndex))
+        tr.style.background = 'var(--vscode-list-hoverBackground)';
     };
     tr.onmouseleave = () => {
-      if (!this.selectedIndices.has(index)) this.applyRowStyle(tr, index);
+      if (!this.selectedIndices.has(sourceIndex)) this.applyRowStyle(tr, sourceIndex, displayIndex);
     };
 
     // Row number cell
     const selectTd = document.createElement('td');
-    selectTd.textContent = String(index + 1);
+    selectTd.textContent = String(displayIndex + 1);
     selectTd.style.cssText = `
       border-bottom:1px solid var(--vscode-widget-border);
       border-right:1px solid var(--vscode-widget-border);
       text-align:right;font-family:monospace;font-size:10px;
-      color:var(--vscode-descriptionForeground);user-select:none;
+      user-select:none;
       min-width:32px;padding:6px 6px;position:sticky;left:0;z-index:5;
-      background:var(--vscode-editor-background);cursor:pointer;
+      cursor:pointer;
     `;
     selectTd.title = 'Click to select row';
     selectTd.onclick = (e) => {
       e.stopPropagation();
-      if (e.ctrlKey || e.metaKey) {
-        if (this.selectedIndices.has(index)) this.selectedIndices.delete(index);
-        else this.selectedIndices.add(index);
-      } else {
-        this.selectedIndices.clear();
-        this.selectedIndices.add(index);
-      }
-      this.updateRowSelectionStyles();
-      this.events.onSelectionChange?.(this.selectedIndices);
+      this.handleRowSelection(sourceIndex, e.ctrlKey || e.metaKey);
     };
+    this.applyCellStyle(selectTd, sourceIndex, displayIndex, 'row-number');
     tr.appendChild(selectTd);
 
-    this.columns.forEach(col => {
-      tr.appendChild(this.createCell(row, col, index));
+    this.columns.forEach((col) => {
+      tr.appendChild(this.createCell(row, col, sourceIndex, displayIndex));
     });
 
     return tr;
@@ -494,9 +613,10 @@ export class TableRenderer {
     numTd.title = pending.status === 'error' ? `Error: ${pending.errorMsg}` : 'New row — unsaved';
     tr.appendChild(numTd);
 
-    this.columns.forEach(col => {
+    this.columns.forEach((col) => {
       const td = document.createElement('td');
-      td.style.cssText = 'padding:3px 6px;border-bottom:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border);';
+      td.style.cssText =
+        'padding:3px 6px;border-bottom:1px solid var(--vscode-widget-border);border-right:1px solid var(--vscode-widget-border);';
 
       if (pending.status === 'error') {
         td.style.background = 'color-mix(in srgb, var(--vscode-errorForeground) 10%, transparent)';
@@ -512,14 +632,17 @@ export class TableRenderer {
         background:var(--vscode-input-background);color:var(--vscode-input-foreground);
         padding:2px 4px;font-size:12px;outline:none;box-sizing:border-box;
       `;
-      input.addEventListener('input', () => { pending.values[col] = input.value; });
+      input.addEventListener('input', () => {
+        pending.values[col] = input.value;
+      });
       td.appendChild(input);
       tr.appendChild(td);
     });
 
     // Save button cell
     const actionTd = document.createElement('td');
-    actionTd.style.cssText = 'padding:3px 8px;border-bottom:1px solid var(--vscode-widget-border);white-space:nowrap;';
+    actionTd.style.cssText =
+      'padding:3px 8px;border-bottom:1px solid var(--vscode-widget-border);white-space:nowrap;';
 
     const saveBtn = document.createElement('button');
     saveBtn.textContent = pending.status === 'saving' ? '...' : '✓';
@@ -547,7 +670,7 @@ export class TableRenderer {
     `;
     cancelBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const idx = this.pendingInserts.findIndex(p => p.tempId === pending.tempId);
+      const idx = this.pendingInserts.findIndex((p) => p.tempId === pending.tempId);
       if (idx !== -1) this.pendingInserts.splice(idx, 1);
       this.rerenderTable();
     });
@@ -558,7 +681,8 @@ export class TableRenderer {
     if (pending.status === 'error') {
       const errSpan = document.createElement('span');
       errSpan.textContent = pending.errorMsg || 'Error';
-      errSpan.style.cssText = 'color:var(--vscode-errorForeground);font-size:10px;display:block;margin-top:2px;';
+      errSpan.style.cssText =
+        'color:var(--vscode-errorForeground);font-size:10px;display:block;margin-top:2px;';
       actionTd.appendChild(errSpan);
     }
 
@@ -566,39 +690,7 @@ export class TableRenderer {
     return tr;
   }
 
-  /** "+ Add Row" button rendered as a table row at the bottom */
-  private renderAddRowButton() {
-    if (!this.tableBody || !this.tableInfo?.table) return;
-
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = this.columns.length + 1;
-    td.style.cssText = 'padding:6px 12px;border-top:1px dashed var(--vscode-widget-border);';
-
-    const btn = document.createElement('button');
-    btn.textContent = '+ Add Row';
-    btn.style.cssText = `
-      background:none;border:1px dashed var(--vscode-widget-border);
-      color:var(--vscode-textLink-foreground);border-radius:3px;
-      padding:3px 14px;cursor:pointer;font-size:11px;
-    `;
-    btn.addEventListener('click', () => {
-      const tempId = `insert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      const emptyValues: Record<string, any> = {};
-      this.columns.forEach(col => { emptyValues[col] = ''; });
-      this.pendingInserts.push({ tempId, values: emptyValues, status: 'pending' });
-      this.rerenderTable();
-      // Scroll to bottom after rerender
-      setTimeout(() => {
-        this.tableContainer.scrollTop = this.tableContainer.scrollHeight;
-      }, 50);
-    });
-    td.appendChild(btn);
-    tr.appendChild(td);
-    this.tableBody.appendChild(tr);
-  }
-
-  private createCell(row: any, col: string, index: number): HTMLElement {
+  private createCell(row: any, col: string, sourceIndex: number, displayIndex: number): HTMLElement {
     const td = document.createElement('td');
     const val = row[col];
     const colType = this.columnTypes[col];
@@ -621,6 +713,11 @@ export class TableRenderer {
       background-color:var(--vscode-editor-background);
     `;
 
+    td.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.handleRowSelection(sourceIndex, e.ctrlKey || e.metaKey);
+    });
+
     const isPk = this.tableInfo?.primaryKeys?.includes(col);
     if (isPk) {
       td.style.backgroundColor = 'rgba(128,128,128,0.1)';
@@ -631,20 +728,23 @@ export class TableRenderer {
       // DOUBLE-CLICK to edit (not single-click)
       td.addEventListener('dblclick', (e) => {
         e.stopPropagation();
-        this.handleCellEdit(e, td, index, col, type);
+        this.handleCellEdit(e, td, sourceIndex, col, type);
       });
     }
 
-    const cellKey = `${index}-${col}`;
+    const cellKey = `${sourceIndex}-${col}`;
     if (this.modifiedCells.has(cellKey)) {
       td.style.backgroundColor = 'rgba(245,158,11,0.15)';
       td.style.borderLeft = '3px solid #f59e0b';
     }
 
+    this.applyCellStyle(td, sourceIndex, displayIndex, 'data');
+
     if (val === null || val === undefined) {
       const nullSpan = document.createElement('span');
       nullSpan.textContent = 'NULL';
-      nullSpan.style.cssText = 'color:var(--vscode-descriptionForeground);font-style:italic;opacity:0.6;';
+      nullSpan.style.cssText =
+        'color:var(--vscode-descriptionForeground);font-style:italic;opacity:0.6;';
       td.appendChild(nullSpan);
     } else {
       td.textContent = text;
@@ -653,14 +753,31 @@ export class TableRenderer {
     return td;
   }
 
-  private applyRowStyle(tr: HTMLElement, index: number) {
-    const gutterStyle = this.getRowGutterStyle(index);
-    if (this.rowsMarkedForDeletion.has(index)) {
-      tr.style.cssText = `background:rgba(244,67,54,0.08);color:var(--vscode-errorForeground);text-decoration:line-through;opacity:0.7;${gutterStyle};cursor:pointer;`;
-    } else if (this.selectedIndices.has(index)) {
-      tr.style.cssText = `background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground);${gutterStyle};cursor:pointer;`;
+  private handleRowSelection(sourceIndex: number, isMultiSelect: boolean): void {
+    if (isMultiSelect) {
+      if (this.selectedIndices.has(sourceIndex)) {
+        this.selectedIndices.delete(sourceIndex);
+      } else {
+        this.selectedIndices.add(sourceIndex);
+      }
     } else {
-      const base = index % 2 === 0 ? 'transparent' : 'var(--vscode-keybindingTable-rowsBackground)';
+      this.selectedIndices.clear();
+      this.selectedIndices.add(sourceIndex);
+    }
+
+    this.updateRowSelectionStyles();
+    this.events.onSelectionChange?.(this.selectedIndices);
+  }
+
+  private applyRowStyle(tr: HTMLElement, sourceIndex: number, displayIndex: number = sourceIndex) {
+    const gutterStyle = this.getRowGutterStyle(sourceIndex);
+    if (this.rowsMarkedForDeletion.has(sourceIndex)) {
+      tr.style.cssText = `text-decoration:line-through;opacity:0.7;${gutterStyle};cursor:pointer;`;
+    } else if (this.selectedIndices.has(sourceIndex)) {
+      tr.style.cssText = `color:var(--vscode-list-activeSelectionForeground);${gutterStyle};cursor:pointer;`;
+    } else {
+      const base =
+        displayIndex % 2 === 0 ? 'transparent' : 'var(--vscode-keybindingTable-rowsBackground)';
       tr.style.cssText = `background:${base};color:var(--vscode-editor-foreground);${gutterStyle};cursor:pointer;`;
     }
   }
@@ -668,12 +785,26 @@ export class TableRenderer {
   private updateRowSelectionStyles() {
     if (!this.tableBody) return;
     Array.from(this.tableBody.children).forEach((child: any) => {
-      const idx = parseInt(child.dataset.index);
-      if (!isNaN(idx)) this.applyRowStyle(child, idx);
+      const sourceIndex = parseInt(child.dataset.sourceIndex);
+      const displayIndex = parseInt(child.dataset.index);
+      if (!isNaN(sourceIndex)) {
+        this.applyRowStyle(child, sourceIndex, isNaN(displayIndex) ? sourceIndex : displayIndex);
+        const rowCells = Array.from(child.children) as HTMLElement[];
+        rowCells.forEach((cell, cellIndex) => {
+          const cellKind: 'row-number' | 'data' = cellIndex === 0 ? 'row-number' : 'data';
+          this.applyCellStyle(cell, sourceIndex, isNaN(displayIndex) ? sourceIndex : displayIndex, cellKind);
+        });
+      }
     });
   }
 
-  private handleCellEdit(e: MouseEvent, td: HTMLElement, index: number, col: string, type: string) {
+  private handleCellEdit(
+    e: MouseEvent,
+    td: HTMLElement,
+    sourceIndex: number,
+    col: string,
+    type: string,
+  ) {
     if (this.currentlyEditingCell === td) return;
 
     // Blur any existing editor
@@ -683,29 +814,28 @@ export class TableRenderer {
     }
 
     this.currentlyEditingCell = td;
-    const currentValue = this.displayRows[index]?.[col];
-    const originalValue = this.originalRows.find(r => JSON.stringify(r) === JSON.stringify(this.displayRows[index]))?.[col] ?? currentValue;
+    const currentValue = this.rows[sourceIndex]?.[col];
+    const originalValue = this.originalRows[sourceIndex]?.[col] ?? currentValue;
     const colType = this.columnTypes[col] || type;
-    const cellKey = `${index}-${col}`;
+    const cellKey = `${sourceIndex}-${col}`;
 
     // Find FK info for this column
-    const fkInfo = this.foreignKeys.find(fk => fk.column === col);
+    const fkInfo = this.foreignKeys.find((fk) => fk.column === col);
 
     td.innerHTML = '';
     td.style.overflow = 'visible';
     td.style.padding = '2px';
 
     const onSave = (newValue: any) => {
-      const orig = this.originalRows[index]?.[col] ?? null;
+      const orig = this.originalRows[sourceIndex]?.[col] ?? null;
       if (JSON.stringify(newValue) !== JSON.stringify(orig)) {
         this.modifiedCells.set(cellKey, { originalValue: orig, newValue });
       } else {
         this.modifiedCells.delete(cellKey);
       }
-      if (this.displayRows[index]) this.displayRows[index][col] = newValue;
-      if (this.rows[index]) this.rows[index][col] = newValue;
+      if (this.rows[sourceIndex]) this.rows[sourceIndex][col] = newValue;
       this.currentlyEditingCell = null;
-      this.events.onDataChange?.(index, col, newValue, orig);
+      this.events.onDataChange?.(sourceIndex, col, newValue, orig);
       this.rerenderTable();
     };
 
@@ -718,7 +848,14 @@ export class TableRenderer {
     const onFkLookup = fkInfo
       ? (searchText: string, callback: (rows: any[], cols: string[]) => void) => {
           const requestId = `fk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-          this.events.onFkLookup?.(requestId, fkInfo.refSchema, fkInfo.refTable, fkInfo.refColumn, searchText, callback);
+          this.events.onFkLookup?.(
+            requestId,
+            fkInfo.refSchema,
+            fkInfo.refTable,
+            fkInfo.refColumn,
+            searchText,
+            callback,
+          );
         }
       : undefined;
 
@@ -742,9 +879,12 @@ export class TableRenderer {
     this.loadMoreSentinel.style.height = '20px';
     this.tableContainer.appendChild(this.loadMoreSentinel);
 
-    this.loadMoreObserver = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) this.renderNextChunk();
-    }, { root: this.tableContainer, rootMargin: '100px' });
+    this.loadMoreObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) this.renderNextChunk();
+      },
+      { root: this.tableContainer, rootMargin: '100px' },
+    );
 
     this.loadMoreObserver.observe(this.loadMoreSentinel);
   }
@@ -765,15 +905,30 @@ export class TableRenderer {
     });
   }
 
+  private cloneFilterState(state: FilterState): FilterState {
+    return {
+      globalQuery: state.globalQuery || '',
+      clauses: state.clauses.map((clause) => ({ ...clause })),
+    };
+  }
+
   private handlePaste(e: ClipboardEvent, startIndex: number, startCol: string) {
     const clipboardData = e.clipboardData?.getData('text');
     if (!clipboardData) return;
-    if (!clipboardData.includes('\t') && !clipboardData.includes('\n') && !clipboardData.includes('\r')) return;
+    if (
+      !clipboardData.includes('\t') &&
+      !clipboardData.includes('\n') &&
+      !clipboardData.includes('\r')
+    )
+      return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    const rows = clipboardData.trim().split(/\r?\n/).map(r => r.split('\t'));
+    const rows = clipboardData
+      .trim()
+      .split(/\r?\n/)
+      .map((r) => r.split('\t'));
     const colNames = this.columns;
     const startColIdx = colNames.indexOf(startCol);
     if (startColIdx === -1) return;
