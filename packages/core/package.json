@@ -1,7 +1,7 @@
 {
   "name": "nexql",
   "displayName": "NexQL",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Universal SQL database management for VS Code — supports PostgreSQL, MySQL, SQLite, MSSQL, Oracle with notebook, AI assistant, and schema designer",
   "publisher": "ric-v",
   "private": false,
