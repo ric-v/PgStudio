@@ -2,10 +2,11 @@
  * Database object fetching service for @ mentions
  */
 import * as vscode from 'vscode';
-import { Client, PoolClient } from 'pg';
+import { PoolClient } from 'pg';
 import { ConnectionManager } from '../../services/ConnectionManager';
 import { getSchemaCache, SchemaCache } from '../../lib/schema-cache';
 import { DbObject } from './types';
+import { getDialect } from '../../core/db/registry';
 
 export class DbObjectService {
   private _cache: DbObject[] = [];
@@ -15,6 +16,15 @@ export class DbObjectService {
   private readonly SEARCH_MIN_CHARS = 2;
   private readonly MAX_RESULTS = 100;
   private readonly INITIAL_RESULTS = 40;
+
+  private readFirstValue(row: Record<string, unknown>, fallbackKey?: string): string {
+    if (fallbackKey && typeof row[fallbackKey] === 'string') {
+      return row[fallbackKey] as string;
+    }
+
+    const firstValue = Object.values(row)[0];
+    return typeof firstValue === 'string' ? firstValue : String(firstValue ?? '');
+  }
 
   async getConnections(): Promise<DbObject[]> {
     const connections = vscode.workspace.getConfiguration().get<any[]>('postgresExplorer.connections') || [];
@@ -41,11 +51,13 @@ export class DbObjectService {
     let client: PoolClient | undefined;
     try {
         const connName = conn.name || conn.host;
+      const dialect = getDialect(conn.engine);
         client = await ConnectionManager.getInstance().getPooledClient({
           id: conn.id,
           host: conn.host,
           port: conn.port,
           username: conn.username,
+          engine: conn.engine,
           database: 'postgres',
           name: conn.name
         });
@@ -54,19 +66,23 @@ export class DbObjectService {
 
         const dbListKey = SchemaCache.buildKey(conn.id, 'postgres', undefined, 'db-list');
         const dbResult = await this._dbListCache.getOrFetch(dbListKey, async () => {
+          if (dialect.introspect.listSchemas) {
+            return await client!.query(dialect.introspect.listSchemas());
+          }
+
           return await client!.query(
             "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
           );
         }, 300000);
 
         return dbResult.rows.map(row => ({
-            name: row.datname,
+            name: this.readFirstValue(row as Record<string, unknown>, 'datname'),
             type: 'database',
             schema: '',
-            database: row.datname,
+            database: this.readFirstValue(row as Record<string, unknown>, 'datname'),
             connectionId: conn.id,
             connectionName: connName,
-            breadcrumb: `${connName} > ${row.datname}`,
+            breadcrumb: `${connName} > ${this.readFirstValue(row as Record<string, unknown>, 'datname')}`,
             isContainer: true
         }));
     } catch (e) {
@@ -83,11 +99,13 @@ export class DbObjectService {
     let client: PoolClient | undefined;
     try {
         const connName = conn.name || conn.host;
+      const dialect = getDialect(conn.engine);
         client = await ConnectionManager.getInstance().getPooledClient({
             id: conn.id,
             host: conn.host,
             port: conn.port,
             username: conn.username,
+        engine: conn.engine,
             database: database,
             name: conn.name
         });
@@ -96,19 +114,23 @@ export class DbObjectService {
 
         const schemaKey = SchemaCache.buildKey(conn.id, database, undefined, 'schema-list');
         const schemaResult = await this._dbListCache.getOrFetch(schemaKey, async () => {
-             return await client!.query(
+            if (dialect.introspect.listSchemas) {
+              return await client!.query(dialect.introspect.listSchemas());
+            }
+
+            return await client!.query(
               "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema' ORDER BY nspname"
             );
         }, 300000);
 
          return schemaResult.rows.map(row => ({
-            name: row.nspname,
+            name: this.readFirstValue(row as Record<string, unknown>, 'nspname'),
             type: 'schema',
-            schema: row.nspname,
+            schema: this.readFirstValue(row as Record<string, unknown>, 'nspname'),
             database: database,
             connectionId: conn.id,
             connectionName: connName,
-            breadcrumb: `${connName} > ${database} > ${row.nspname}`,
+            breadcrumb: `${connName} > ${database} > ${this.readFirstValue(row as Record<string, unknown>, 'nspname')}`,
             isContainer: true
         }));
     } catch (e) {
@@ -124,6 +146,7 @@ export class DbObjectService {
     
     const objects: DbObject[] = [];
     let client: PoolClient | undefined;
+    const dialect = getDialect(conn.engine);
 
      try {
         const connName = conn.name || conn.host;
@@ -132,6 +155,7 @@ export class DbObjectService {
             host: conn.host,
             port: conn.port,
             username: conn.username,
+          engine: conn.engine,
             database: database,
             name: conn.name
         });
@@ -140,54 +164,61 @@ export class DbObjectService {
 
          // Get tables
          const tableResult = await client.query(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'",
-            [schema]
+            dialect.introspect.listTables?.(schema) || "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'",
+            dialect.engine === 'postgres' ? [schema] : undefined
           );
           for (const row of tableResult.rows) {
+            const tableName = this.readFirstValue(row as Record<string, unknown>, 'table_name');
             objects.push({
-              name: row.table_name,
+              name: tableName,
               type: 'table',
               schema: schema,
               database: database,
               connectionId: conn.id,
               connectionName: connName,
-              breadcrumb: `${connName} > ${database} > ${schema} > ${row.table_name}`,
+              breadcrumb: `${connName} > ${database} > ${schema} > ${tableName}`,
               isContainer: false
             });
           }
 
           // Get views
           const viewResult = await client.query(
-            "SELECT table_name FROM information_schema.views WHERE table_schema = $1",
-            [schema]
+            dialect.engine === 'sqlite'
+              ? "SELECT name AS table_name FROM sqlite_master WHERE type = 'view'"
+              : "SELECT table_name FROM information_schema.views WHERE table_schema = $1",
+            dialect.engine === 'postgres' ? [schema] : undefined
           );
            for (const row of viewResult.rows) {
+            const viewName = this.readFirstValue(row as Record<string, unknown>, 'table_name');
             objects.push({
-              name: row.table_name,
+              name: viewName,
               type: 'view',
               schema: schema,
               database: database,
               connectionId: conn.id,
               connectionName: connName,
-              breadcrumb: `${connName} > ${database} > ${schema} > ${row.table_name}`,
+              breadcrumb: `${connName} > ${database} > ${schema} > ${viewName}`,
               isContainer: false
             });
           }
 
           // Get functions
           const funcResult = await client.query(
-            "SELECT routine_name FROM information_schema.routines WHERE routine_schema = $1 AND routine_type = 'FUNCTION'",
-            [schema]
+            dialect.engine === 'mysql'
+              ? "SELECT routine_name FROM information_schema.routines WHERE routine_schema = ? AND routine_type = 'FUNCTION'"
+              : "SELECT routine_name FROM information_schema.routines WHERE routine_schema = $1 AND routine_type = 'FUNCTION'",
+            dialect.engine === 'mysql' ? [schema] : [schema]
           );
            for (const row of funcResult.rows) {
+            const functionName = this.readFirstValue(row as Record<string, unknown>, 'routine_name');
             objects.push({
-              name: row.routine_name,
+              name: functionName,
               type: 'function',
               schema: schema,
               database: database,
               connectionId: conn.id,
               connectionName: connName,
-              breadcrumb: `${connName} > ${database} > ${schema} > ${row.routine_name}`,
+              breadcrumb: `${connName} > ${database} > ${schema} > ${functionName}`,
               isContainer: false
             });
           }

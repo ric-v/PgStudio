@@ -132,4 +132,52 @@ describe('SqlCompletionProvider', () => {
     expect(fallbackItems.length).to.be.greaterThan(0);
     expect(getPooledClientStub.calledOnce).to.be.true;
   });
+
+  it('loads SQLite completions using sqlite_master and PRAGMA output', async () => {
+    (getConfigurationStub as sinon.SinonStub).returns({
+      get: (key: string) => (key === 'postgresExplorer.connections'
+        ? [{ id: 'sqlite-1', name: 'Local DB', engine: 'sqlite', host: '', port: 0, database: '/tmp/dev.db' }]
+        : undefined)
+    } as any);
+
+    queryStub.onFirstCall().resolves({ rows: [{ name: 'users' }] });
+    queryStub.onSecondCall().resolves({ rows: [{ name: 'id', type: 'INTEGER' }, { name: 'email', type: 'TEXT' }] });
+
+    const provider = new SqlCompletionProvider();
+    const document = createNotebookCellDocument('SELECT * FROM users;');
+    attachNotebook(document, { connectionId: 'sqlite-1', engine: 'sqlite', databaseName: '/tmp/dev.db' });
+
+    const items = await provider.provideCompletionItems(document, new vscode.Position(0, document.text.length), {} as any, {} as any);
+    const labels = items.map(item => item.label);
+
+    expect(getPooledClientStub.calledOnce).to.be.true;
+    expect(queryStub.calledTwice).to.be.true;
+    expect(labels).to.include('users');
+    expect(labels).to.include('id');
+    expect(labels).to.include('email');
+  });
+
+  it('loads MySQL completions using SHOW TABLES and information_schema.columns', async () => {
+    (getConfigurationStub as sinon.SinonStub).returns({
+      get: (key: string) => (key === 'postgresExplorer.connections'
+        ? [{ id: 'mysql-1', name: 'MySQL DB', engine: 'mysql', host: 'localhost', port: 3306, database: 'appdb', username: 'root' }]
+        : undefined)
+    } as any);
+
+    queryStub.onFirstCall().resolves({ rows: [{ Tables_in_appdb: 'customers' }] });
+    queryStub.onSecondCall().resolves({ rows: [{ column_name: 'customer_id', data_type: 'int' }, { column_name: 'name', data_type: 'varchar' }] });
+
+    const provider = new SqlCompletionProvider();
+    const document = createNotebookCellDocument('SELECT * FROM customers;');
+    attachNotebook(document, { connectionId: 'mysql-1', engine: 'mysql', databaseName: 'appdb' });
+
+    const items = await provider.provideCompletionItems(document, new vscode.Position(0, document.text.length), {} as any, {} as any);
+    const labels = items.map(item => item.label);
+
+    expect(getPooledClientStub.calledOnce).to.be.true;
+    expect(queryStub.calledTwice).to.be.true;
+    expect(labels).to.include('customers');
+    expect(labels).to.include('customer_id');
+    expect(labels).to.include('name');
+  });
 });

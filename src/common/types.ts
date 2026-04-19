@@ -1,6 +1,9 @@
+import type { DbEngine } from '../core/db/DbEngine';
+
 export interface ConnectionConfig {
   id: string;
   name?: string;
+  engine?: DbEngine;
   host: string;
   port: number;
   username?: string;
@@ -29,6 +32,7 @@ export interface ConnectionConfig {
 
 export interface PostgresMetadata {
   connectionId: string;
+  engine?: DbEngine;
   databaseName: string | undefined;
   host: string;
   port: number;

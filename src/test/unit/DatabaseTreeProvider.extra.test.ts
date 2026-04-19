@@ -78,6 +78,7 @@ describe('DatabaseTreeProvider additional coverage', () => {
     };
     client.query.onCall(0).resolves({ rows: [{ count: '3' }] });
     client.query.onCall(1).resolves({ rows: [{ count: '1' }] });
+    client.query.onCall(2).resolves({ rows: [{ count: '1' }] });
     connectionManagerStub.getPooledClient.resolves(client);
 
     const connectionItem = new DatabaseTreeItem('Primary', vscode.TreeItemCollapsibleState.Collapsed, 'connection', 'c1');
@@ -204,6 +205,7 @@ describe('DatabaseTreeProvider additional coverage', () => {
     client.query.onCall(0).resolves({ rows: [{ table_schema: 'public', table_name: 'users', columns: ['id', 'name'] }] });
     client.query.onCall(1).resolves({ rows: [{ table_schema: 'public', table_name: 'user_view', columns: ['id'] }] });
     client.query.onCall(2).resolves({ rows: [{ schema_name: 'public', function_name: 'calc_total' }] });
+    client.query.onCall(3).resolves({ rows: [{ schema_name: 'public', procedure_name: 'rebuild_cache' }] });
     connectionManagerStub.getPooledClient.resolves(client);
 
     const objects = await provider.getDbObjectsForConnection({ id: 'c1', host: 'localhost', port: 5432, username: 'postgres', database: 'appdb', name: 'Primary' });
@@ -212,6 +214,7 @@ describe('DatabaseTreeProvider additional coverage', () => {
       { type: 'table', schema: 'public', name: 'users', columns: ['id', 'name'] },
       { type: 'view', schema: 'public', name: 'user_view', columns: ['id'] },
       { type: 'function', schema: 'public', name: 'calc_total' },
+      { type: 'procedure', schema: 'public', name: 'rebuild_cache' },
     ]);
     expect((client.release as sinon.SinonStub).calledOnce).to.be.true;
   });

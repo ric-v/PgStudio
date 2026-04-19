@@ -1,16 +1,11 @@
-import { Client } from "pg";
 import * as vscode from "vscode";
-import * as fs from "fs";
-import { SSHService } from "../../services/SSHService";
 import { ConnectionManager } from "../../services/ConnectionManager";
-import {
-  resolvePgPassPasswordAsync,
-  pgPassFileDescription,
-} from "../../utils/pgPassUtils";
+import { DEFAULT_DB_ENGINE, resolveDbEngine } from "../../core/db/DbEngine";
 
 export interface ConnectionInfo {
   id: string;
   name: string;
+  engine?: "postgres" | "mysql" | "sqlite" | "mssql" | "oracle";
   host: string;
   port: number;
   username?: string;
@@ -122,260 +117,89 @@ export class ConnectionFormPanel {
 
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
-        // Helper to build client config with SSL
-        const buildClientConfig = (
-          connection: any,
-          dbName: string,
-          forceDisableSSL: boolean,
-          overridePassword?: string,
-        ) => {
-          // Use the explicitly-resolved password (from pgpass lookup or the
-          // form field) when provided; otherwise fall back to the form value.
-          const effectivePassword =
-            overridePassword !== undefined
-              ? overridePassword
-              : connection.password || undefined;
-          const config: any = {
-            user: connection.username || undefined,
-            password: effectivePassword,
-            database: dbName,
-            connectionTimeoutMillis: (connection.connectTimeout || 15) * 1000,
-          };
-
-          if (!forceDisableSSL) {
-            const sslMode = connection.sslmode || "prefer"; // Default to prefer
-            if (sslMode !== "disable") {
-              const sslConfig: any = {
-                rejectUnauthorized:
-                  sslMode === "verify-ca" || sslMode === "verify-full",
-              };
-              try {
-                if (connection.sslRootCertPath)
-                  sslConfig.ca = fs
-                    .readFileSync(connection.sslRootCertPath)
-                    .toString();
-                if (connection.sslCertPath)
-                  sslConfig.cert = fs
-                    .readFileSync(connection.sslCertPath)
-                    .toString();
-                if (connection.sslKeyPath)
-                  sslConfig.key = fs
-                    .readFileSync(connection.sslKeyPath)
-                    .toString();
-              } catch (e: any) {
-                console.warn("Error reading SSL certs:", e);
-              }
-              config.ssl = sslConfig;
-            }
+        const buildVersionQuery = (engine: string): string => {
+          switch (engine) {
+            case "mysql":
+              return "SELECT VERSION() AS version";
+            case "sqlite":
+              return "SELECT sqlite_version() AS version";
+            case "mssql":
+              return "SELECT @@VERSION AS version";
+            case "oracle":
+              return "SELECT banner AS version FROM v$version WHERE rownum = 1";
+            default:
+              return "SELECT version()";
           }
-          return config;
+        };
+
+        const isUnsupportedRuntimeEngine = (engine: string): boolean => {
+          return engine === "mssql" || engine === "oracle";
         };
 
         const runTest = async (connection: any, isSave: boolean) => {
-          // Always use the user's configured database for both test and save
-          // validation. Previously, save validation hardcoded 'postgres', which
-          // broke .pgpass: pg reads ~/.pgpass by matching (host, port, database,
-          // user). Forcing 'postgres' caused a mismatch when the .pgpass entry
-          // specifies the user's actual database, so pgpass returned no password
-          // and PostgreSQL rejected the connection with "empty password returned
-          // by client". The 3D000 fallback below still handles the case where
-          // the configured database does not yet exist.
-          const targetDb = connection.database || "postgres";
+          const engine = resolveDbEngine(connection.engine || DEFAULT_DB_ENGINE);
+          const driverConfig: ConnectionInfo = {
+            id: this._connectionToEdit
+              ? this._connectionToEdit.id
+              : `test-${Date.now().toString()}`,
+            engine,
+            name: connection.name,
+            host: connection.host,
+            port: connection.port,
+            username: connection.username || undefined,
+            password: connection.password || undefined,
+            database: connection.database || undefined,
+            group: connection.group || undefined,
+            environment: connection.environment || undefined,
+            readOnlyMode: connection.readOnlyMode || undefined,
+            sslmode: connection.sslmode || undefined,
+            sslCertPath: connection.sslCertPath || undefined,
+            sslKeyPath: connection.sslKeyPath || undefined,
+            sslRootCertPath: connection.sslRootCertPath || undefined,
+            statementTimeout: connection.statementTimeout || undefined,
+            connectTimeout: connection.connectTimeout || undefined,
+            applicationName: connection.applicationName || undefined,
+            options: connection.options || undefined,
+            ssh: connection.ssh,
+          };
 
-          // ── Explicit pgpass resolution ───────────────────────────────────
-          // When the user leaves the password field empty (relying on a pgpass
-          // file), the pg library's *internal* pgpass lookup can silently fail
-          // — most commonly on Windows where the expected path is
-          //   %APPDATA%\postgresql\pgpass.conf
-          // rather than ~/.pgpass.  If that lookup returns undefined, pg keeps
-          // the password as null and SCRAM authentication throws:
-          //   "SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string"
-          //
-          // By resolving the pgpass password ourselves *before* constructing
-          // the Client we can:
-          //   1. Pass it explicitly, bypassing pg's internal lookup entirely.
-          //   2. Emit a clear error that includes the expected file path when
-          //      neither an explicit password nor a pgpass match is found.
-          let resolvedPassword: string | undefined =
-            connection.password || undefined;
-          if (!resolvedPassword && connection.username) {
-            resolvedPassword = await resolvePgPassPasswordAsync(
-              connection.host,
-              parseInt(String(connection.port), 10) || 5432,
-              targetDb,
-              connection.username,
-            );
-
-            // If pgpass didn't match for the target db, also try the postgres
-            // fallback db (mirrors the 3D000 retry below, but at the pgpass
-            // lookup stage so we can detect a credential problem early).
-            if (!resolvedPassword && targetDb !== "postgres") {
-              resolvedPassword = await resolvePgPassPasswordAsync(
-                connection.host,
-                parseInt(String(connection.port), 10) || 5432,
-                "postgres",
-                connection.username,
+          if (isUnsupportedRuntimeEngine(engine)) {
+            if (!isSave) {
+              throw new Error(
+                `${engine.toUpperCase()} runtime driver is not enabled yet`,
               );
             }
+            // Persist now; runtime connectivity for these engines is not enabled yet.
+            return true;
           }
 
-          let config = buildClientConfig(
-            connection,
-            targetDb,
-            false,
-            resolvedPassword,
-          );
-
-          if (connection.ssh && connection.ssh.enabled) {
-            const stream = await SSHService.getInstance().createStream(
-              connection.ssh,
-              connection.host,
-              connection.port,
-            );
-            config.stream = stream;
-          } else {
-            config.host = connection.host;
-            config.port = connection.port;
-          }
-
-          let client = new Client(config);
+          let pooledClient: any;
           try {
-            await client.connect();
+            pooledClient = await ConnectionManager.getInstance().getPooledClient(
+              driverConfig,
+            );
+
             if (isSave) {
-              await client.query("SELECT 1");
+              await pooledClient.query("SELECT 1");
             } else {
-              const result = await client.query("SELECT version()");
-              return result.rows[0].version;
+              const result = await pooledClient.query(buildVersionQuery(engine));
+              return result.rows?.[0]?.version || "Connected";
             }
-            await client.end();
+
             return true;
           } catch (err: any) {
-            // fallbacks
-            const sslMode = connection.sslmode || "prefer";
-            const isSSLFailure =
-              (err.message || "")
-                .toString()
-                .toLowerCase()
-                .includes("server does not support ssl") ||
-              err.code === "ECONNRESET" ||
-              err.code === "EPROTO";
-
-            if ((sslMode === "prefer" || sslMode === "allow") && isSSLFailure) {
-              // Retry without SSL - keep using targetDb so .pgpass still matches
-              config = buildClientConfig(
-                connection,
-                targetDb,
-                true,
-                resolvedPassword,
-              );
-              if (connection.ssh && connection.ssh.enabled) {
-                const stream = await SSHService.getInstance().createStream(
-                  connection.ssh,
-                  connection.host,
-                  connection.port,
-                );
-                config.stream = stream;
-              } else {
-                config.host = connection.host;
-                config.port = connection.port;
-              }
-
-              client = new Client(config);
-              try {
-                await client.connect();
-                if (isSave) {
-                  await client.query("SELECT 1");
-                } else {
-                  const result = await client.query("SELECT version()");
-                  return result.rows[0].version;
-                }
-                await client.end();
-                return true;
-              } catch (sslErr: any) {
-                err = sslErr;
-              }
-            }
-
-            // Database fallback: if the configured database doesn't exist yet,
-            // retry against 'postgres' so credentials can still be validated.
-            // This applies to both test and save — for save the connection is
-            // stored with the original database name (it may be created later).
-            if (err.code === "3D000" && targetDb !== "postgres") {
-              // Re-resolve pgpass for the 'postgres' database specifically,
-              // in case the entry was wildcarded or the earlier targetDb lookup
-              // returned nothing but a postgres entry exists.
-              let fallbackPassword = resolvedPassword;
-              if (!fallbackPassword && connection.username) {
-                fallbackPassword = await resolvePgPassPasswordAsync(
-                  connection.host,
-                  parseInt(String(connection.port), 10) || 5432,
-                  "postgres",
-                  connection.username,
-                );
-              }
-              config = buildClientConfig(
-                connection,
-                "postgres",
-                false,
-                fallbackPassword,
-              );
-              if (connection.ssh && connection.ssh.enabled) {
-                const stream = await SSHService.getInstance().createStream(
-                  connection.ssh,
-                  connection.host,
-                  connection.port,
-                );
-                config.stream = stream;
-              } else {
-                config.host = connection.host;
-                config.port = connection.port;
-              }
-
-              client = new Client(config);
-              try {
-                await client.connect();
-                if (isSave) {
-                  await client.query("SELECT 1");
-                  await client.end();
-                  return true;
-                }
-                const result = await client.query("SELECT version()");
-                await client.end();
-                return (
-                  result.rows[0].version + " (connected to postgres database)"
-                );
-              } catch (fallbackErr: any) {
-                // If the fallback fails, throw the original 3D000 error so the
-                // user knows their database doesn't exist, rather than confusing
-                // them with a pgpass error for the 'postgres' database.
-                throw err;
-              }
-            }
-            // ── Friendly pgpass error ────────────────────────────────────
-            // When SCRAM authentication fires and pg has no password string
-            // it means: no explicit password was given AND our own pgpass
-            // lookup returned nothing.  Surface the expected file path so
-            // the user knows exactly where to put the pgpass entry.
-            if (
-              err.message &&
-              (err.message as string).includes(
-                "client password must be a string",
-              )
-            ) {
-              const { pgPassFileDescription } =
-                await import("../../utils/pgPassUtils");
-              const location = pgPassFileDescription();
-              throw new Error(
-                `No password found for this connection.\n\n` +
-                  `Either enter a password in the form, or add a matching entry to your pgpass file:\n` +
-                  `  ${location}\n\n` +
-                  `The entry format is:\n` +
-                  `  hostname:port:database:username:password\n\n` +
-                  `Example:\n` +
-                  `  ${connection.host}:${connection.port}:${targetDb}:${connection.username || "*"}:yourpassword`,
-              );
+            if (isSave && isUnsupportedRuntimeEngine(engine)) {
+              return true;
             }
             throw err;
+          } finally {
+            try {
+              if (pooledClient?.release) {
+                pooledClient.release();
+              }
+            } catch {
+              // Ignore release errors in test flow.
+            }
           }
         };
 
@@ -405,6 +229,11 @@ export class ConnectionFormPanel {
                   ? this._connectionToEdit.id
                   : Date.now().toString(),
                 name: message.connection.name,
+                engine: resolveDbEngine(
+                  message.connection.engine ||
+                    this._connectionToEdit?.engine ||
+                    DEFAULT_DB_ENGINE,
+                ),
                 host: message.connection.host,
                 port: message.connection.port,
                 username: message.connection.username || undefined,
@@ -498,7 +327,7 @@ export class ConnectionFormPanel {
 
     const panel = vscode.window.createWebviewPanel(
       "connectionForm",
-      connectionToEdit ? "Edit Connection" : "Add PostgreSQL Connection",
+      connectionToEdit ? "Edit Connection" : "Add SQL Connection",
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -550,7 +379,7 @@ export class ConnectionFormPanel {
     // Dynamic content for placeholders
     const pageTitle = this._connectionToEdit
       ? "Edit Connection"
-      : "Add PostgreSQL Connection";
+      : "Add SQL Connection";
     const headerTitle = this._connectionToEdit
       ? "Edit Connection"
       : "New Connection";

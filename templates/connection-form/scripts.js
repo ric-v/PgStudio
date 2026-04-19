@@ -13,6 +13,97 @@ const addBtn = document.getElementById('addConnection');
 const addBtnLabel = addBtn.querySelector('span:last-child').textContent;
 const form = document.getElementById('connectionForm');
 const inputs = form.querySelectorAll('input');
+const engineSelect = document.getElementById('engine');
+const hostInput = document.getElementById('host');
+const portInput = document.getElementById('port');
+const databaseInput = document.getElementById('database');
+const usernameInputEl = document.getElementById('username');
+const hostHint = document.getElementById('hostHint');
+const portHint = document.getElementById('portHint');
+const databaseHint = document.getElementById('databaseHint');
+const usernameHint = document.getElementById('usernameHint');
+
+const engineDefaults = {
+  postgres: { port: 5432, database: 'postgres', username: 'postgres' },
+  mysql: { port: 3306, database: 'mysql', username: 'root' },
+  sqlite: { port: null, database: '', username: '' },
+  mssql: { port: 1433, database: 'master', username: 'sa' },
+  oracle: { port: 1521, database: 'ORCLCDB', username: 'system' }
+};
+
+function canSkipRuntimeTest(engine) {
+  return engine === 'mssql' || engine === 'oracle';
+}
+
+function currentEngine() {
+  return engineSelect.value || 'postgres';
+}
+
+function updateSubmitState() {
+  if (isEditMode) {
+    addBtn.disabled = false;
+    return;
+  }
+
+  const engine = currentEngine();
+  addBtn.disabled = !(isTested || canSkipRuntimeTest(engine));
+}
+
+function updateEngineFields(preserveTypedValues = true) {
+  const engine = currentEngine();
+  const defaults = engineDefaults[engine] || engineDefaults.postgres;
+
+  if (engine === 'sqlite') {
+    hostInput.required = false;
+    portInput.required = false;
+    hostInput.placeholder = '/path/to/database-host-not-used';
+    hostHint.textContent = 'Not used by SQLite (local file database)';
+    portHint.textContent = 'Not used by SQLite';
+    databaseHint.textContent = 'SQLite file path (for example /tmp/app.db)';
+    usernameHint.textContent = 'Optional for SQLite';
+
+    if (!preserveTypedValues || !hostInput.value.trim()) {
+      hostInput.value = '';
+    }
+    portInput.value = '';
+  } else {
+    hostInput.required = true;
+    portInput.required = true;
+    hostInput.placeholder = 'localhost';
+    hostHint.textContent = 'Server address or IP';
+    portHint.textContent = 'Default: ' + defaults.port;
+    databaseHint.textContent = 'Leave empty to use engine default (' + defaults.database + ')';
+    usernameHint.textContent = 'Database user';
+
+    if (!preserveTypedValues || !portInput.value) {
+      portInput.value = String(defaults.port);
+    }
+  }
+
+  if (!preserveTypedValues || !databaseInput.value.trim()) {
+    databaseInput.placeholder = defaults.database || 'Database name';
+    databaseInput.value = defaults.database || '';
+  }
+  if (!preserveTypedValues || !usernameInputEl.value.trim()) {
+    usernameInputEl.placeholder = defaults.username || 'Username';
+  }
+
+  if (canSkipRuntimeTest(engine)) {
+    testBtn.disabled = true;
+    testBtn.innerHTML = '<span>Test Not Available</span>';
+    showMessage(engine.toUpperCase() + ' runtime test is not available yet. You can still save this connection.', 'info');
+    isTested = true;
+  } else {
+    testBtn.disabled = false;
+    testBtn.innerHTML = '<span>Test Connection</span>';
+    if (!isEditMode) {
+      isTested = false;
+      hideMessage();
+    }
+  }
+
+  updateSubmitState();
+}
 
 // Injected connection data (replaced at runtime by the extension)
 const connectionData = {{ CONNECTION_DATA }};
@@ -23,6 +114,7 @@ let isTested = isEditMode;
 
 // ── Populate form when editing ────────────────────────────────────────────────
 if (connectionData) {
+  document.getElementById('engine').value = connectionData.engine || 'postgres';
   document.getElementById('name').value = connectionData.name || '';
   document.getElementById('host').value = connectionData.host || '';
   document.getElementById('port').value = connectionData.port || 5432;
@@ -68,6 +160,14 @@ if (connectionData) {
     }, 100);
   }
 }
+
+updateEngineFields(!!connectionData);
+engineSelect.addEventListener('change', () => {
+  if (!isEditMode) {
+    isTested = false;
+  }
+  updateEngineFields(false);
+});
 
 // ── SSH toggle ────────────────────────────────────────────────────────────────
 function toggleSSH() {
@@ -152,15 +252,22 @@ function hideMessage() {
 
 // ── Form data ─────────────────────────────────────────────────────────────────
 function getFormData() {
+  const engine = currentEngine();
+  const defaults = engineDefaults[engine] || engineDefaults.postgres;
   const usernameInput = document.getElementById('username').value.trim();
   const passwordInput = document.getElementById('password').value;
   const sshEnabled = document.getElementById('sshEnabled').checked;
 
+  const hostValue = document.getElementById('host').value;
+  const portValue = document.getElementById('port').value;
+  const databaseValue = document.getElementById('database').value;
+
   const data = {
+    engine,
     name: document.getElementById('name').value,
-    host: document.getElementById('host').value,
-    port: parseInt(document.getElementById('port').value),
-    database: document.getElementById('database').value || 'postgres',
+    host: engine === 'sqlite' ? '' : hostValue,
+    port: engine === 'sqlite' ? 0 : parseInt(portValue || String(defaults.port), 10),
+    database: databaseValue || defaults.database || undefined,
     group: document.getElementById('group').value || undefined,
     username: usernameInput || undefined,
     password: passwordInput || undefined,
@@ -194,14 +301,31 @@ inputs.forEach(input => {
   input.addEventListener('input', () => {
     if (isTested && !isEditMode) {
       isTested = false;
-      addBtn.disabled = true;
+      updateSubmitState();
       hideMessage();
     }
   });
 });
 
+form.querySelectorAll('select').forEach(select => {
+  select.addEventListener('change', () => {
+    if (isTested && !isEditMode && !canSkipRuntimeTest(currentEngine())) {
+      isTested = false;
+      hideMessage();
+    }
+    updateSubmitState();
+  });
+});
+
 // ── Test connection ───────────────────────────────────────────────────────────
 testBtn.addEventListener('click', () => {
+  if (canSkipRuntimeTest(currentEngine())) {
+    showMessage(currentEngine().toUpperCase() + ' runtime test is not available yet. Save to keep this connection for later use.', 'info');
+    isTested = true;
+    updateSubmitState();
+    return;
+  }
+
   if (!form.checkValidity()) {
     form.reportValidity();
     return;
@@ -215,7 +339,7 @@ testBtn.addEventListener('click', () => {
 // ── Save / submit ─────────────────────────────────────────────────────────────
 form.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (!isTested) { return; }
+  if (!isTested && !canSkipRuntimeTest(currentEngine())) { return; }
   hideMessage();
   addBtn.disabled = true;
   addBtn.innerHTML = '<span class="btn-icon">⏳</span><span>Saving…</span>';
@@ -231,18 +355,18 @@ window.addEventListener('message', event => {
 
   switch (message.type) {
     case 'testSuccess': {
-      const versionMatch = message.version && message.version.match(/PostgreSQL\s+[\d.]+/i);
-      const versionLabel = versionMatch ? versionMatch[0] : 'Connected';
-      showMessage('Connected — ' + versionLabel, 'success');
+      const engineLabel = currentEngine().toUpperCase();
+      const versionLabel = message.version || 'Connected';
+      showMessage('Connected — ' + versionLabel + ' (' + engineLabel + ')', 'success');
       isTested = true;
-      addBtn.disabled = false;
+      updateSubmitState();
       break;
     }
     case 'testError':
       showMessage(message.error || 'Connection failed', 'error');
       isTested = false;
       // In edit mode keep save enabled even after a failed test
-      if (!isEditMode) { addBtn.disabled = true; }
+      updateSubmitState();
       break;
   }
 });

@@ -14,6 +14,7 @@ import { QueryPerformanceService } from '../../services/QueryPerformanceService'
 import { extensionContext } from '../../extension';
 import { QueryCodeLensProvider } from '../QueryCodeLensProvider';
 import { updateNotebookTitle } from '../../utils/notebookTitle';
+import { DEFAULT_DB_ENGINE, resolveDbEngine } from '../../core/db/DbEngine';
 
 export class SqlExecutor {
   private static readonly REVIEW_COUNT_KEY = 'postgresExplorer.reviewPrompt.successCount';
@@ -271,6 +272,7 @@ export class SqlExecutor {
       if (!connection) {
         throw new Error('Connection not found');
       }
+      const engine = resolveDbEngine(connection.engine || metadata.engine || DEFAULT_DB_ENGINE);
 
       // Apply profile settings from metadata to connection (metadata takes precedence)
       if (metadata.readOnlyMode !== undefined) {
@@ -289,20 +291,23 @@ export class SqlExecutor {
         host: connection.host,
         port: connection.port,
         username: connection.username,
+        engine,
         database: metadata.databaseName || connection.database,
         name: connection.name
       }, cell.notebook.uri.toString());
 
       console.log('SqlExecutor: Connected to database');
 
-      // Get PostgreSQL backend PID for query cancellation
+      // Get backend PID only when supported (PostgreSQL).
       let backendPid: number | null = null;
-      try {
-        const pidResult = await client.query('SELECT pg_backend_pid()');
-        backendPid = pidResult.rows[0]?.pg_backend_pid || null;
-        console.log('SqlExecutor: Backend PID:', backendPid);
-      } catch (err) {
-        console.warn('Failed to get backend PID:', err);
+      if (engine === 'postgres') {
+        try {
+          const pidResult = await client.query('SELECT pg_backend_pid()');
+          backendPid = pidResult.rows[0]?.pg_backend_pid || null;
+          console.log('SqlExecutor: Backend PID:', backendPid);
+        } catch (err) {
+          console.warn('Failed to get backend PID:', err);
+        }
       }
 
       // Capture PostgreSQL NOTICE messages
@@ -491,23 +496,22 @@ export class SqlExecutor {
           console.log('[Performance] Analysis:', JSON.stringify(performanceAnalysis));
 
           // Build output data
-          const tableInfo = await this.getTableInfo(client, result, query);
+          const tableInfo = await this.getTableInfo(client, result, query, engine);
           let autoLimitValue: number | undefined;
           if (autoLimitApplied) {
             const lim = query.match(/\bLIMIT\s+(\d+)/i);
             autoLimitValue = lim ? parseInt(lim[1], 10) : undefined;
           }
 
+          const resolvedColumns = this.resolveOutputColumns(result);
+          const resolvedColumnTypes = this.resolveColumnTypes(result, engine);
+
           const outputData: QueryResults = {
             success,
             rowCount: result.rowCount,
             rows: result.rows,
-            columns: result.fields?.map((f: any) => f.name) || [],
-            columnTypes: result.fields?.reduce((acc: any, f: any) => {
-              // Approximate type mapping or use OID if available
-              acc[f.name] = this.getTypeName(f.dataTypeID);
-              return acc;
-            }, {}),
+            columns: resolvedColumns,
+            columnTypes: resolvedColumnTypes,
             command: result.command,
             query: query,
             notices: [...notices], // Copy current notices
@@ -576,7 +580,7 @@ export class SqlExecutor {
           const durationMs = executionTime * 1000;
           const isSlow = durationMs >= slowThresholdMs;
 
-          const pgErrorCode: string | undefined = err.code;
+          const pgErrorCode: string | undefined = engine === 'postgres' ? err.code : undefined;
           const errorData = {
             success: false,
             error: err.message,
@@ -630,8 +634,65 @@ export class SqlExecutor {
 
   // --- Helpers ---
 
-  private getTypeName(oid: number): string {
-    // Basic mapping, in a real app this would use a proper TypeRegistry
+  private resolveOutputColumns(result: any): string[] {
+    if (Array.isArray(result?.fields) && result.fields.length > 0) {
+      return result.fields
+        .map((f: any) => f?.name)
+        .filter((name: unknown): name is string => typeof name === 'string' && name.length > 0);
+    }
+
+    if (Array.isArray(result?.rows) && result.rows.length > 0) {
+      const firstRow = result.rows[0];
+      if (firstRow && typeof firstRow === 'object' && !Array.isArray(firstRow)) {
+        return Object.keys(firstRow);
+      }
+    }
+
+    return [];
+  }
+
+  private resolveColumnTypes(result: any, engine: string): Record<string, string> {
+    const columnTypes: Record<string, string> = {};
+
+    if (Array.isArray(result?.fields) && result.fields.length > 0) {
+      for (const field of result.fields) {
+        if (!field?.name) {
+          continue;
+        }
+        columnTypes[field.name] = this.getFieldTypeName(field, engine);
+      }
+    }
+
+    if (Object.keys(columnTypes).length > 0) {
+      return columnTypes;
+    }
+
+    // SQLite and some drivers may not provide field metadata; infer from first row values.
+    if (Array.isArray(result?.rows) && result.rows.length > 0) {
+      const firstRow = result.rows[0];
+      if (firstRow && typeof firstRow === 'object' && !Array.isArray(firstRow)) {
+        for (const [column, value] of Object.entries(firstRow)) {
+          columnTypes[column] = this.inferTypeFromValue(value);
+        }
+      }
+    }
+
+    return columnTypes;
+  }
+
+  private getFieldTypeName(field: any, engine: string): string {
+    if (engine === 'postgres') {
+      return this.getPostgresTypeName(field?.dataTypeID);
+    }
+
+    if (engine === 'mysql') {
+      return this.getMysqlTypeName(field?.columnType ?? field?.type);
+    }
+
+    return this.inferTypeFromValue(undefined);
+  }
+
+  private getPostgresTypeName(oid?: number): string {
     const types: Record<number, string> = {
       16: 'bool',
       17: 'bytea',
@@ -646,22 +707,112 @@ export class SqlExecutor {
       1184: 'timestamptz',
       1700: 'numeric'
     };
-    return types[oid] || 'string'; // Default to string
+    return types[oid || -1] || 'string';
   }
 
-  private async getTableInfo(client: any, result: any, query: string): Promise<any> {
+  private getMysqlTypeName(typeCode?: number): string {
+    const types: Record<number, string> = {
+      0: 'decimal',
+      1: 'tinyint',
+      2: 'smallint',
+      3: 'int',
+      4: 'float',
+      5: 'double',
+      7: 'timestamp',
+      8: 'bigint',
+      9: 'mediumint',
+      10: 'date',
+      11: 'time',
+      12: 'datetime',
+      13: 'year',
+      15: 'varchar',
+      16: 'bit',
+      245: 'json',
+      246: 'decimal',
+      247: 'enum',
+      248: 'set',
+      249: 'tinyblob',
+      250: 'mediumblob',
+      251: 'longblob',
+      252: 'blob',
+      253: 'var_string',
+      254: 'string',
+      255: 'geometry'
+    };
+    return types[typeCode || -1] || 'string';
+  }
+
+  private inferTypeFromValue(value: unknown): string {
+    if (value === null || value === undefined) {
+      return 'string';
+    }
+    if (typeof value === 'number') {
+      return Number.isInteger(value) ? 'int' : 'numeric';
+    }
+    if (typeof value === 'boolean') {
+      return 'bool';
+    }
+    if (value instanceof Date) {
+      return 'timestamp';
+    }
+    if (typeof value === 'object') {
+      return 'json';
+    }
+    return 'text';
+  }
+
+  private async getTableInfo(client: any, result: any, query: string, engine: string): Promise<any> {
     // Attempt to deduce table from query for basic primary key support
     // This is a heuristic. For better support, we'd parse the query structure.
-    const fromMatch = query.match(/FROM\s+["']?([a-zA-Z0-9_.]+)["']?/i);
+    const fromMatch = query.match(/\bFROM\s+([`"\[]?[a-zA-Z0-9_.]+[`"\]]?)/i);
     if (!fromMatch) return undefined;
 
-    const tableNameFull = fromMatch[1];
+    const tableNameFull = fromMatch[1]
+      .replace(/[`"\[\]]/g, '')
+      .trim();
     const parts = tableNameFull.split('.');
     const table = parts.length > 1 ? parts[1] : parts[0];
-    const schema = parts.length > 1 ? parts[0] : 'public';
+    const schema = parts.length > 1 ? parts[0] : (engine === 'mysql' ? '' : 'public');
 
     // Fetch PKs
     try {
+      if (engine === 'mysql') {
+        const dbMatch = result?.rows?.[0]?.database || undefined;
+        const pkResult = await client.query(
+          `SELECT column_name
+           FROM information_schema.key_column_usage
+           WHERE table_schema = DATABASE()
+             AND table_name = ?
+             AND constraint_name = 'PRIMARY'
+           ORDER BY ordinal_position`,
+          [table]
+        );
+
+        return {
+          schema: schema || dbMatch || 'default',
+          table,
+          primaryKeys: pkResult.rows.map((r: any) => r.column_name),
+        };
+      }
+
+      if (engine === 'sqlite') {
+        const pkResult = await client.query(`PRAGMA table_info("${table.replace(/"/g, '""')}")`);
+        const primaryKeys = (pkResult.rows || [])
+          .filter((r: any) => Number(r.pk) > 0)
+          .sort((a: any, b: any) => Number(a.pk) - Number(b.pk))
+          .map((r: any) => r.name);
+
+        return {
+          schema: 'main',
+          table,
+          primaryKeys,
+        };
+      }
+
+      if (engine !== 'postgres') {
+        return undefined;
+      }
+
       const pkResult = await client.query(`
         SELECT a.attname
         FROM   pg_index i
@@ -689,6 +840,12 @@ export class SqlExecutor {
       const connections = vscode.workspace.getConfiguration().get<any[]>('postgresExplorer.connections') || [];
       const connection = connections.find(c => c.id === connectionId);
       if (!connection) throw new Error('Connection not found');
+      const engine = resolveDbEngine(connection.engine || DEFAULT_DB_ENGINE);
+
+      if (engine !== 'postgres') {
+        vscode.window.showInformationMessage('Query cancellation is currently available only for PostgreSQL sessions.');
+        return;
+      }
 
       let cancelClient;
       try {
@@ -697,6 +854,7 @@ export class SqlExecutor {
           host: connection.host,
           port: connection.port,
           username: connection.username,
+          engine,
           database: databaseName || connection.database,
           name: connection.name
         });
@@ -721,6 +879,7 @@ export class SqlExecutor {
       const connections = vscode.workspace.getConfiguration().get<any[]>('postgresExplorer.connections') || [];
       const connection = connections.find(c => c.id === metadata.connectionId);
       if (!connection) throw new Error('Connection not found');
+      const engine = resolveDbEngine(connection.engine || metadata.engine || DEFAULT_DB_ENGINE);
 
       // We need a dedicated client for the transaction, not a pooled one that might be shared if we're not careful,
       // though getSessionClient typically returns a pool client. 
@@ -739,6 +898,7 @@ export class SqlExecutor {
         host: connection.host,
         port: connection.port,
         username: connection.username,
+        engine,
         database: metadata.databaseName || connection.database,
         name: connection.name
       }, notebook.uri.toString());

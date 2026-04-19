@@ -16,9 +16,17 @@ import { SendToChatHandler } from '../services/handlers/ExplainHandlers';
 import { FkLookupHandler } from '../services/handlers/FkLookupHandler';
 import { InsertRowHandler } from '../services/handlers/InsertRowHandler';
 
+function registerHandlerIfMissing(registry: MessageHandlerRegistry, type: string, handler: any): void {
+  const hasFn = (registry as any).has;
+  if (typeof hasFn === 'function' && hasFn.call(registry, type)) {
+    return;
+  }
+  registry.register(type, handler);
+}
+
 export class PostgresKernel implements vscode.Disposable {
   readonly id = 'postgres-kernel';
-  readonly label = 'PostgreSQL';
+  readonly label = 'SQL';
   readonly supportedLanguages = ['sql'];
 
   private readonly _controller: vscode.NotebookController;
@@ -56,33 +64,33 @@ export class PostgresKernel implements vscode.Disposable {
     const registry = MessageHandlerRegistry.getInstance();
 
     // Register Handlers
-    registry.register('transaction_begin', new TransactionBeginHandler());
-    registry.register('transaction_commit', new TransactionCommitHandler());
-    registry.register('transaction_rollback', new TransactionRollbackHandler());
-    registry.register('savepoint_create', new SavepointCreateHandler());
-    registry.register('savepoint_release', new SavepointReleaseHandler());
-    registry.register('savepoint_rollback', new SavepointRollbackHandler());
+    registerHandlerIfMissing(registry, 'transaction_begin', new TransactionBeginHandler());
+    registerHandlerIfMissing(registry, 'transaction_commit', new TransactionCommitHandler());
+    registerHandlerIfMissing(registry, 'transaction_rollback', new TransactionRollbackHandler());
+    registerHandlerIfMissing(registry, 'savepoint_create', new SavepointCreateHandler());
+    registerHandlerIfMissing(registry, 'savepoint_release', new SavepointReleaseHandler());
+    registerHandlerIfMissing(registry, 'savepoint_rollback', new SavepointRollbackHandler());
 
     // Renderer-side camelCase aliases for commit/rollback (posted by TransactionBanner)
-    registry.register('commitTransaction', new TransactionCommitHandler());
-    registry.register('rollbackTransaction', new TransactionRollbackHandler());
+    registerHandlerIfMissing(registry, 'commitTransaction', new TransactionCommitHandler());
+    registerHandlerIfMissing(registry, 'rollbackTransaction', new TransactionRollbackHandler());
 
-    registry.register('cancel_query', new CancelQueryHandler());
-    registry.register('execute_update_background', new ExecuteUpdateBackgroundHandler());
-    registry.register('script_delete', new ScriptDeleteHandler());
-    registry.register('execute_update', new ExecuteUpdateHandler());
-    registry.register('export_request', new ExportRequestHandler());
-    registry.register('import_request', new ImportRequestHandler());
-    registry.register('import_pick_file', new ImportPickFileHandler());
-    registry.register('openImportData', new OpenImportDataHandler());
-    registry.register('delete_row', new DeleteRowsHandler());
-    registry.register('delete_rows', new DeleteRowsHandler());
-    registry.register('sendToChat', new SendToChatHandler(undefined));
+    registerHandlerIfMissing(registry, 'cancel_query', new CancelQueryHandler());
+    registerHandlerIfMissing(registry, 'execute_update_background', new ExecuteUpdateBackgroundHandler());
+    registerHandlerIfMissing(registry, 'script_delete', new ScriptDeleteHandler());
+    registerHandlerIfMissing(registry, 'execute_update', new ExecuteUpdateHandler());
+    registerHandlerIfMissing(registry, 'export_request', new ExportRequestHandler());
+    registerHandlerIfMissing(registry, 'import_request', new ImportRequestHandler());
+    registerHandlerIfMissing(registry, 'import_pick_file', new ImportPickFileHandler());
+    registerHandlerIfMissing(registry, 'openImportData', new OpenImportDataHandler());
+    registerHandlerIfMissing(registry, 'delete_row', new DeleteRowsHandler());
+    registerHandlerIfMissing(registry, 'delete_rows', new DeleteRowsHandler());
+    registerHandlerIfMissing(registry, 'sendToChat', new SendToChatHandler(undefined));
 
-    registry.register('saveChanges', new SaveChangesHandler());
-    registry.register('showErrorMessage', new ShowErrorMessageHandler());
-    registry.register('fkLookup', new FkLookupHandler());
-    registry.register('insertRow', new InsertRowHandler());
+    registerHandlerIfMissing(registry, 'saveChanges', new SaveChangesHandler());
+    registerHandlerIfMissing(registry, 'showErrorMessage', new ShowErrorMessageHandler());
+    registerHandlerIfMissing(registry, 'fkLookup', new FkLookupHandler());
+    registerHandlerIfMissing(registry, 'insertRow', new InsertRowHandler());
 
     (this._controller as any).onDidReceiveMessage(async (event: any) => {
       // console.log('[NotebookKernel] onDidReceiveMessage', event.message.type);

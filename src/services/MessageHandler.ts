@@ -29,6 +29,10 @@ export class MessageHandlerRegistry {
     this.handlers.set(type, handler);
   }
 
+  public has(type: string): boolean {
+    return this.handlers.has(type);
+  }
+
   public async handleMessage(message: any, context: {
     editor?: vscode.NotebookEditor | undefined;
     webview?: vscode.Webview | undefined;

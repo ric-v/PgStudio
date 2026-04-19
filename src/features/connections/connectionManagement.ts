@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { ConnectionInfo, ConnectionFormPanel } from './connectionForm';
 import { SecretStorageService } from '../../services/SecretStorageService';
+import { ConnectionManager } from '../../services/ConnectionManager';
+import { DEFAULT_DB_ENGINE, resolveDbEngine } from '../../core/db/DbEngine';
 
 export class ConnectionManagementPanel {
     public static currentPanel: ConnectionManagementPanel | undefined;
@@ -69,7 +71,6 @@ export class ConnectionManagementPanel {
 
                     case 'test':
                         try {
-                            const { Client } = require('pg');
                             const config = vscode.workspace.getConfiguration();
                             const connections = config.get<ConnectionInfo[]>('postgresExplorer.connections') || [];
                             const connection = connections.find(c => c.id === message.id);
@@ -79,24 +80,38 @@ export class ConnectionManagementPanel {
                             }
 
                             const password = await SecretStorageService.getInstance().getPassword(connection.id);
+                            const engine = resolveDbEngine(connection.engine || DEFAULT_DB_ENGINE);
 
-                            const client = new Client({
-                                host: connection.host,
-                                port: connection.port,
-                                user: connection.username || undefined,
-                                password: password || undefined,
-                                database: connection.database || 'postgres',
-                                connectionTimeoutMillis: (connection.connectTimeout || 15) * 1000
+                            if (engine === 'mssql' || engine === 'oracle') {
+                                this._panel.webview.postMessage({
+                                    type: 'testError',
+                                    id: message.id,
+                                    error: `${engine.toUpperCase()} runtime driver is not enabled yet`
+                                });
+                                break;
+                            }
+
+                            const pooledClient = await ConnectionManager.getInstance().getPooledClient({
+                                ...connection,
+                                engine,
+                                password: password || connection.password,
                             });
-
-                            await client.connect();
-                            const result = await client.query('SELECT version()');
-                            await client.end();
+                            let result: any;
+                            try {
+                                const versionQuery = engine === 'mysql'
+                                    ? 'SELECT VERSION() AS version'
+                                    : engine === 'sqlite'
+                                        ? 'SELECT sqlite_version() AS version'
+                                        : 'SELECT version()';
+                                result = await pooledClient.query(versionQuery);
+                            } finally {
+                                pooledClient.release();
+                            }
 
                             this._panel.webview.postMessage({
                                 type: 'testSuccess',
                                 id: message.id,
-                                version: result.rows[0].version
+                                version: result.rows?.[0]?.version || 'Connected'
                             });
                         } catch (err: any) {
                             this._panel.webview.postMessage({
@@ -508,7 +523,7 @@ export class ConnectionManagementPanel {
                         <img src="${logoPath}" alt="Logo">
                     </div>
                     <h1>Connection Management</h1>
-                    <p>Manage your PostgreSQL database connections</p>
+                    <p>Manage your SQL database connections</p>
                     <button class="btn-primary" onclick="addConnection()">
                         + Add Connection
                     </button>
@@ -604,7 +619,16 @@ export class ConnectionManagementPanel {
      * Attempts a quick TCP connection to the host:port to determine reachability.
      * Times out after 3 seconds to keep the panel load fast.
      */
-    private async _probeConnection(conn: ConnectionInfo, password?: string): Promise<boolean> {
+    private async _probeConnection(conn: ConnectionInfo, _password?: string): Promise<boolean> {
+        const engine = resolveDbEngine(conn.engine || DEFAULT_DB_ENGINE);
+        if (engine === 'sqlite') {
+            if (!conn.database) {
+                return false;
+            }
+            const fs = require('fs') as typeof import('fs');
+            return fs.existsSync(conn.database);
+        }
+
         return new Promise((resolve) => {
             const net = require('net') as typeof import('net');
             const socket = new net.Socket();
@@ -620,12 +644,22 @@ export class ConnectionManagementPanel {
             socket.on('connect', () => done(true));
             socket.on('timeout', () => done(false));
             socket.on('error', () => done(false));
-            socket.connect(conn.port || 5432, conn.host || 'localhost');
+            const defaultPort =
+                engine === 'mysql' ? 3306 :
+                engine === 'mssql' ? 1433 :
+                engine === 'oracle' ? 1521 :
+                5432;
+            socket.connect(conn.port || defaultPort, conn.host || 'localhost');
         });
     }
 
     private _getConnectionCardHtml(conn: ConnectionInfo & { hasPassword: boolean; isReachable: boolean }): string {
         const escape = (s: string | undefined) => this._escapeHtml(s || '');
+        const engine = resolveDbEngine(conn.engine || DEFAULT_DB_ENGINE);
+        const hostDisplay = engine === 'sqlite'
+            ? 'Local file'
+            : `${escape(conn.host)}:${conn.port}`;
+        const databaseLabel = engine === 'sqlite' ? 'Path' : 'Database';
 
         // Derive env class from connection name (case-insensitive keywords)
         const nameLower = (conn.name || '').toLowerCase();
@@ -652,11 +686,15 @@ export class ConnectionManagementPanel {
 
                 <div class="card-details">
                     <div class="detail-row">
-                        <span class="detail-label">Host</span>
-                        <span class="detail-value">${escape(conn.host)}:${conn.port}</span>
+                        <span class="detail-label">Engine</span>
+                        <span class="detail-value">${escape((conn.engine || DEFAULT_DB_ENGINE).toUpperCase())}</span>
                     </div>
                     <div class="detail-row">
-                        <span class="detail-label">Database</span>
+                        <span class="detail-label">Host</span>
+                        <span class="detail-value">${hostDisplay}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">${databaseLabel}</span>
                         <span class="detail-value">${escape(conn.database)}</span>
                     </div>
                     <div class="detail-row">
@@ -671,14 +709,6 @@ export class ConnectionManagementPanel {
                     <button class="btn btn-delete" onclick="showDeleteConfirm('${conn.id}')">Delete</button>
                 </div>
             </div>`;
-    }
-
-    private _buildConnectionString(conn: ConnectionInfo): string {
-        const auth = conn.username
-            ? `${conn.username}${conn.password ? ':****' : ''}@`
-            : '';
-        const database = conn.database || 'postgres';
-        return `postgresql://${auth}${conn.host}:${conn.port}/${database}`;
     }
 
     private _escapeHtml(text: string): string {

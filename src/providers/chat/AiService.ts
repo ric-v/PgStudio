@@ -6,6 +6,8 @@ import * as https from 'https';
 import * as http from 'http';
 import { ChatMessage } from './types';
 import { SecretStorageService } from '../../services/SecretStorageService';
+import type { DbEngine } from '../../core/db/DbEngine';
+import { getDialect } from '../../core/db/registry';
 
 // GitHub Models permission applies to fine-grained tokens/GitHub Apps.
 // For VS Code OAuth sessions, request no explicit scope.
@@ -21,6 +23,8 @@ export class AiService {
   private _messages: ChatMessage[] = [];
   private _cancellationTokenSource: vscode.CancellationTokenSource | null = null;
   private _abortController: AbortController | null = null;
+  private _selectedDbEngine: DbEngine | 'generic' = 'generic';
+  private _hasLoggedModelLookupTimeout = false;
 
   setMessages(messages: ChatMessage[]): void {
     this._messages = messages;
@@ -55,10 +59,76 @@ export class AiService {
     this._connectionContext = ctx;
   }
 
-  buildSystemPrompt(): string {
+  setSelectedDbEngine(engine?: string): void {
+    this._selectedDbEngine = this._normalizeSelectedDbEngine(engine);
+  }
+
+  private _normalizeSelectedDbEngine(engine?: string): DbEngine | 'generic' {
+    if (!engine) {
+      return 'generic';
+    }
+
+    const normalized = engine.toLowerCase();
+    if (
+      normalized === 'postgres' ||
+      normalized === 'mysql' ||
+      normalized === 'sqlite' ||
+      normalized === 'mssql' ||
+      normalized === 'oracle'
+    ) {
+      return normalized;
+    }
+
+    return 'generic';
+  }
+
+  private _getEngineLabel(engine: DbEngine | 'generic'): string {
+    switch (engine) {
+      case 'postgres':
+        return 'PostgreSQL';
+      case 'mysql':
+        return 'MySQL';
+      case 'sqlite':
+        return 'SQLite';
+      case 'mssql':
+        return 'Microsoft SQL Server';
+      case 'oracle':
+        return 'Oracle Database';
+      default:
+        return 'Generic SQL';
+    }
+  }
+
+  buildSystemPrompt(selectedDbEngine?: DbEngine | 'generic'): string {
     const ctx = this._connectionContext;
     const isProduction = ctx?.environment === 'production';
     const isReadOnly = ctx?.readOnlyMode === true;
+    const effectiveEngine = selectedDbEngine ?? this._selectedDbEngine ?? 'generic';
+    const engineLabel = this._getEngineLabel(effectiveEngine);
+
+    let dialectAddendum = '';
+    if (effectiveEngine !== 'generic') {
+      const addendum = getDialect(effectiveEngine).buildSystemPromptAddendum?.();
+      if (addendum) {
+        dialectAddendum = addendum;
+      }
+    }
+
+    const engineBlock = effectiveEngine === 'generic'
+      ? `
+**TARGET SQL ENGINE:** Generic SQL
+- Use portable SQL first.
+- If syntax differs by engine, explicitly call out differences for PostgreSQL, MySQL, SQLite, SQL Server, and Oracle.
+- Do not assume PostgreSQL-only features unless the user requests them.
+
+`
+      : `
+**TARGET SQL ENGINE:** ${engineLabel}
+- Prioritize syntax and best practices for ${engineLabel}.
+- If a feature is not supported by ${engineLabel}, provide a compatible alternative.
+${dialectAddendum ? `- ${dialectAddendum}\n` : ''}
+
+`;
 
     // ── Production safety header (injected first so model sees it immediately) ──
     let productionBlock = '';
@@ -86,13 +156,15 @@ explain that the connection is read-only and suggest switching to a write-capabl
 `;
     }
 
-    return `${productionBlock}You are an expert PostgreSQL database assistant. You help users with:
+    return `${productionBlock}You are an expert SQL database assistant. You help users with:
 - Writing and optimizing SQL queries
 - Understanding database concepts and best practices
 - Debugging query issues
 - Explaining query execution plans
 - Schema design recommendations
-- PostgreSQL-specific features and extensions
+  - Engine-specific features and extensions
+
+  ${engineBlock}
 
 **IMPORTANT - DATABASE SCHEMA CONTEXT:**
 When the user references database objects (tables, views, functions, etc.), I will provide you with the actual schema information in a section marked "=== DATABASE SCHEMA CONTEXT ===". 
@@ -1043,9 +1115,10 @@ The UI will automatically parse this and show clickable suggestion bubbles.`;
       const configuredModel = config.get<string>('aiModel');
 
       if (provider === 'vscode-lm') {
+        const allModels = await this._selectChatModelsWithTimeout({});
+
         if (configuredModel) {
           const baseName = configuredModel.replace(/\s*\(.*\)$/, '').trim();
-          const allModels = await this._selectChatModelsWithTimeout({});
           const matchingModels = allModels.filter((m: vscode.LanguageModelChat) =>
             m.id === baseName || m.name === baseName || m.family === baseName ||
             m.id === configuredModel || m.name === configuredModel || m.family === configuredModel
@@ -1054,12 +1127,13 @@ The UI will automatically parse this and show clickable suggestion bubbles.`;
             return matchingModels[0].name || matchingModels[0].id;
           }
         }
-        const models = await this._selectChatModelsWithTimeout({ family: 'gpt-4o' });
-        if (models.length > 0) {
-          return models[0].name || models[0].id;
+
+        const preferredFamily = allModels.find((m) => m.family === 'gpt-4o');
+        if (preferredFamily) {
+          return preferredFamily.name || preferredFamily.id;
         }
-        const anyModels = await this._selectChatModelsWithTimeout({});
-        return anyModels.length > 0 ? (anyModels[0].name || anyModels[0].id) : 'VS Code LM (No Models)';
+
+        return allModels.length > 0 ? (allModels[0].name || allModels[0].id) : 'VS Code LM (No Models)';
       } else {
         return configuredModel || this._getDefaultModel(provider);
       }
@@ -1084,7 +1158,10 @@ The UI will automatically parse this and show clickable suggestion bubbles.`;
   private async _selectChatModelsWithTimeout(selector: vscode.LanguageModelChatSelector): Promise<vscode.LanguageModelChat[]> {
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        console.warn('[AiService] vscode.lm.selectChatModels timed out after 2000ms');
+        if (!this._hasLoggedModelLookupTimeout) {
+          this._hasLoggedModelLookupTimeout = true;
+          console.warn('[AiService] vscode.lm.selectChatModels timed out after 2000ms; using fallback model metadata');
+        }
         resolve([]);
       }, 2000);
 

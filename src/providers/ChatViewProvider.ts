@@ -226,7 +226,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case 'sendMessage':
-          await this._handleUserMessage(data.message, data.attachments, data.mentions);
+          await this._handleUserMessage(data.message, data.attachments, data.mentions, data.selectedDbEngine);
           break;
         case 'clearChat':
           this._messages = [];
@@ -299,7 +299,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   // ==================== Message Handling ====================
 
-  private async _handleUserMessage(message: string, attachments?: FileAttachment[], mentions?: DbMention[]) {
+  private async _handleUserMessage(message: string, attachments?: FileAttachment[], mentions?: DbMention[], selectedDbEngine?: string) {
     if (this._isProcessing) {
       return;
     }
@@ -310,6 +310,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     console.log('[ChatView] Message:', message);
     console.log('[ChatView] Attachments:', attachments?.length || 0);
     console.log('[ChatView] Mentions:', mentions?.length || 0);
+    console.log('[ChatView] Selected DB engine:', selectedDbEngine || 'generic');
     if (mentions && mentions.length > 0) {
       console.log('[ChatView] Mention details:', JSON.stringify(mentions, null, 2));
     }
@@ -443,6 +444,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       vscode.window.setStatusBarMessage(`$(sparkle) AI: ${modelInfo}`, 3000);
 
       this._aiService.setMessages(this._messages);
+      this._aiService.setSelectedDbEngine(selectedDbEngine);
       let responseText: string;
       let usageInfo: string | undefined;
       const aiStartTime = Date.now();

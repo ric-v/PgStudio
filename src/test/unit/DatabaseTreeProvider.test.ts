@@ -76,6 +76,9 @@ describe('DatabaseTreeProvider', () => {
         if (sql.includes('pg_roles')) {
           return Promise.resolve({ rows: [{ count: '1' }] });
         }
+        if (sql.includes('pg_tablespace')) {
+          return Promise.resolve({ rows: [{ count: '1' }] });
+        }
         return Promise.resolve({ rows: [] });
       }),
       on: sandbox.stub(),
@@ -126,13 +129,14 @@ describe('DatabaseTreeProvider', () => {
     const element = new DatabaseTreeItem('db1', vscode.TreeItemCollapsibleState.Collapsed, 'database', '1', 'db1');
     const children = await provider.getChildren(element);
 
-    expect(children).to.have.lengthOf(6);
+    expect(children).to.have.lengthOf(7);
     expect(children[0].label).to.equal('Schemas');
     expect(children[1].label).to.equal('Extensions');
-    expect(children[2].label).to.equal('Foreign Data Wrappers');
-    expect(children[3].label).to.equal('Event Triggers');
-    expect(children[4].label).to.equal('Publications');
-    expect(children[5].label).to.equal('Subscriptions');
+    expect(children[2].label).to.equal('Cron Jobs');
+    expect(children[3].label).to.equal('Foreign Data Wrappers');
+    expect(children[4].label).to.equal('Event Triggers');
+    expect(children[5].label).to.equal('Publications');
+    expect(children[6].label).to.equal('Subscriptions');
   });
 
   it('should return categories for schema', async () => {

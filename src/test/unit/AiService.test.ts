@@ -99,7 +99,8 @@ describe('AiService', () => {
     (service as any)._abortController = { abort: abortStub };
 
     const prompt = service.buildSystemPrompt();
-    expect(prompt).to.contain('PostgreSQL database assistant');
+    expect(prompt).to.contain('SQL database assistant');
+    expect(prompt).to.contain('TARGET SQL ENGINE:** Generic SQL');
     expect(prompt).to.contain('SQL QUALITY CHECKLIST');
     expect(prompt).to.contain('DATABASE SCHEMA CONTEXT');
 
@@ -110,6 +111,20 @@ describe('AiService', () => {
     expect(abortStub.calledOnce).to.be.true;
     expect((service as any)._cancellationTokenSource).to.equal(null);
     expect((service as any)._abortController).to.equal(null);
+  });
+
+  it('builds engine-specific system prompts when a SQL engine is selected', () => {
+    const service = new AiService();
+
+    service.setSelectedDbEngine('postgres');
+    const postgresPrompt = service.buildSystemPrompt();
+    expect(postgresPrompt).to.contain('TARGET SQL ENGINE:** PostgreSQL');
+    expect(postgresPrompt).to.contain('You are working with PostgreSQL.');
+
+    service.setSelectedDbEngine('mssql');
+    const mssqlPrompt = service.buildSystemPrompt();
+    expect(mssqlPrompt).to.contain('TARGET SQL ENGINE:** Microsoft SQL Server');
+    expect(mssqlPrompt).to.contain('You are working with Microsoft SQL Server.');
   });
 
   it('generates titles from VS Code LM and falls back to a simple title', async () => {
@@ -268,7 +283,7 @@ describe('AiService', () => {
           expect(headers['x-api-key']).to.equal('secret-key');
           expect(headers.Authorization).to.be.undefined;
           expect(body.model).to.equal('claude-3-5-sonnet-20241022');
-          expect(body.system).to.contain('PostgreSQL database assistant');
+          expect(body.system).to.contain('SQL database assistant');
           expect(Array.isArray(body.messages[0].content)).to.be.true;
           expect(body.messages[0].content.some((part: any) => part.type === 'image')).to.be.true;
         }

@@ -13,10 +13,10 @@
   <div class="container">
     <div class="header">
       <div class="header-icon">
-        <img src="{{LOGO_URI}}" alt="PostgreSQL">
+        <img src="{{LOGO_URI}}" alt="Database">
       </div>
       <h1>{{HEADER_TITLE}}</h1>
-      <p>Configure your PostgreSQL database connection</p>
+      <p>Configure a database connection for your SQL engine</p>
     </div>
 
     <div class="card">
@@ -24,6 +24,25 @@
         <div class="info-badge">
           <span>💡</span>
           <span>Fields marked <span class="required-indicator">*</span> are required</span>
+        </div>
+
+        <!-- Engine Selection -->
+        <div class="section-header">
+          <div class="section-title">Database Engine</div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="engine">Engine <span class="required-indicator">*</span></label>
+            <span class="label-hint">Choose the database engine for this connection</span>
+            <select id="engine" name="engine" required>
+              <option value="postgres">PostgreSQL</option>
+              <option value="mysql">MySQL</option>
+              <option value="sqlite">SQLite</option>
+              <option value="mssql">SQL Server</option>
+              <option value="oracle">Oracle</option>
+            </select>
+          </div>
         </div>
 
         <!-- Connection Details -->
@@ -48,19 +67,19 @@
           <div class="form-group" style="grid-column: span 2; display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
             <div class="form-group">
               <label for="host">Host <span class="required-indicator">*</span></label>
-              <span class="label-hint">Server address or IP</span>
+              <span class="label-hint" id="hostHint">Server address or IP</span>
               <input type="text" id="host" name="host" required placeholder="localhost">
             </div>
             <div class="form-group">
               <label for="port">Port <span class="required-indicator">*</span></label>
-              <span class="label-hint">Default: 5432</span>
+              <span class="label-hint" id="portHint">Default: 5432</span>
               <input type="number" id="port" name="port" value="5432" required>
             </div>
           </div>
 
           <div class="form-group full-width">
             <label for="database">Database</label>
-            <span class="label-hint">Leave empty to use the default (postgres)</span>
+            <span class="label-hint" id="databaseHint">Leave empty to use engine default</span>
             <input type="text" id="database" name="database" placeholder="postgres">
           </div>
         </div>
@@ -73,7 +92,7 @@
         <div class="form-grid">
           <div class="form-group">
             <label for="username">Username</label>
-            <span class="label-hint">Database user</span>
+            <span class="label-hint" id="usernameHint">Database user</span>
             <input type="text" id="username" name="username" placeholder="postgres">
           </div>
 
@@ -187,7 +206,7 @@
               </div>
               <div class="form-group">
                 <label for="applicationName">Application Name</label>
-                <span class="label-hint">Shown in pg_stat_activity</span>
+                <span class="label-hint">Client application name sent to the server</span>
                 <input type="text" id="applicationName" name="applicationName" placeholder="PgStudio">
               </div>
             </div>

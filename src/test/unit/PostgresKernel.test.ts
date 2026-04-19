@@ -411,6 +411,167 @@ describe('PostgresKernel', () => {
     expect(execution.end.calledWith(false)).to.be.true;
   });
 
+  it('passes non-postgres engine to session client and skips pg backend pid probe', async () => {
+    const kernel = new PostgresKernel(contextStub, messagingStub as any);
+
+    const cell: any = {
+      notebook: nb({ connectionId: 'mysql-conn', engine: 'mysql' }),
+      document: {
+        uri: { toString: () => 'mysql-cell' },
+        getText: () => 'SELECT 1'
+      }
+    };
+
+    connectionList = [{
+      id: 'mysql-conn',
+      name: 'MySQL DB',
+      engine: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: 'root',
+      database: 'appdb'
+    }];
+
+    const queryStub = sandbox.stub().resolves({
+      rows: [{ value: 1 }],
+      fields: [{ name: 'value' }],
+      rowCount: 1,
+      command: 'SELECT'
+    });
+
+    const clientStub = {
+      query: queryStub,
+      on: sandbox.stub(),
+      release: sandbox.stub(),
+      removeListener: sandbox.stub()
+    };
+
+    connectionManagerStub.getSessionClient.resolves(clientStub);
+
+    await (kernel as any)._executor.executeCell(cell);
+
+    expect(connectionManagerStub.getSessionClient.calledOnce).to.be.true;
+    const configArg = connectionManagerStub.getSessionClient.firstCall.args[0];
+    expect(configArg.engine).to.equal('mysql');
+    expect(queryStub.calledWithMatch('SELECT pg_backend_pid()')).to.be.false;
+  });
+
+  it('infers SQLite columns/types from rows and returns SQLite primary keys in tableInfo', async () => {
+    const kernel = new PostgresKernel(contextStub, messagingStub as any);
+
+    const cell: any = {
+      notebook: nb({ connectionId: 'sqlite-conn', engine: 'sqlite' }),
+      document: {
+        uri: { toString: () => 'sqlite-cell' },
+        getText: () => 'SELECT * FROM users'
+      }
+    };
+
+    connectionList = [{
+      id: 'sqlite-conn',
+      name: 'SQLite DB',
+      engine: 'sqlite',
+      host: '',
+      port: 0,
+      database: '/tmp/dev.db'
+    }];
+
+    const queryStub = sandbox.stub();
+    queryStub.onFirstCall().resolves({
+      rows: [{ id: 1, email: 'a@example.com' }],
+      rowCount: 1,
+      command: 'SELECT'
+    });
+    queryStub.onSecondCall().resolves({
+      rows: [
+        { name: 'id', pk: 1 },
+        { name: 'email', pk: 0 }
+      ]
+    });
+
+    const clientStub = {
+      query: queryStub,
+      on: sandbox.stub(),
+      release: sandbox.stub(),
+      removeListener: sandbox.stub()
+    };
+    connectionManagerStub.getSessionClient.resolves(clientStub);
+
+    await (kernel as any)._executor.executeCell(cell);
+
+    const execution = controllerStub.createNotebookCellExecution.firstCall.returnValue;
+    const allCalls = execution.appendOutput.getCalls();
+    const notebookOut = allCalls.map((c: any) => c.args[0]).find((out: any) =>
+      out.items[0].mime === 'application/vnd.postgres-notebook.result'
+    );
+    expect(notebookOut).to.exist;
+    const payload = JSON.parse(decodeCellOutputData(notebookOut.items[0].data));
+    expect(payload.columns).to.deep.equal(['id', 'email']);
+    expect(payload.columnTypes.id).to.equal('int');
+    expect(payload.columnTypes.email).to.equal('text');
+    expect(payload.tableInfo.schema).to.equal('main');
+    expect(payload.tableInfo.table).to.equal('users');
+    expect(payload.tableInfo.primaryKeys).to.deep.equal(['id']);
+  });
+
+  it('maps MySQL field types and includes MySQL primary keys in tableInfo', async () => {
+    const kernel = new PostgresKernel(contextStub, messagingStub as any);
+
+    const cell: any = {
+      notebook: nb({ connectionId: 'mysql-types-conn', engine: 'mysql' }),
+      document: {
+        uri: { toString: () => 'mysql-types-cell' },
+        getText: () => 'SELECT * FROM orders'
+      }
+    };
+
+    connectionList = [{
+      id: 'mysql-types-conn',
+      name: 'MySQL DB',
+      engine: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: 'root',
+      database: 'appdb'
+    }];
+
+    const queryStub = sandbox.stub();
+    queryStub.onFirstCall().resolves({
+      rows: [{ id: 10, total: 12.5 }],
+      fields: [
+        { name: 'id', columnType: 3 },
+        { name: 'total', columnType: 246 }
+      ],
+      rowCount: 1,
+      command: 'SELECT'
+    });
+    queryStub.onSecondCall().resolves({
+      rows: [{ column_name: 'id' }]
+    });
+
+    const clientStub = {
+      query: queryStub,
+      on: sandbox.stub(),
+      release: sandbox.stub(),
+      removeListener: sandbox.stub()
+    };
+    connectionManagerStub.getSessionClient.resolves(clientStub);
+
+    await (kernel as any)._executor.executeCell(cell);
+
+    const execution = controllerStub.createNotebookCellExecution.firstCall.returnValue;
+    const allCalls = execution.appendOutput.getCalls();
+    const notebookOut = allCalls.map((c: any) => c.args[0]).find((out: any) =>
+      out.items[0].mime === 'application/vnd.postgres-notebook.result'
+    );
+    expect(notebookOut).to.exist;
+    const payload = JSON.parse(decodeCellOutputData(notebookOut.items[0].data));
+    expect(payload.columnTypes.id).to.equal('int');
+    expect(payload.columnTypes.total).to.equal('decimal');
+    expect(payload.tableInfo.table).to.equal('orders');
+    expect(payload.tableInfo.primaryKeys).to.deep.equal(['id']);
+  });
+
   it('should return the same keyword list for arbitrary SQL context (CompletionProvider is keyword-only)', async () => {
     const providers: any[] = [];
     sandbox.stub(vscode.languages, 'registerCompletionItemProvider').callsFake((_selector, provider) => {

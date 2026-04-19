@@ -271,6 +271,42 @@
           gap: 4px;
         }
 
+        .engine-picker {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 3px 6px;
+          border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.2));
+          border-radius: var(--chat-radius-sm);
+          background: var(--vscode-editor-background);
+        }
+
+        .engine-picker label {
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          color: var(--vscode-descriptionForeground);
+        }
+
+        .engine-picker select {
+          appearance: none;
+          border: 1px solid var(--vscode-input-border);
+          background: var(--vscode-input-background);
+          color: var(--vscode-input-foreground);
+          border-radius: 4px;
+          padding: 2px 20px 2px 6px;
+          font-size: 11px;
+          line-height: 1.2;
+          min-width: 92px;
+          outline: none;
+          cursor: pointer;
+        }
+
+        .engine-picker select:focus {
+          border-color: var(--vscode-focusBorder);
+        }
+
         .header-btn {
           background: transparent;
           border: 1px solid transparent;

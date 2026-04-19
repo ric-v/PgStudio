@@ -105,26 +105,26 @@ describe('DbObjectService', () => {
   it('loads databases, schemas, and schema objects through pooled clients', async () => {
     const postgresClient = createQueryClient(sandbox, [
       {
-        match: 'SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname',
-        rows: [{ datname: 'appdb' }]
+        match: 'FROM information_schema.schemata',
+        rows: [{ schema_name: 'appdb' }]
       }
     ]);
 
     const appClient = createQueryClient(sandbox, [
       {
-        match: 'SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE',
-        rows: [{ nspname: 'public' }]
+        match: 'FROM information_schema.schemata',
+        rows: [{ schema_name: 'public' }]
       },
       {
-        match: "SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_type = 'BASE TABLE'",
+        match: 'FROM information_schema.tables',
         rows: [{ table_name: 'users' }]
       },
       {
-        match: 'SELECT table_name FROM information_schema.views WHERE table_schema = $1',
+        match: 'FROM information_schema.views',
         rows: [{ table_name: 'active_users' }]
       },
       {
-        match: "SELECT routine_name FROM information_schema.routines WHERE routine_schema = $1 AND routine_type = 'FUNCTION'",
+        match: 'FROM information_schema.routines',
         rows: [{ routine_name: 'calc_total' }]
       },
       {

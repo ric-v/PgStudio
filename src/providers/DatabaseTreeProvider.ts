@@ -5,6 +5,7 @@ import { ConnectionManager } from '../services/ConnectionManager';
 import { getSchemaCache, SchemaCache } from '../lib/schema-cache';
 import { Debouncer } from '../lib/debounce';
 import { AutoRefreshService } from '../services/AutoRefreshService';
+import { getDialect } from '../core/db/registry';
 
 function buildItemKey(item: DatabaseTreeItem): string {
   return [item.type, item.connectionId || '', item.databaseName || '', item.schema || '', item.label].join(':');
@@ -37,6 +38,17 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
     this.initializeDisconnectedState();
     // Load persisted favorites and recent items
     this.loadPersistedData();
+  }
+
+  private readFirstValue(row: Record<string, unknown>, preferredKeys: string[]): string {
+    for (const key of preferredKeys) {
+      if (typeof row[key] === 'string' && row[key]) {
+        return row[key] as string;
+      }
+    }
+
+    const firstValue = Object.values(row)[0];
+    return typeof firstValue === 'string' ? firstValue : String(firstValue ?? '');
   }
 
   /**
@@ -185,6 +197,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
    * Used by AI Generate Query feature to provide schema context
    */
   public async getDbObjectsForConnection(connection: any): Promise<Array<{ type: string, schema: string, name: string, columns?: string[] }>> {
+    const dialect = getDialect(connection.engine);
     const client = await ConnectionManager.getInstance().getPooledClient({
       ...connection,
       id: connection.id,
@@ -192,6 +205,7 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
       port: connection.port,
       username: connection.username,
       database: connection.database,
+      engine: connection.engine,
       name: connection.name
     });
 
@@ -199,7 +213,8 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
       const objects: Array<{ type: string, schema: string, name: string, columns?: string[] }> = [];
 
       // Fetch tables with columns
-      const tablesQuery = `
+      const tablesQuery = dialect.engine === 'postgres'
+        ? `
         SELECT 
           t.table_schema,
           t.table_name,
@@ -213,20 +228,23 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
         GROUP BY t.table_schema, t.table_name
         ORDER BY t.table_schema, t.table_name
         LIMIT 100
-      `;
+      `
+        : dialect.introspect.listTables?.(connection.database || 'information_schema') || '';
 
       const tablesResult = await client.query(tablesQuery);
       tablesResult.rows.forEach((row: any) => {
+        const tableName = this.readFirstValue(row, ['table_name', 'name']);
         objects.push({
           type: 'table',
-          schema: row.table_schema,
-          name: row.table_name,
+          schema: row.table_schema || connection.database || '',
+          name: tableName,
           columns: row.columns
         });
       });
 
       // Fetch views with columns
-      const viewsQuery = `
+      const viewsQuery = dialect.engine === 'postgres'
+        ? `
         SELECT 
           t.table_schema,
           t.table_name,
@@ -240,61 +258,65 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
         GROUP BY t.table_schema, t.table_name
         ORDER BY t.table_schema, t.table_name
         LIMIT 50
-      `;
+      `
+        : `SELECT name AS table_name FROM sqlite_master WHERE type = 'view' ORDER BY name LIMIT 50`;
 
       const viewsResult = await client.query(viewsQuery);
       viewsResult.rows.forEach((row: any) => {
+        const viewName = this.readFirstValue(row, ['table_name', 'name']);
         objects.push({
           type: 'view',
-          schema: row.table_schema,
-          name: row.table_name,
+          schema: row.table_schema || connection.database || '',
+          name: viewName,
           columns: row.columns
         });
       });
 
       // Fetch functions
-      const functionsQuery = `
-        SELECT 
-          n.nspname as schema_name,
-          p.proname as function_name
-        FROM pg_proc p
-        JOIN pg_namespace n ON p.pronamespace = n.oid
-        WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND p.prokind = 'f'
-        ORDER BY n.nspname, p.proname
-        LIMIT 50
-      `;
+      if (dialect.engine === 'postgres') {
+        const functionsQuery = `
+          SELECT 
+            n.nspname as schema_name,
+            p.proname as function_name
+          FROM pg_proc p
+          JOIN pg_namespace n ON p.pronamespace = n.oid
+          WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+            AND p.prokind = 'f'
+          ORDER BY n.nspname, p.proname
+          LIMIT 50
+        `;
 
-      const functionsResult = await client.query(functionsQuery);
-      functionsResult.rows.forEach((row: any) => {
-        objects.push({
-          type: 'function',
-          schema: row.schema_name,
-          name: row.function_name
+        const functionsResult = await client.query(functionsQuery);
+        functionsResult.rows.forEach((row: any) => {
+          objects.push({
+            type: 'function',
+            schema: row.schema_name,
+            name: row.function_name
+          });
         });
-      });
 
-      // Fetch procedures
-      const proceduresQuery = `
-        SELECT 
-          n.nspname as schema_name,
-          p.proname as procedure_name
-        FROM pg_proc p
-        JOIN pg_namespace n ON p.pronamespace = n.oid
-        WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND p.prokind = 'p'
-        ORDER BY n.nspname, p.proname
-        LIMIT 50
-      `;
+        // Fetch procedures
+        const proceduresQuery = `
+          SELECT 
+            n.nspname as schema_name,
+            p.proname as procedure_name
+          FROM pg_proc p
+          JOIN pg_namespace n ON p.pronamespace = n.oid
+          WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+            AND p.prokind = 'p'
+          ORDER BY n.nspname, p.proname
+          LIMIT 50
+        `;
 
-      const proceduresResult = await client.query(proceduresQuery);
-      proceduresResult.rows.forEach((row: any) => {
-        objects.push({
-          type: 'procedure',
-          schema: row.schema_name,
-          name: row.procedure_name
+        const proceduresResult = await client.query(proceduresQuery);
+        proceduresResult.rows.forEach((row: any) => {
+          objects.push({
+            type: 'procedure',
+            schema: row.schema_name,
+            name: row.procedure_name
+          });
         });
-      });
+      }
 
       return objects;
     } finally {
@@ -448,6 +470,8 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
       return [];
     }
 
+    const dialect = getDialect(connection.engine);
+
     let client: PoolClient | undefined;
     try {
       const dbName = element.databaseName || connection.database || 'postgres';
@@ -472,14 +496,19 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
             items.push(new DatabaseTreeItem('Recent', vscode.TreeItemCollapsibleState.Collapsed, 'recent-group', element.connectionId));
           }
 
-          const dbCountResult = await client.query('SELECT COUNT(*) FROM pg_database');
-          items.push(new DatabaseTreeItem('Databases', vscode.TreeItemCollapsibleState.Collapsed, 'databases-group', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, dbCountResult.rows[0].count));
+          if (dialect.engine === 'postgres') {
+            const dbCountResult = await client.query('SELECT COUNT(*) FROM pg_database');
+            items.push(new DatabaseTreeItem('Databases', vscode.TreeItemCollapsibleState.Collapsed, 'databases-group', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, dbCountResult.rows[0].count));
 
-          const rolesCountResult = await client.query('SELECT COUNT(*) FROM pg_roles');
-          items.push(new DatabaseTreeItem('Users & Roles', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, rolesCountResult.rows[0].count));
+            const rolesCountResult = await client.query('SELECT COUNT(*) FROM pg_roles');
+            items.push(new DatabaseTreeItem('Users & Roles', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, rolesCountResult.rows[0].count));
 
-          const tablespaceCountResult = await client.query("SELECT COUNT(*) FROM pg_tablespace");
-          items.push(new DatabaseTreeItem('Tablespaces', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, tablespaceCountResult.rows[0].count));
+            const tablespaceCountResult = await client.query("SELECT COUNT(*) FROM pg_tablespace");
+            items.push(new DatabaseTreeItem('Tablespaces', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, tablespaceCountResult.rows[0].count));
+          } else {
+            const databasesResult = await client.query(dialect.introspect.listSchemas?.() || 'SELECT 1');
+            items.push(new DatabaseTreeItem('Databases', vscode.TreeItemCollapsibleState.Collapsed, 'databases-group', element.connectionId, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, databasesResult.rows.length));
+          }
 
           return items;
 
@@ -487,21 +516,33 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
           // Fetch databases with size
           const cacheKey = SchemaCache.buildKey(element.connectionId!, dbName, undefined, 'databases');
           const dbResult = await this._cache.getOrFetch(cacheKey, async () => {
-            return await client!.query(`
-              SELECT datname, pg_size_pretty(pg_database_size(datname)) as size 
-              FROM pg_database 
-              ORDER BY datname
-            `);
+            if (dialect.engine === 'postgres') {
+              return await client!.query(`
+                SELECT datname, pg_size_pretty(pg_database_size(datname)) as size 
+                FROM pg_database 
+                ORDER BY datname
+              `);
+            }
+
+            if (dialect.introspect.listSchemas) {
+              return await client!.query(dialect.introspect.listSchemas());
+            }
+
+            return await client!.query('SELECT 1 AS datname');
           });
-          const systemDatabases = dbResult.rows.filter((row: any) => SYSTEM_DATABASES.has(row.datname));
-          const userDatabases = dbResult.rows.filter((row: any) => !SYSTEM_DATABASES.has(row.datname));
+          const systemDatabases = dialect.engine === 'postgres'
+            ? dbResult.rows.filter((row: any) => SYSTEM_DATABASES.has(row.datname))
+            : [];
+          const userDatabases = dialect.engine === 'postgres'
+            ? dbResult.rows.filter((row: any) => !SYSTEM_DATABASES.has(row.datname))
+            : dbResult.rows;
 
           const databaseItems = userDatabases.map((row: any) => new DatabaseTreeItem(
-            row.datname,
+            row.datname || row.Database || Object.values(row)[0],
             vscode.TreeItemCollapsibleState.Collapsed,
             'database',
             element.connectionId,
-            row.datname,
+            row.datname || row.Database || Object.values(row)[0],
             undefined, // schema
             undefined, // tableName
             undefined, // columnName
@@ -647,6 +688,12 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
 
         case 'database':
           // Return just the categories at database level
+          if (dialect.engine !== 'postgres') {
+            return [
+              new DatabaseTreeItem('Schemas', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1),
+            ];
+          }
+
           const schemaCountResult = await client.query(
             "SELECT COUNT(*) FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname != 'information_schema'"
           );
@@ -1058,28 +1105,30 @@ i.relname as index_name,
 
             // Existing category cases for schema level items
             case 'Tables':
-              // Fetch tables with size and row count
-              const tableResult = await client.query(
-                `SELECT 
-                   t.table_name,
-                   c.reltuples::bigint as estimated_rows,
-                   pg_size_pretty(pg_total_relation_size(c.oid)) as size
-                 FROM information_schema.tables t
-                 JOIN pg_class c ON c.relname = t.table_name
-                 JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
-                 WHERE t.table_schema = $1
-                   AND t.table_type = 'BASE TABLE'
-                   AND NOT c.relispartition
-                   AND t.table_name NOT LIKE 'pg\_%' ESCAPE '\\'
-                   AND t.table_name NOT LIKE 'sql\_%' ESCAPE '\\'
-                 ORDER BY t.table_name`,
-                [element.schema]
-              );
+              const tableResult = dialect.engine === 'postgres'
+                ? await client.query(
+                    `SELECT 
+                       t.table_name,
+                       c.reltuples::bigint as estimated_rows,
+                       pg_size_pretty(pg_total_relation_size(c.oid)) as size
+                     FROM information_schema.tables t
+                     JOIN pg_class c ON c.relname = t.table_name
+                     JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+                     WHERE t.table_schema = $1
+                       AND t.table_type = 'BASE TABLE'
+                       AND NOT c.relispartition
+                       AND t.table_name NOT LIKE 'pg\_%' ESCAPE '\\'
+                       AND t.table_name NOT LIKE 'sql\_%' ESCAPE '\\'
+                     ORDER BY t.table_name`,
+                    [element.schema]
+                  )
+                : await client.query(dialect.introspect.listTables?.(element.schema) || 'SELECT 1 AS table_name');
               return tableResult.rows
                 .map(row => {
-                  const isFav = this.isFavoriteItem('table', element.connectionId, element.databaseName, element.schema, row.table_name);
+                  const tableName = row.table_name || row.name || Object.values(row)[0];
+                  const isFav = this.isFavoriteItem('table', element.connectionId, element.databaseName, element.schema, String(tableName));
                   return new DatabaseTreeItem(
-                    row.table_name,
+                    String(tableName),
                     vscode.TreeItemCollapsibleState.Collapsed,
                     'table',
                     element.connectionId,
@@ -1137,14 +1186,17 @@ i.relname as index_name,
 
             case 'Views':
               const viewResult = await client.query(
-                "SELECT table_name FROM information_schema.views WHERE table_schema = $1 ORDER BY table_name",
-                [element.schema]
+                dialect.engine === 'sqlite'
+                  ? "SELECT name AS table_name FROM sqlite_master WHERE type = 'view' ORDER BY name"
+                  : "SELECT table_name FROM information_schema.views WHERE table_schema = $1 ORDER BY table_name",
+                dialect.engine === 'sqlite' ? undefined : [element.schema]
               );
               return viewResult.rows
                 .map(row => {
-                  const isFav = this.isFavoriteItem('view', element.connectionId, element.databaseName, element.schema, row.table_name);
+                  const viewName = row.table_name || row.name || Object.values(row)[0];
+                  const isFav = this.isFavoriteItem('view', element.connectionId, element.databaseName, element.schema, String(viewName));
                   return new DatabaseTreeItem(
-                    row.table_name,
+                    String(viewName),
                     vscode.TreeItemCollapsibleState.Collapsed,
                     'view',
                     element.connectionId,
@@ -1425,6 +1477,20 @@ i.relname as index_name,
           return [];
 
         case 'schema':
+          if (dialect.engine !== 'postgres') {
+            const tablesQuery = dialect.introspect.listTables?.(element.schema) || 'SELECT 1 AS table_name';
+            const tablesResult = await client.query(tablesQuery);
+            const viewsQuery = dialect.engine === 'sqlite'
+              ? "SELECT name AS table_name FROM sqlite_master WHERE type = 'view' ORDER BY name"
+              : "SELECT table_name FROM information_schema.views WHERE table_schema = $1 ORDER BY table_name";
+            const viewsResult = await client.query(viewsQuery, dialect.engine === 'sqlite' ? undefined : [element.schema]);
+
+            return [
+              new DatabaseTreeItem('Tables', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, tablesResult.rows.length),
+              new DatabaseTreeItem('Views', vscode.TreeItemCollapsibleState.Collapsed, 'category', element.connectionId, element.databaseName, element.schema, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, viewsResult.rows.length),
+            ];
+          }
+
           const tablesCountResult = await client.query(
             `SELECT COUNT(*)
              FROM information_schema.tables t

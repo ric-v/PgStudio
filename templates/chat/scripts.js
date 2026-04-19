@@ -26,6 +26,7 @@ const mentionPicker = document.getElementById('mentionPicker');
 const mentionSearch = document.getElementById('mentionSearch');
 const mentionList = document.getElementById('mentionList');
 const mentionBtn = document.getElementById('mentionBtn');
+const dbEngineSelect = document.getElementById('dbEngineSelect');
 
 const CHAT_INPUT_MIN_HEIGHT = 38;
 const CHAT_INPUT_MAX_VISIBLE_LINES = 5;
@@ -45,6 +46,24 @@ let currentHierarchyPath = {
   database: null,
   schema: null
 };
+let selectedDbEngine = 'generic';
+
+function onDbEngineChange() {
+  if (!dbEngineSelect) {
+    selectedDbEngine = 'generic';
+    return;
+  }
+
+  selectedDbEngine = dbEngineSelect.value || 'generic';
+}
+
+function getSelectedDbEngine() {
+  if (dbEngineSelect && dbEngineSelect.value) {
+    return dbEngineSelect.value;
+  }
+
+  return selectedDbEngine || 'generic';
+}
 
 // Phase B: New state for context bar, retries, and debounced search
 let currentContext = {
@@ -1114,7 +1133,8 @@ function sendMessage() {
     type: 'sendMessage',
     message: message || (selectedMentions.length > 0 ? 'Please analyze the referenced database objects' : 'Please analyze the attached file(s)'),
     attachments: attachedFiles.length > 0 ? [...attachedFiles] : undefined,
-    mentions: selectedMentions.length > 0 ? [...selectedMentions] : undefined
+    mentions: selectedMentions.length > 0 ? [...selectedMentions] : undefined,
+    selectedDbEngine: getSelectedDbEngine()
   });
 
   chatInput.value = '';
@@ -2301,6 +2321,11 @@ function groupSessionsByDate(sessions) {
   });
   
   return groups;
+}
+
+if (dbEngineSelect) {
+  dbEngineSelect.value = 'generic';
+  selectedDbEngine = 'generic';
 }
 
 

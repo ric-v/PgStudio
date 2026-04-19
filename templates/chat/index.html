@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
-  <title>PostgreSQL Chat</title>
+  <title>SQL Chat</title>
   <link rel="stylesheet" href="{{HIGHLIGHT_CSS_URI}}">
   <script src="{{MARKED_URI}}"></script>
   <script src="{{HIGHLIGHT_JS_URI}}"></script>
@@ -52,6 +52,17 @@
           </button>
         </div>
         <div class="chat-header-right">
+          <div class="engine-picker" title="Select SQL engine for assistant responses">
+            <label for="dbEngineSelect">SQL</label>
+            <select id="dbEngineSelect" onchange="onDbEngineChange()">
+              <option value="generic" selected>Generic</option>
+              <option value="postgres">PostgreSQL</option>
+              <option value="mysql">MySQL</option>
+              <option value="sqlite">SQLite</option>
+              <option value="mssql">SQL Server</option>
+              <option value="oracle">Oracle</option>
+            </select>
+          </div>
           <button class="header-btn ai-model-icon-btn" onclick="openAiSettings()" id="aiModelBadge"
             title="Loading...">
             <svg viewBox="0 0 16 16" fill="currentColor">
@@ -110,12 +121,12 @@
           <div class="snippets-section">
             <div class="snippets-label">SQL SNIPPETS</div>
             <div class="snippets-grid">
-              <button class="snippet-btn" onclick="runSnippet('Show me how INNER JOIN works in PostgreSQL with a practical example — join two tables and explain what rows are included vs excluded.')">INNER_JOIN</button>
-              <button class="snippet-btn" onclick="runSnippet('Explain how to write a CTE using WITH cte AS (...) in PostgreSQL. Show a real example and explain when to use a CTE instead of a subquery.')">WITH cte AS</button>
-              <button class="snippet-btn" onclick="runSnippet('How does ROW_NUMBER() work as a window function in PostgreSQL? Show an example that numbers rows within a partition and explain PARTITION BY and ORDER BY.')">ROW_NUMBER()</button>
-              <button class="snippet-btn" onclick="runSnippet('How do I use EXPLAIN ANALYZE in PostgreSQL to diagnose a slow query? Show what the output means and what to look for to find performance bottlenecks.')">EXPLAIN ANALYZE</button>
-              <button class="snippet-btn" onclick="runSnippet('How does ON CONFLICT work in PostgreSQL for upserts? Show examples of DO NOTHING and DO UPDATE SET, and explain when to use each.')">ON CONFLICT</button>
-              <button class="snippet-btn" onclick="runSnippet('How does jsonb_agg work in PostgreSQL? Show an example that aggregates rows into a JSON array, and explain how to use it with filters and ordering.')">jsonb_agg</button>
+              <button class="snippet-btn" onclick="runSnippet('Show me how INNER JOIN works with a practical example by joining two tables and explaining which rows are included or excluded.')">INNER_JOIN</button>
+              <button class="snippet-btn" onclick="runSnippet('Explain how to write a CTE using WITH cte AS (...). Show a real example and when to use a CTE instead of a subquery.')">WITH cte AS</button>
+              <button class="snippet-btn" onclick="runSnippet('How does ROW_NUMBER() work as a window function? Show an example that numbers rows within a partition and explain PARTITION BY and ORDER BY.')">ROW_NUMBER()</button>
+              <button class="snippet-btn" onclick="runSnippet('How do I analyze query performance using EXPLAIN for my selected SQL engine? Show what output to inspect for bottlenecks.')">EXPLAIN</button>
+              <button class="snippet-btn" onclick="runSnippet('Show upsert patterns for my selected SQL engine and explain safe alternatives if UPSERT syntax differs by dialect.')">UPSERT</button>
+              <button class="snippet-btn" onclick="runSnippet('Show how to aggregate rows into JSON for my selected SQL engine, and explain common function differences by dialect.')">JSON aggregation</button>
             </div>
           </div>
         </div>
@@ -167,7 +178,7 @@
           <!-- Image preview strip (above textarea, hidden when empty) -->
           <div class="image-preview-strip" id="imagePreviewStrip"></div>
           <div class="composer-editor">
-            <textarea class="chat-input" id="chatInput" placeholder="Ask anything postgres/SQL... (@ to refer a table/function)" rows="1"
+            <textarea class="chat-input" id="chatInput" placeholder="Ask anything SQL... (@ to refer a table/function)" rows="1"
               onkeydown="handleKeyDown(event)" oninput="handleChatInput(event)"></textarea>
           </div>
           <div class="composer-footer">
