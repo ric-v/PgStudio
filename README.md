@@ -70,8 +70,11 @@ NexQL uses a modular architecture. The **Core Extension** provides the shared UI
 - 🔍 **EXPLAIN CodeLens** — One-click query analysis directly in notebooks
 - 🎛️ **Advanced Result UX** — Column stats, transpose view, enhanced filtering, and improved in-grid editing controls
 - 🛡️ **Auto-LIMIT** — Intelligent query protection (configurable, default 1000 rows)
-- 🤖 **AI-Powered** — Generate, Optimize, Explain & Analyze with guided follow-ups (GitHub Models, OpenAI, Anthropic, Gemini, VS Code LM)
-- 🖼️ **Vision AI** — Paste or upload images directly in the SQL Assistant
+- 🌍 **Foreign Data Wrappers** — Manage foreign servers, user mappings & tables
+- 🤖 **AI-Powered** — Generate, Optimize, Explain & Analyze with guided follow-ups and next-step suggestions (GitHub Models, OpenAI, Anthropic, Gemini, VS Code LM)
+- 🧩 **Flexible SQL Assistant layout** — Open SQL Assistant in editor tabs and keep multiple assistant tabs open
+- 🖼️ **Vision AI** — Paste or upload images in the SQL Assistant; sent to vision-capable AI providers
+- 📎 **File preview** — Click attached file chips to open them as preview tabs in the editor
 - 📤 **Export Data** — Export results to CSV, JSON, or Excel
 
 ---
@@ -185,6 +188,11 @@ NexQL/
 ## 🤖 AI-Powered Operations
 
 NexQL integrates advanced AI capabilities directly into your workflow, but keeps **YOU** in control.
+
+### 🧩 SQL Assistant Tabs
+Use SQL Assistant where you work, not only in the sidebar.
+- **Open in Editor Tab**: Run `SQL Assistant: Open in Editor Tab` from Command Palette.
+- **Parallel Assistants**: Open multiple SQL Assistant tabs for separate tasks (e.g., optimization, migration, and schema exploration).
 
 ### 🪄 Generate Query (Natural Language → SQL)
 Describe what you need in plain English, and NexQL generates the SQL using your schema context.
