@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DriverRegistry } from '../../core/db/registry';
 import { resolveDbEngine, DEFAULT_DB_ENGINE } from '../../core/db/DbEngine';
+import { getPgDataTypeName } from '../../common/pgDataTypeNames';
 
 interface NotebookMetadata {
   connectionId: string;
@@ -169,10 +170,17 @@ export class PostgresNotebookController {
 
         // Create a JSON output for the custom renderer
         const outputData = {
-          columns: result.fields.map((field: any) => field.name),
+          columns: result.fields.map((field: { name: string }) => field.name),
           rows: result.rows,
           rowCount: result.rowCount,
-          command: result.command
+          command: result.command,
+          columnTypes: result.fields.reduce(
+            (acc: Record<string, string>, f: { name: string; dataTypeID: number }) => {
+              acc[f.name] = getPgDataTypeName(f.dataTypeID);
+              return acc;
+            },
+            {} as Record<string, string>,
+          ),
         };
 
         execution.replaceOutput([

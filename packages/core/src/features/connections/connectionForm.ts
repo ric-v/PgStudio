@@ -4,6 +4,8 @@ import { SecretStorageService } from "../../services/SecretStorageService";
 import { DEFAULT_DB_ENGINE, resolveDbEngine } from "../../core/db/DbEngine";
 import { DriverRegistry } from "../../core/db/registry";
 import type { ConnectionFormFieldDefinition } from "../../core/types/connectionForm";
+import type { CloudAuthContext } from "../../core/connection/cloudAuth/types";
+import { parseCloudAuth } from "../../core/connection/cloudAuth";
 
 export interface ConnectionInfo {
   id: string;
@@ -40,6 +42,8 @@ export interface ConnectionInfo {
     username: string;
     privateKeyPath?: string;
   };
+  /** Planned IAM flows; connections still use password or pgpass today. */
+  cloudAuth?: CloudAuthContext;
 }
 
 async function writeConnectionsToWorkspace(
@@ -281,6 +285,9 @@ export class ConnectionFormPanel {
               await runTest(message.connection, true);
 
               const connections = this.getStoredConnections();
+              const cloudAuthParsed = parseCloudAuth(
+                message.connection.cloudAuth,
+              );
               const newConnection: ConnectionInfo = {
                 id: this._connectionToEdit
                   ? this._connectionToEdit.id
@@ -313,6 +320,9 @@ export class ConnectionFormPanel {
                   message.connection.applicationName || undefined,
                 options: message.connection.options || undefined,
                 ssh: message.connection.ssh,
+                ...(cloudAuthParsed.kind !== "none"
+                  ? { cloudAuth: cloudAuthParsed }
+                  : {}),
               };
 
               if (this._connectionToEdit) {

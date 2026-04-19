@@ -72,7 +72,9 @@ export class TableRenderer {
 
   /** Below this many combined data + pending rows, use chunk + IntersectionObserver (legacy). */
   private static readonly VIRTUAL_ROW_THRESHOLD = 100;
-  /** Extra rows above/below viewport as a multiple of visible rows (2× viewport total buffer). */
+  /** Minimum rows to keep in the virtual window (avoids tiny first paint when clientHeight is still small). */
+  private static readonly VIRTUAL_MIN_VIEWPORT_ROWS = 50;
+  /** Extra rows above/below viewport as a multiple of measured viewport rows (2× viewport buffer). */
   private static readonly VIRTUAL_VIEWPORT_BUFFER_MULTIPLIER = 2;
   private static readonly DEFAULT_DATA_ROW_HEIGHT_PX = 30;
   private static readonly DEFAULT_PENDING_ROW_HEIGHT_PX = 40;
@@ -104,6 +106,9 @@ export class TableRenderer {
     if (!this.mainContainer.contains(this.tableContainer)) {
       this.mainContainer.appendChild(this.tableContainer);
     }
+
+    // Remove any leftover inline editor panels from previous edits
+    this.cleanupInlineEditors();
 
     this.columns = options.columns;
     this.rows = options.rows;
@@ -814,17 +819,19 @@ export class TableRenderer {
       // DOUBLE-CLICK to edit (not single-click)
       td.addEventListener('dblclick', (e) => {
         e.stopPropagation();
-        this.handleCellEdit(e, td, sourceIndex, col, type);
+        // Pass PostgreSQL type for editors — not formatValue()'s semantic type (e.g. "object").
+        this.handleCellEdit(e, td, sourceIndex, col);
       });
     }
+
+    this.applyCellStyle(td, sourceIndex, displayIndex, 'data');
 
     const cellKey = `${sourceIndex}-${col}`;
     if (this.modifiedCells.has(cellKey)) {
       td.style.backgroundColor = 'rgba(245,158,11,0.15)';
       td.style.borderLeft = '3px solid #f59e0b';
+      td.title = 'Unsaved edit — double-click to edit';
     }
-
-    this.applyCellStyle(td, sourceIndex, displayIndex, 'data');
 
     if (val === null || val === undefined) {
       const nullSpan = document.createElement('span');
@@ -884,13 +891,7 @@ export class TableRenderer {
     });
   }
 
-  private handleCellEdit(
-    e: MouseEvent,
-    td: HTMLElement,
-    sourceIndex: number,
-    col: string,
-    type: string,
-  ) {
+  private handleCellEdit(e: MouseEvent, td: HTMLElement, sourceIndex: number, col: string) {
     if (this.currentlyEditingCell === td) return;
 
     // Blur any existing editor
@@ -900,9 +901,10 @@ export class TableRenderer {
     }
 
     this.currentlyEditingCell = td;
+    td.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     const currentValue = this.rows[sourceIndex]?.[col];
     const originalValue = this.originalRows[sourceIndex]?.[col] ?? currentValue;
-    const colType = this.columnTypes[col] || type;
+    const colType = this.columnTypes[col] ?? '';
     const cellKey = `${sourceIndex}-${col}`;
 
     // Find FK info for this column
@@ -953,6 +955,7 @@ export class TableRenderer {
       onFkLookup,
       onSave,
       onCancel,
+      anchorEl: td,
     });
 
     td.appendChild(editorEl);
@@ -1078,9 +1081,13 @@ export class TableRenderer {
       totalDisplay - 1,
       Math.max(0, Math.floor(scrollPastPending / rowH)),
     );
-    const visibleCount = Math.max(1, Math.ceil(clientH / rowH));
+    const viewportRows = Math.max(1, Math.ceil(clientH / rowH));
+    const visibleCount = Math.max(
+      TableRenderer.VIRTUAL_MIN_VIEWPORT_ROWS,
+      viewportRows,
+    );
     const bufferRows = Math.ceil(
-      visibleCount * TableRenderer.VIRTUAL_VIEWPORT_BUFFER_MULTIPLIER,
+      viewportRows * TableRenderer.VIRTUAL_VIEWPORT_BUFFER_MULTIPLIER,
     );
     const start = Math.max(0, firstIdx - bufferRows);
     const end = Math.min(totalDisplay, firstIdx + visibleCount + bufferRows);
@@ -1119,6 +1126,15 @@ export class TableRenderer {
     ) as HTMLElement | null;
     if (firstDataTr && firstDataTr.offsetHeight > 0) {
       this.dataRowHeightEstimate = firstDataTr.offsetHeight;
+    }
+  }
+
+  /** Remove inline editor panels injected by the cell editor into ancestor containers. */
+  private cleanupInlineEditors() {
+    let el: HTMLElement | null = this.mainContainer;
+    while (el && el !== document.body) {
+      el.querySelectorAll('[data-inline-editor]').forEach((e) => e.remove());
+      el = el.parentElement;
     }
   }
 

@@ -11,7 +11,8 @@ function detachPgNoticeListener(client: { removeListener?: Function; off?: Funct
 import { NotebookCellOutput, NotebookCellOutputItem } from 'vscode';
 import { ConnectionManager } from '../../services/ConnectionManager';
 import { TelemetryService, SpanNames } from '../../services/TelemetryService';
-import { PostgresMetadata, QueryResults } from '../../common/types';
+import { NoticeLogEntry, PostgresMetadata, QueryResults } from '../../common/types';
+import { getPgDataTypeName } from '../../common/pgDataTypeNames';
 import { SqlParser } from './SqlParser';
 import { SecretStorageService } from '../../services/SecretStorageService';
 import { ErrorService, getErrorExplanation } from '../../services/ErrorService';
@@ -23,6 +24,9 @@ import { extensionContext } from '../../extension';
 import { QueryCodeLensProvider } from '../QueryCodeLensProvider';
 import { updateNotebookTitle } from '../../utils/notebookTitle';
 import { DEFAULT_DB_ENGINE, resolveDbEngine } from '../../core/db/DbEngine';
+
+/** Streaming NOTICE feed during a single-statement cell run (replaced by final result output). */
+const MIME_NOTICES_LIVE = 'application/vnd.postgres-notebook.notices-live';
 
 export class SqlExecutor {
   private static readonly REVIEW_COUNT_KEY = 'nexql.reviewPrompt.successCount';
@@ -318,21 +322,54 @@ export class SqlExecutor {
         }
       }
 
-      // Capture PostgreSQL NOTICE messages
-      const notices: string[] = [];
-      const noticeListener = (msg: any) => {
-        const message = msg.message || msg.toString();
-        notices.push(message);
-      };
-      const noticeAttached =
-        engine === 'postgres' && typeof (client as { on?: Function }).on === 'function';
-      if (noticeAttached) {
-        (client as { on: (ev: string, fn: (...args: any[]) => void) => void }).on('notice', noticeListener);
-      }
-
       const runStatements = async (): Promise<void> => {
+      let noticeAttached = false;
+      let noticeListener: ((msg: any) => void) | undefined;
+      try {
       const queryText = cell.document.getText();
       const statements = SqlParser.splitSqlStatements(queryText);
+      const allowLiveNotices = statements.length === 1;
+
+      // Capture PostgreSQL NOTICE messages (timestamp = client receive time, log-style)
+      const notices: NoticeLogEntry[] = [];
+      let liveNoticesActive = false;
+      const pushNotice = (message: string) => {
+        notices.push({ message, receivedAt: new Date().toISOString() });
+      };
+      const emitLiveNoticesIfNeeded = () => {
+        if (!allowLiveNotices || notices.length === 0) {
+          return;
+        }
+        liveNoticesActive = true;
+        void (async () => {
+          try {
+            const payload = { streaming: true as const, notices: [...notices] };
+            await execution.replaceOutput([
+              new NotebookCellOutput([
+                new NotebookCellOutputItem(
+                  Buffer.from(JSON.stringify(payload), 'utf8'),
+                  MIME_NOTICES_LIVE,
+                ),
+              ]),
+            ]);
+          } catch (e) {
+            console.error('SqlExecutor: live notice output failed', e);
+          }
+        })();
+      };
+      noticeListener = (msg: any) => {
+        const message = msg.message || msg.toString();
+        pushNotice(message);
+        emitLiveNoticesIfNeeded();
+      };
+      noticeAttached =
+        engine === 'postgres' && typeof (client as { on?: Function }).on === 'function';
+      if (noticeAttached && noticeListener) {
+        (client as { on: (ev: string, fn: (...args: unknown[]) => void) => void }).on(
+          'notice',
+          noticeListener,
+        );
+      }
 
       console.log('SqlExecutor: Executing', statements.length, 'statement(s)');
 
@@ -367,7 +404,10 @@ export class SqlExecutor {
               if (!txInfo) {
                 txManager.initializeSession(sessionId, true);
               }
-              notices.push('Transaction started automatically for safety. Run COMMIT or ROLLBACK when done.');
+              pushNotice(
+                'Transaction started automatically for safety. Run COMMIT or ROLLBACK when done.',
+              );
+              emitLiveNoticesIfNeeded();
             }
           }
         }
@@ -376,6 +416,7 @@ export class SqlExecutor {
       // Execute each statement
       let hadStatementError = false;
       for (let stmtIndex = 0; stmtIndex < statements.length; stmtIndex++) {
+        liveNoticesActive = false;
         let query = statements[stmtIndex];
         const stmtStartTime = Date.now();
 
@@ -548,9 +589,17 @@ export class SqlExecutor {
           // Clear notices for next statement
           notices.length = 0;
 
-          await execution.appendOutput(new NotebookCellOutput([
-            new NotebookCellOutputItem(Buffer.from(JSON.stringify(outputData), 'utf8'), 'application/vnd.nexql-notebook.result')
-          ]));
+          const successOutput = new NotebookCellOutput([
+            new NotebookCellOutputItem(
+              Buffer.from(JSON.stringify(outputData), 'utf8'),
+              'application/vnd.nexql-notebook.result',
+            ),
+          ]);
+          if (allowLiveNotices && liveNoticesActive) {
+            await execution.replaceOutput(successOutput);
+          } else {
+            await execution.appendOutput(successOutput);
+          }
 
           // Update execution time pill in CodeLens bar
           QueryCodeLensProvider.getInstance()?.updatePill(cell.document.uri.toString(), {
@@ -603,9 +652,17 @@ export class SqlExecutor {
             errorExplanation: pgErrorCode ? getErrorExplanation(pgErrorCode) : undefined
           };
 
-          await execution.appendOutput(new NotebookCellOutput([
-            new NotebookCellOutputItem(Buffer.from(JSON.stringify(errorData), 'utf8'), 'application/vnd.nexql-notebook.error')
-          ]));
+          const errorOutput = new NotebookCellOutput([
+            new NotebookCellOutputItem(
+              Buffer.from(JSON.stringify(errorData), 'utf8'),
+              'application/vnd.nexql-notebook.error',
+            ),
+          ]);
+          if (allowLiveNotices && liveNoticesActive) {
+            await execution.replaceOutput(errorOutput);
+          } else {
+            await execution.appendOutput(errorOutput);
+          }
 
           // Update execution time pill in CodeLens bar (failure)
           QueryCodeLensProvider.getInstance()?.updatePill(cell.document.uri.toString(), {
@@ -631,15 +688,14 @@ export class SqlExecutor {
       execution.end(!hadStatementError, Date.now());
       // Update notebook title after cell execution (success or statement-level failure)
       updateNotebookTitle(cell.notebook).catch(err => console.warn('Failed to update notebook title:', err));
-      };
-
-      try {
-        await runStatements();
       } finally {
-        if (noticeAttached) {
+        if (noticeAttached && noticeListener) {
           detachPgNoticeListener(client, noticeListener);
         }
       }
+      };
+
+      await runStatements();
 
     } catch (err: any) {
       console.error('SqlExecutor: Execution failed:', err);
@@ -713,21 +769,10 @@ export class SqlExecutor {
   }
 
   private getPostgresTypeName(oid?: number): string {
-    const types: Record<number, string> = {
-      16: 'bool',
-      17: 'bytea',
-      20: 'int8',
-      21: 'int2',
-      23: 'int4',
-      25: 'text',
-      114: 'json',
-      1043: 'varchar',
-      1082: 'date',
-      1114: 'timestamp',
-      1184: 'timestamptz',
-      1700: 'numeric'
-    };
-    return types[oid || -1] || 'string';
+    if (oid === undefined || oid === null) {
+      return this.inferTypeFromValue(undefined);
+    }
+    return getPgDataTypeName(oid);
   }
 
   private getMysqlTypeName(typeCode?: number): string {

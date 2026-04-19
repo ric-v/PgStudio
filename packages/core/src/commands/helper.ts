@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { DatabaseTreeItem } from '../providers/DatabaseTreeProvider';
-import { createAndShowNotebook, createMetadata, getConnectionWithPassword, validateItem, validateCategoryItem, validateRoleItem } from './connection';
+import { createAndShowNotebook, createMetadata, getConnectionWithPassword, validateItem, validateCategoryItem, validateRoleItem, validateNotebookContextItem } from './connection';
 import { ConnectionManager } from '../services/ConnectionManager';
 import { ErrorService } from '../services/ErrorService';
 import { SessionRegistry } from '../services/SessionRegistry';
@@ -30,7 +30,7 @@ function scratchNotebookFileMetadata(
 // Re-export SQL templates from sql/helper.ts for backward compatibility
 export { SQL_TEMPLATES, QueryBuilder, MaintenanceTemplates } from './sql/helper';
 
-export { validateItem, validateCategoryItem, validateRoleItem };
+export { validateItem, validateCategoryItem, validateRoleItem, validateNotebookContextItem };
 
 /** Get database connection and metadata for tree item operations */
 export async function getDatabaseConnection(item: DatabaseTreeItem, validateFn: (item: DatabaseTreeItem) => void = validateItem): Promise<{ connection: any; client: any; metadata: any; release: () => void }> {

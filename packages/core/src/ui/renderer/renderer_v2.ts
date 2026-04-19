@@ -23,7 +23,14 @@ import {
 } from '../../renderer/components/ResultTabStrip';
 import { renderTransposeTable } from '../../renderer/components/TransposeView';
 import { renderAnalystPanel } from '../../renderer/components/analyst/AnalystPanel';
+import type { NoticeLogEntry } from '../../common/types';
+import {
+  normalizeNoticesPayload,
+  renderNoticesLiveStream,
+  renderNoticesPanel,
+} from '../../renderer/components/notices/NoticesPanel';
 import { BRAND_ACCENT, BRAND_ACCENT_MUTED, SPINNER_FRAMES } from './rendererConstants';
+import { prefersReducedMotion } from '../theme/motion';
 
 // Register Chart.js components
 Chart.register(...registerables);
@@ -34,6 +41,7 @@ const tableInstances = new WeakMap<HTMLElement, TableRenderer>();
 
 /**
  * Puts a button into a loading state with an animated braille spinner.
+ * When `prefers-reduced-motion` is set, uses a static label instead of animation.
  * Returns a cleanup function that restores the original label and re-enables the button.
  */
 function startButtonLoading(btn: HTMLElement, loadingLabel: string): () => void {
@@ -42,6 +50,18 @@ function startButtonLoading(btn: HTMLElement, loadingLabel: string): () => void 
   (btn as HTMLButtonElement).disabled = true;
   btn.style.opacity = '0.7';
   btn.style.cursor = 'not-allowed';
+
+  const restore = () => {
+    btn.innerText = originalText;
+    (btn as HTMLButtonElement).disabled = originalDisabled;
+    btn.style.opacity = '';
+    btn.style.cursor = '';
+  };
+
+  if (prefersReducedMotion()) {
+    btn.innerText = `… ${loadingLabel}`;
+    return restore;
+  }
 
   let frame = 0;
   btn.innerText = `${SPINNER_FRAMES[frame]} ${loadingLabel}`;
@@ -52,10 +72,7 @@ function startButtonLoading(btn: HTMLElement, loadingLabel: string): () => void 
 
   return () => {
     clearInterval(interval);
-    btn.innerText = originalText;
-    (btn as HTMLButtonElement).disabled = originalDisabled;
-    btn.style.opacity = '';
-    btn.style.cursor = '';
+    restore();
   };
 }
 
@@ -88,6 +105,13 @@ export const activate: ActivationFunction = (context) => {
         return;
       }
 
+      if (data.mime === 'application/vnd.postgres-notebook.notices-live') {
+        const live = data.json() as { notices?: NoticeLogEntry[] };
+        const entries = Array.isArray(live?.notices) ? live.notices : [];
+        element.replaceChildren(renderNoticesLiveStream(entries));
+        return;
+      }
+
       const json = data.json();
 
       if (!json) {
@@ -111,6 +135,8 @@ export const activate: ActivationFunction = (context) => {
         autoLimitApplied,
         autoLimitValue,
       } = json;
+
+      const noticeItems = normalizeNoticesPayload(notices);
 
       // Transaction state from payload
       const transactionState: { isActive: boolean; statementCount: number } | undefined =
@@ -137,6 +163,7 @@ export const activate: ActivationFunction = (context) => {
         rowCount,
         executionTime,
         query,
+        notices: noticeItems.length ? [...noticeItems] : undefined,
         timestamp: Date.now(),
       };
       const resultHistory = addResultToHistory(element, historyEntry);
@@ -169,7 +196,10 @@ export const activate: ActivationFunction = (context) => {
 
       const chevron = document.createElement('span');
       chevron.textContent = '▼';
-      chevron.style.cssText = 'font-size: 10px; transition: transform 0.2s; display: inline-block;';
+      const chevronBase = 'font-size: 10px; display: inline-block;';
+      chevron.style.cssText = prefersReducedMotion()
+        ? chevronBase
+        : `${chevronBase} transition: transform 0.2s;`;
 
       const title = document.createElement('span');
       title.textContent = command || 'QUERY';
@@ -182,8 +212,10 @@ export const activate: ActivationFunction = (context) => {
 
       let summaryText = '';
       if (rowCount !== undefined && rowCount !== null) summaryText += `${rowCount} rows`;
-      if (notices?.length)
-        summaryText += summaryText ? `, ${notices.length} messages` : `${notices.length} messages`;
+      if (noticeItems.length)
+        summaryText += summaryText
+          ? `, ${noticeItems.length} notices`
+          : `${noticeItems.length} notices`;
       if (executionTime !== undefined)
         summaryText += summaryText
           ? `, ${executionTime.toFixed(3)}s`
@@ -367,28 +399,6 @@ export const activate: ActivationFunction = (context) => {
           },
         });
         contentContainer.appendChild(errorPanel);
-      }
-
-      // Messages Section
-      if (notices?.length) {
-        const msgContainer = document.createElement('div');
-        msgContainer.style.cssText = `
-            padding: 8px 12px; background: var(--vscode-textBlockQuote-background);
-            border-left: 4px solid var(--vscode-textBlockQuote-border); margin: 8px 12px 0 12px;
-            font-family: var(--vscode-editor-font-family); white-space: pre-wrap; font-size: 12px;
-          `;
-        const msgTitle = document.createElement('div');
-        msgTitle.textContent = 'Messages';
-        msgTitle.style.cssText = 'font-weight: 600; margin-bottom: 4px; opacity: 0.8;';
-        msgContainer.appendChild(msgTitle);
-
-        notices.forEach((msg: string) => {
-          const d = document.createElement('div');
-          d.textContent = msg;
-          d.style.marginBottom = '2px';
-          msgContainer.appendChild(d);
-        });
-        contentContainer.appendChild(msgContainer);
       }
 
       // Build the hidden export button to reuse its existing dropdown flow
@@ -864,6 +874,10 @@ export const activate: ActivationFunction = (context) => {
       const chartTab = createTab('Chart', 'chart', false, () => switchTab('chart'));
       const analystTab = createTab('Analyst', 'analyst', false, () => switchTab('analyst'));
 
+      const noticesTabLabel =
+        noticeItems.length > 0 ? `Notices (${noticeItems.length})` : 'Notices';
+      const noticesTab = createTab(noticesTabLabel, 'notices', false, () => switchTab('notices'));
+
       let explainTab: HTMLElement | null = null;
       if (json.explainPlan) {
         explainTab = createTab('Explain Plan', 'explain', false, () => switchTab('explain'));
@@ -876,6 +890,7 @@ export const activate: ActivationFunction = (context) => {
       tabs.appendChild(tableTab);
       tabs.appendChild(chartTab);
       tabs.appendChild(analystTab);
+      tabs.appendChild(noticesTab);
       if (explainTab) tabs.appendChild(explainTab);
       tabs.appendChild(transposeTab);
       if (!json.error) {
@@ -1007,8 +1022,8 @@ export const activate: ActivationFunction = (context) => {
       let currentMode = 'table';
       const allTabs = () =>
         explainTab
-          ? [tableTab, chartTab, analystTab, explainTab, transposeTab]
-          : [tableTab, chartTab, analystTab, transposeTab];
+          ? [tableTab, chartTab, analystTab, noticesTab, explainTab, transposeTab]
+          : [tableTab, chartTab, analystTab, noticesTab, transposeTab];
       const setActiveTab = (activeTab: HTMLElement) => {
         allTabs().forEach((t) => {
           t.style.borderBottom = '2px solid transparent';
@@ -1035,6 +1050,24 @@ export const activate: ActivationFunction = (context) => {
             initialSelectedIndices: selectedIndices,
             modifiedCells,
           });
+        } else if (mode === 'notices') {
+          setActiveTab(noticesTab);
+          updateActionsVisibility();
+          viewContainer.appendChild(
+            renderNoticesPanel(noticeItems, {
+              onAskAssistant: () => {
+                context.postMessage?.({
+                  type: 'sendToChat',
+                  data: {
+                    query: query || '',
+                    message:
+                      'I ran this query and received the following PostgreSQL notices (RAISE NOTICE / server messages). Please help me interpret them or suggest improvements.',
+                    notices: noticeItems,
+                  },
+                });
+              },
+            }),
+          );
         } else if (mode === 'transpose') {
           setActiveTab(transposeTab);
           updateActionsVisibility();
@@ -1113,9 +1146,17 @@ export const activate: ActivationFunction = (context) => {
       // Initial Render
       if (columns.length > 0) {
         switchTab('table');
+      } else if (noticeItems.length > 0) {
+        switchTab('notices');
       } else {
-        if (rowCount === 0)
-          mainContainer.innerHTML += '<div style="padding:12px">Query returned no data</div>';
+        const filler = document.createElement('div');
+        filler.style.cssText =
+          'padding:12px;color:var(--vscode-descriptionForeground);font-size:12px;';
+        filler.textContent =
+          (rowCount ?? 0) === 0 && (currentRows?.length ?? 0) === 0
+            ? 'Query returned no data'
+            : 'Unable to display this result (no column metadata). Re-run the query after updating the extension.';
+        viewContainer.appendChild(filler);
       }
 
       // Result history tab strip — rendered above mainContainer when >1 result exists

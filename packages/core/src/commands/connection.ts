@@ -73,6 +73,16 @@ export function validateCategoryItem(item: DatabaseTreeItem): asserts item is Da
 }
 
 /**
+ * Validates tree context for SQL notebook commands that only need a pooled DB connection
+ * (e.g. new notebook from a database node or after picking connection + database from the palette).
+ */
+export function validateNotebookContextItem(item: DatabaseTreeItem): asserts item is DatabaseTreeItem & { connectionId: string; databaseName: string } {
+    if (!item?.connectionId || !item?.databaseName) {
+        throw new Error('Invalid selection');
+    }
+}
+
+/**
  * getConnectionWithPassword - Retrieves the connection details and password for the specified connection ID.
  */
 export async function getConnectionWithPassword(connectionId: string, databaseName?: string): Promise<any> {

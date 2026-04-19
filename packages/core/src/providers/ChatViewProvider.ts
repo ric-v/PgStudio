@@ -22,6 +22,7 @@ import {
   getWebviewHtml
 } from './chat';
 import { ErrorService } from '../services/ErrorService';
+import type { NoticeLogEntry } from '../common/types';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'nexql.chatView';
@@ -100,7 +101,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
    * Called from the "Chat" CodeLens button or "Send to Chat" result button
    * Does NOT auto-send - waits for user to add their context
    */
-  public async sendToChat(data: { query: string; results?: string; message: string }): Promise<void> {
+  public async sendToChat(data: {
+    query: string;
+    results?: string;
+    message: string;
+    /** PostgreSQL RAISE NOTICE / server messages — attached as a .txt file */
+    notices?: Array<string | NoticeLogEntry>;
+  }): Promise<void> {
     // Wait a bit for the view to be ready after focus
     await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -128,6 +135,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             type: 'sql',
             path: queryFilePath
           }
+        });
+      }
+
+      // Optional notices file (numbered, execution order)
+      if (data.notices && data.notices.length > 0) {
+        const noticeLines = data.notices
+          .map((n, i) => {
+            if (typeof n === 'string') {
+              return `${i + 1}. ${n}`;
+            }
+            const msg = n.message ?? '';
+            const iso = n.receivedAt?.trim();
+            if (iso) {
+              return `${i + 1}. [${iso}] ${msg}`;
+            }
+            return `${i + 1}. ${msg}`;
+          })
+          .join('\n\n');
+        const noticeFileName = `notices_${Date.now()}.txt`;
+        const noticeFilePath = path.join(tempDir, noticeFileName);
+        await fs.promises.writeFile(noticeFilePath, noticeLines, 'utf8');
+
+        this._view.webview.postMessage({
+          type: 'fileAttached',
+          file: {
+            name: noticeFileName,
+            content: noticeLines,
+            type: 'txt',
+            path: noticeFilePath,
+          },
         });
       }
 
@@ -189,8 +226,20 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         }
       }
 
-      // Show toast in chat to let user know files are attached
-      vscode.window.showInformationMessage('Query and results attached to chat. Add your question and send!');
+      const attached: string[] = [];
+      if (data.query?.trim()) {
+        attached.push('query');
+      }
+      if (data.results) {
+        attached.push('results');
+      }
+      if (data.notices?.length) {
+        attached.push('notices');
+      }
+      const summary = attached.length ? attached.join(' & ') : 'Content';
+      vscode.window.showInformationMessage(
+        `${summary} attached to SQL Assistant. Add your question and send!`,
+      );
 
     } catch (error) {
       console.error('[ChatViewProvider] Failed to create temp files:', error);
