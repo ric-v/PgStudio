@@ -12,7 +12,11 @@ const FILE_STATUS = {
   "gif-setup": { file: "GIF", connection: "● demo_db", line: "" },
   "gif-ai-setup": { file: "GIF", connection: "● demo_db", line: "" },
   "gif-explorer": { file: "GIF", connection: "● demo_db", line: "" },
-  "gif-ai": { file: "GIF", connection: "● demo_db", line: "" }
+  "gif-ai": { file: "GIF", connection: "● demo_db", line: "" },
+  "gif-dashboard": { file: "GIF", connection: "● demo_db", line: "" },
+  "gif-db-ops": { file: "GIF", connection: "● demo_db", line: "" },
+  "gif-power-editor": { file: "GIF", connection: "● demo_db", line: "" },
+  "gif-more-features": { file: "GIF", connection: "● demo_db", line: "" }
 };
 
 const BREADCRUMB_LABELS = {
@@ -27,9 +31,13 @@ const BREADCRUMB_LABELS = {
   "doc-schema": "04_schema-tools.md",
   "doc-safety": "05_safety.md",
   "gif-setup": "01-setup.gif",
-  "gif-ai-setup": "02-ai-assist-setup.gif",
-  "gif-explorer": "03-explorer.gif",
-  "gif-ai": "04-ai-assist.gif"
+  "gif-ai-setup": "02-more-settings.gif",
+  "gif-explorer": "03-ai-assist.gif",
+  "gif-ai": "04-ai-copilot.gif",
+  "gif-dashboard": "05-dashboard.gif",
+  "gif-db-ops": "06-db-ops.gif",
+  "gif-power-editor": "07-power-editor.gif",
+  "gif-more-features": "08-more-features.gif"
 };
 
 const FEATURE_DETAILS = {

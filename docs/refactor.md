@@ -64,9 +64,9 @@ Rotate these so each card has a distinct CTA phrasing.
 
 Assets available in `docs/assets/`:
 - `01-setup.gif` → "Setup & Connect" workflow
-- `02-ai-assist-setup.gif` → "AI Assistant setup"
-- `03-explorer.gif` → "Database Explorer"
-- `04-ai-assist.gif` → "AI Assist in action"
+- `02-more-settings.gif` → "AI Assistant setup"
+- `03-ai-assist.gif` → "Database Explorer"
+- `04-ai-copilot.gif` → "AI Assist in action"
 
 ### Explorer sidebar tree entries (index.html)
 
@@ -84,17 +84,17 @@ Add a `demos/` folder group in the Explorer panel (after existing tree items, be
 </button>
 <button class="tree-row depth-2" data-open="gif-ai-setup">
   <span class="tree-label">
-    <span class="tree-file-icon gif-icon" aria-hidden="true"></span>02-ai-assist-setup.gif
+    <span class="tree-file-icon gif-icon" aria-hidden="true"></span>02-more-settings.gif
   </span>
 </button>
 <button class="tree-row depth-2" data-open="gif-explorer">
   <span class="tree-label">
-    <span class="tree-file-icon gif-icon" aria-hidden="true"></span>03-explorer.gif
+    <span class="tree-file-icon gif-icon" aria-hidden="true"></span>03-ai-assist.gif
   </span>
 </button>
 <button class="tree-row depth-2" data-open="gif-ai">
   <span class="tree-label">
-    <span class="tree-file-icon gif-icon" aria-hidden="true"></span>04-ai-assist.gif
+    <span class="tree-file-icon gif-icon" aria-hidden="true"></span>04-ai-copilot.gif
   </span>
 </button>
 ```
@@ -126,9 +126,9 @@ Add 4 new `<article class="file-view">` panels that mimic VS Code's image previe
 
 ```javascript
 "gif-setup":    { label: "01-setup.gif",          connection: "● demo_db", line: "", file: "GIF" },
-"gif-ai-setup": { label: "02-ai-assist-setup.gif", connection: "● demo_db", line: "", file: "GIF" },
-"gif-explorer": { label: "03-explorer.gif",        connection: "● demo_db", line: "", file: "GIF" },
-"gif-ai":       { label: "04-ai-assist.gif",       connection: "● demo_db", line: "", file: "GIF" },
+"gif-ai-setup": { label: "02-more-settings.gif", connection: "● demo_db", line: "", file: "GIF" },
+"gif-explorer": { label: "03-ai-assist.gif",        connection: "● demo_db", line: "", file: "GIF" },
+"gif-ai":       { label: "04-ai-copilot.gif",       connection: "● demo_db", line: "", file: "GIF" },
 ```
 
 ### CSS in `content-panels.css`:

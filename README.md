@@ -37,14 +37,26 @@ NexQL uses a modular architecture. The **Core Extension** provides the shared UI
 ### 1. Setup
 ![NexQL Setup](docs/assets/01-setup.gif)
 
-### 2. Database Explorer
-![Database Explorer](docs/assets/03-explorer.gif)
+### 2. More Settings
+![AI Assistant Setup](docs/assets/02-more-settings.gif)
 
-### 3. AI Assistant Setup
-![AI Assistant Setup](docs/assets/02-ai-assist-setup.gif)
+### 3. AI Assistant
+![AI Assistant](docs/assets/03-ai-assist.gif)
 
-### 4. AI Assistant Usage
-![AI Assistant Usage](docs/assets/04-ai-assist.gif)
+### 4. AI Copilot
+![AI Assistant Usage](docs/assets/04-ai-copilot.gif)
+
+### 5. Dashboard
+![Dashboard](docs/assets/05-dashboard.gif)
+
+### 6. DB Operations
+![DB Operations](docs/assets/06-db-ops.gif)
+
+### 7. Power Editor
+![Power Editor](docs/assets/07-power-editor.gif)
+
+### 8. More Features
+![More Features](docs/assets/08-more-features.gif)
 
 ---
 
