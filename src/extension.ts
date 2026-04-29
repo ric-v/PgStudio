@@ -11,6 +11,8 @@ import { QueryHistoryService } from './services/QueryHistoryService';
 import { QueryPerformanceService } from './services/QueryPerformanceService';
 import { WorkspaceStateService } from './services/WorkspaceStateService';
 import { MessageHandlerRegistry } from './services/MessageHandler';
+import { TelemetryService } from './services/TelemetryService';
+import { WEBVIEW_MESSAGE_TYPES } from './common/messageTypes';
 
 export let outputChannel: vscode.OutputChannel;
 export let extensionContext: vscode.ExtensionContext;
@@ -89,12 +91,15 @@ async function ensureRendererMessageHandlers(
   // Core Handlers
   registry.register('showConnectionSwitcher', new coreHandlersModule.ShowConnectionSwitcherHandler(statusBarInstance));
   registry.register('showDatabaseSwitcher', new coreHandlersModule.ShowDatabaseSwitcherHandler(statusBarInstance));
-  registry.register('showErrorMessage', new coreHandlersModule.ShowErrorMessageHandler());
-  registry.register('export_request', new coreHandlersModule.ExportRequestHandler());
-  registry.register('runDerivedQuery', new coreHandlersModule.RunDerivedQueryHandler());
+  registry.register(WEBVIEW_MESSAGE_TYPES.SHOW_ERROR_MESSAGE, new coreHandlersModule.ShowErrorMessageHandler());
+  registry.register(WEBVIEW_MESSAGE_TYPES.EXPORT_REQUEST, new coreHandlersModule.ExportRequestHandler());
+  registry.register(WEBVIEW_MESSAGE_TYPES.RUN_DERIVED_QUERY, new coreHandlersModule.RunDerivedQueryHandler());
   registry.register('retryCell', new coreHandlersModule.RetryCellHandler());
   registry.register('showConnectionInfo', new coreHandlersModule.ShowConnectionInfoHandler());
-  registry.register('gridCommitPreference', new coreHandlersModule.GridCommitPreferenceHandler(context));
+  registry.register(
+    WEBVIEW_MESSAGE_TYPES.GRID_COMMIT_PREFERENCE,
+    new coreHandlersModule.GridCommitPreferenceHandler(context),
+  );
   registry.register('cursorStreamBannerDismiss', new cursorBannerModule.CursorStreamBannerDismissHandler(context));
   registry.register('cursorStreamBannerMute', new cursorBannerModule.CursorStreamBannerMuteHandler(context));
 
@@ -126,6 +131,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   outputChannel = vscode.window.createOutputChannel('PgStudio');
   outputChannel.appendLine('Activating PgStudio extension');
+  const telemetry = TelemetryService.getInstance();
+  telemetry.initialize(context);
+  telemetry.trackEvent('extension_activated', { version: context.extension.packageJSON.version });
+  telemetry.trackSessionStart();
 
   SecretStorageService.getInstance(context);
   ConnectionManager.getInstance();
@@ -303,6 +312,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export async function deactivate() {
   outputChannel?.appendLine('Deactivating PgStudio extension - closing all connections');
+  const telemetry = TelemetryService.getInstance();
+  telemetry.trackSessionEnd();
+  telemetry.trackEvent('extension_deactivated', { sessionDurationBucket: 'captured' });
 
   try {
     // Close all database connections (pools and sessions)
@@ -312,6 +324,9 @@ export async function deactivate() {
     outputChannel?.appendLine(`Error closing connections during deactivation: ${err}`);
     console.error('Error during extension deactivation:', err);
   }
+
+  // Flush after connection shutdown so close events are not dropped.
+  await telemetry.flush();
 
   outputChannel?.appendLine('PgStudio extension deactivated');
 }
