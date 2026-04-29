@@ -90,12 +90,14 @@ import { cmdOpenListenNotify, cmdOpenListenNotifyFromPalette } from '../commands
 import { cmdSearchSchema } from '../commands/schemaSearch';
 import { WorkspaceStateService } from '../services/WorkspaceStateService';
 import { switchWorkspaceDefaultConnection } from '../commands/workspaceConnection';
+import { WhatsNewManager } from './WhatsNewManager';
 
 export function getCommandSpecs(
   context: vscode.ExtensionContext,
   databaseTreeProvider: DatabaseTreeProvider,
   chatViewProviderInstance: ChatViewProvider | undefined,
   outputChannel: vscode.OutputChannel,
+  whatsNewManager: WhatsNewManager,
   savedQueriesTreeProvider?: SavedQueriesTreeProvider,
   notebooksTreeProvider?: NotebooksTreeProvider
 ): Array<{ command: string; callback: (...args: any[]) => any }> {
@@ -159,6 +161,12 @@ export function getCommandSpecs(
     {
       command: 'postgres-explorer.telemetry.setModeDetailed',
       callback: () => setTelemetryMode('detailed')
+    },
+    {
+      command: 'postgres-explorer.showWhatsNew',
+      callback: () => {
+        void whatsNewManager.checkAndShow(true);
+      }
     },
     {
       command: 'postgres-explorer.copyQuery',

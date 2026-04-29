@@ -134,7 +134,6 @@ export async function activate(context: vscode.ExtensionContext) {
   const telemetry = TelemetryService.getInstance();
   telemetry.initialize(context);
   telemetry.trackEvent('extension_activated', { version: context.extension.packageJSON.version });
-  telemetry.trackSessionStart();
 
   SecretStorageService.getInstance(context);
   ConnectionManager.getInstance();
@@ -192,14 +191,13 @@ export async function activate(context: vscode.ExtensionContext) {
     'postgresExplorer.favorites',
   ]);
 
-  const [providersModule, commandsModule, notebookKernelModule, whatsNewModule, statusBarModule, telemetryStatusBarModule] =
+  const [providersModule, commandsModule, notebookKernelModule, whatsNewModule, statusBarModule] =
     await Promise.all([
       import('./activation/providers'),
       import('./activation/commands'),
       import('./providers/NotebookKernel'),
       import('./activation/WhatsNewManager'),
       import('./activation/statusBar'),
-      import('./activation/TelemetryStatusBar'),
     ]);
 
   const { databaseTreeProvider, treeView, chatViewProviderInstance: chatView, savedQueriesTreeProvider, notebooksTreeProvider, autoRefreshService } = providersModule.registerProviders(context, outputChannel);
@@ -209,7 +207,16 @@ export async function activate(context: vscode.ExtensionContext) {
   // Store tree view instance for reveal functionality
   (databaseTreeProvider as any).setTreeView(treeView);
 
-  commandsModule.registerAllCommands(context, databaseTreeProvider, chatView, outputChannel, savedQueriesTreeProvider, notebooksTreeProvider);
+  const whatsNewManager = new whatsNewModule.WhatsNewManager(context, context.extensionUri);
+  commandsModule.registerAllCommands(
+    context,
+    databaseTreeProvider,
+    chatView,
+    outputChannel,
+    whatsNewManager,
+    savedQueriesTreeProvider,
+    notebooksTreeProvider
+  );
 
   const rendererMessaging = vscode.notebooks.createRendererMessaging('postgres-query-renderer');
 
@@ -247,8 +254,6 @@ export async function activate(context: vscode.ExtensionContext) {
     ensureNotebookKernels();
   }
 
-  // What's New / Welcome Screen
-  const whatsNewManager = new whatsNewModule.WhatsNewManager(context, context.extensionUri);
   // SQL Formatter command + format-on-save listener
   context.subscriptions.push(
     vscode.commands.registerCommand('postgres-explorer.formatSql', async () => {
@@ -262,11 +267,6 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(createFormatOnSaveListener());
   });
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand('postgres-explorer.showWhatsNew', () => {
-      void whatsNewManager.checkAndShow(true);
-    })
-  );
   // Auto-open once on install/update; manager tracks the last shown version in global state.
   runDeferredStartupTask('showWhatsNew', async () => {
     await whatsNewManager.checkAndShow(false);
@@ -275,8 +275,6 @@ export async function activate(context: vscode.ExtensionContext) {
   // Status bar for connection/database display
   statusBar = new statusBarModule.NotebookStatusBar();
   context.subscriptions.push(statusBar);
-
-  context.subscriptions.push(new telemetryStatusBarModule.TelemetryStatusBar());
 
   // Register Message Handlers
   const registry = MessageHandlerRegistry.getInstance();
@@ -317,8 +315,7 @@ export async function activate(context: vscode.ExtensionContext) {
 export async function deactivate() {
   outputChannel?.appendLine('Deactivating PgStudio extension - closing all connections');
   const telemetry = TelemetryService.getInstance();
-  telemetry.trackSessionEnd();
-  telemetry.trackEvent('extension_deactivated', { sessionDurationBucket: 'captured' });
+  telemetry.trackExtensionDeactivate();
 
   try {
     // Close all database connections (pools and sessions)

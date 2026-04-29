@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { NotebookCellOutput, NotebookCellOutputItem } from 'vscode';
 import { ConnectionManager } from '../../services/ConnectionManager';
-import { TelemetryService, SpanNames } from '../../services/TelemetryService';
+import { TelemetryService } from '../../services/TelemetryService';
 import {
   NoticeLogEntry,
   PostgresMetadata,
@@ -516,13 +516,7 @@ export class SqlExecutor {
 
         let result;
         const telemetry = TelemetryService.getInstance();
-        let spanId = '';
         try {
-          spanId = telemetry.startSpan(SpanNames.QUERY_EXECUTE, {
-            statementIndex: stmtIndex + 1,
-            statementCount: statements.length
-          });
-
           if (usedSlidingWindow && openedSession) {
             result = {
               rows: openedSession.rows,
@@ -614,7 +608,7 @@ export class SqlExecutor {
           const rows = result.rows || [];
           telemetry.trackEvent('query_executed', {
             success: true,
-            durationBucket: durationMs < 500 ? 'lt_500ms' : durationMs < 2000 ? '500ms_2s' : durationMs < 10000 ? '2_10s' : 'gte_10s',
+            durationBucket: telemetry.durationBucket(durationMs),
             resultSizeBucket: rows.length === 0 ? '0' : rows.length < 10 ? '1_9' : rows.length < 100 ? '10_99' : rows.length < 1000 ? '100_999' : 'gte_1000',
           });
           let columns = result.fields?.map((f: any) => f.name) || [];
@@ -688,8 +682,6 @@ export class SqlExecutor {
             sourceCellIndex: cell.index,
           };
 
-          telemetry.endSpan(spanId, { success: 'true', rowCount: result.rowCount ?? rows.length });
-
           // Clear notices for next statement
           notices.length = 0;
 
@@ -729,12 +721,9 @@ export class SqlExecutor {
           const stmtEndTime = Date.now();
           const executionTime = (stmtEndTime - stmtStartTime) / 1000;
           const durationMs = executionTime * 1000;
-          if (spanId) {
-            telemetry.recordError(spanId, err instanceof Error ? err : new Error(String(err)));
-          }
           telemetry.trackEvent('query_executed', {
             success: false,
-            durationBucket: durationMs < 500 ? 'lt_500ms' : durationMs < 2000 ? '500ms_2s' : durationMs < 10000 ? '2_10s' : 'gte_10s',
+            durationBucket: telemetry.durationBucket(durationMs),
             resultSizeBucket: '0',
           });
 

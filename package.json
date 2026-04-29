@@ -1165,6 +1165,11 @@
         "category": "PgStudio"
       },
       {
+        "command": "postgres-explorer.showWhatsNew",
+        "title": "What's New in PgStudio",
+        "category": "PgStudio"
+      },
+      {
         "command": "postgres-explorer.listTriggers",
         "title": "List Triggers",
         "category": "PgStudio"
