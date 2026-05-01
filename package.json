@@ -1842,6 +1842,16 @@
           "default": "hex0x",
           "description": "Display format for binary (bytea) columns in query results: 0x-prefixed hex, PostgreSQL \\x hex, or JSON Buffer shape (debug)."
         },
+        "postgresExplorer.query.executionFailureStrategy": {
+          "type": "string",
+          "enum": [
+            "continue-on-error",
+            "fail-on-error",
+            "prompt-on-error"
+          ],
+          "default": "continue-on-error",
+          "description": "Strategy when a statement fails in multi-statement execution: 'continue-on-error' (execute remaining, show summary), 'fail-on-error' (stop immediately), 'prompt-on-error' (ask user per failure)."
+        },
         "postgresExplorer.parameters.cacheLastValues": {
           "type": "boolean",
           "default": true,

@@ -27,6 +27,24 @@ import { CursorStreamBannerPolicy } from '../../services/CursorStreamBannerPolic
 /** Streaming NOTICE feed during a single-statement cell run (replaced by final result output). */
 const MIME_NOTICES_LIVE = 'application/vnd.postgres-notebook.notices-live';
 
+/** Tracks result of a single statement execution */
+interface StatementResult {
+  stmtIndex: number;
+  query: string;
+  success: boolean;
+  rowCount?: number | null;
+  rows?: any[];
+  columns?: string[];
+  columnTypes?: Record<string, string>;
+  command?: string;
+  error?: string;
+  errorCode?: string;
+  executionTime: number;
+}
+
+/** Failure strategy for multi-statement execution */
+type FailureStrategy = 'continue-on-error' | 'fail-on-error' | 'prompt-on-error';
+
 export class SqlExecutor {
   private static readonly REVIEW_COUNT_KEY = 'postgresExplorer.reviewPrompt.successCount';
   private static readonly REVIEW_SHOWN_KEY = 'postgresExplorer.reviewPrompt.shown';
@@ -37,6 +55,50 @@ export class SqlExecutor {
   private static readonly POSITIONAL_PARAM_DEFAULTS_KEY = 'pgstudio.positionalParamDefaults.v1';
 
   constructor(private readonly _controller: vscode.NotebookController) { }
+
+  /**
+   * Get the configured failure strategy from settings.
+   * Default: 'continue-on-error' (best-effort execution)
+   */
+  private getFailureStrategy(): FailureStrategy {
+    const config = vscode.workspace.getConfiguration('postgresExplorer.query');
+    const strategy = config.get<FailureStrategy>('executionFailureStrategy', 'continue-on-error');
+    return strategy;
+  }
+
+  /**
+   * Generate summary markdown for multi-statement execution results.
+   * Shows which statements succeeded and which failed.
+   */
+  private generateSummaryMarkdown(results: StatementResult[]): string {
+    const succeeded = results.filter(r => r.success);
+    const failed = results.filter(r => !r.success);
+
+    let markdown = '## Execution Summary\n\n';
+
+    if (succeeded.length > 0) {
+      markdown += `✅ **${succeeded.length} statement${succeeded.length === 1 ? '' : 's'} succeeded**\n\n`;
+      for (const result of succeeded) {
+        const rowInfo = result.rowCount !== null && result.rowCount !== undefined ? ` (${result.rowCount} rows)` : '';
+        markdown += `- Statement ${result.stmtIndex + 1}: ${result.command}${rowInfo}\n`;
+      }
+      markdown += '\n';
+    }
+
+    if (failed.length > 0) {
+      markdown += `❌ **${failed.length} statement${failed.length === 1 ? '' : 's'} failed**\n\n`;
+      for (const result of failed) {
+        markdown += `- Statement ${result.stmtIndex + 1}: ${result.error}${result.errorCode ? ` (${result.errorCode})` : ''}\n`;
+      }
+      markdown += '\n';
+    }
+
+    if (succeeded.length > 0 && failed.length > 0) {
+      markdown += '💡 **Tip**: Review the changes above. If in a transaction, you can still COMMIT or ROLLBACK.\n';
+    }
+
+    return markdown;
+  }
 
   private async maybePromptForReview(): Promise<void> {
     if (!extensionContext) {
@@ -513,6 +575,8 @@ export class SqlExecutor {
       }
 
       // Execute each statement
+      const statementsResults: StatementResult[] = [];
+      const failureStrategy = this.getFailureStrategy();
       for (let stmtIndex = 0; stmtIndex < statements.length; stmtIndex++) {
         ResultCursorService.closeSessionsForCellUri(cell.document.uri.toString());
         liveNoticesActive = false;
@@ -808,6 +872,19 @@ export class SqlExecutor {
             connectionName: connection.name
           });
 
+          // Collect successful result
+          statementsResults.push({
+            stmtIndex,
+            query: queryForExecution,
+            success: true,
+            rowCount: result.rowCount,
+            rows: rows,
+            columns: columns,
+            columnTypes: columnTypes,
+            command: result.command,
+            executionTime,
+          });
+
           await this.maybePromptForReview();
 
         } catch (err: any) {
@@ -874,8 +951,51 @@ export class SqlExecutor {
             connectionName: connection.name
           });
 
-          // Stop execution on error
-          break;
+          // Collect error result
+          statementsResults.push({
+            stmtIndex,
+            query,
+            success: false,
+            error: err.message,
+            errorCode: pgErrorCode,
+            executionTime,
+          });
+
+          // Handle failure strategy
+          if (failureStrategy === 'fail-on-error') {
+            // Stop execution on error (current behavior)
+            break;
+          } else if (failureStrategy === 'prompt-on-error') {
+            // Ask user whether to continue
+            const choice = await vscode.window.showErrorMessage(
+              `Statement ${stmtIndex + 1} failed: ${err.message}\n\nContinue executing remaining statements?`,
+              { modal: true },
+              'Continue',
+              'Stop'
+            );
+            if (!choice || choice === 'Stop') {
+              break;
+            }
+            // Otherwise continue to next statement
+          }
+          // If 'continue-on-error', just continue without breaking
+        }
+      }
+
+      // If multi-statement with mixed results, append summary
+      if (statements.length > 1 && statementsResults.length > 0) {
+        const succeeded = statementsResults.filter(r => r.success);
+        const failed = statementsResults.filter(r => !r.success);
+        
+        if (succeeded.length > 0 && failed.length > 0) {
+          const summaryMarkdown = this.generateSummaryMarkdown(statementsResults);
+          const summaryOutput = new NotebookCellOutput([
+            new NotebookCellOutputItem(
+              Buffer.from(summaryMarkdown, 'utf8'),
+              'text/markdown',
+            ),
+          ]);
+          await execution.appendOutput(summaryOutput);
         }
       }
 
