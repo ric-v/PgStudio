@@ -817,6 +817,15 @@ export function renderPostgresNotebookResult(
           stopPendingSaveLoading?.();
           stopPendingSaveLoading = undefined;
         }
+
+        if (message.type === 'explainJsonConverted' && typeof message.explainPlan !== 'undefined') {
+          json.explainPlan = message.explainPlan;
+          if (typeof message.query === 'string' && message.query.trim().length > 0) {
+            json.query = message.query;
+          }
+          switchTab('explain');
+          return;
+        }
       });
 
       /** Last Table / Chart / Analyst view when browsing notices etc. */
@@ -841,6 +850,16 @@ export function renderPostgresNotebookResult(
         command === 'EXPLAIN' ||
         (columns.length === 1 && columns[0] === 'QUERY PLAN');
 
+      if (json.explainPlan && isExplainQuery) {
+        context.postMessage?.({
+          type: 'syncPlanStudioFromRun',
+          plan: json.explainPlan,
+          query,
+          sourceCellIndex,
+          performanceAnalysis: json.performanceAnalysis,
+        });
+      }
+
       if (isExplainQuery) {
         const explainPlanBtn = document.createElement('button');
         explainPlanBtn.type = 'button';
@@ -863,6 +882,7 @@ export function renderPostgresNotebookResult(
             context.postMessage?.({
               type: 'convertExplainToJson',
               query: query,
+              sourceCellIndex,
             });
           }
         };
@@ -915,7 +935,7 @@ export function renderPostgresNotebookResult(
       reviewTabBtn.onclick = () => switchTab('review');
 
       let explainTabBtn: HTMLButtonElement | null = null;
-      if (json.explainPlan) {
+      if (isExplainQuery) {
         explainTabBtn = document.createElement('button');
         explainTabBtn.type = 'button';
         fillToolbarButtonContent(explainTabBtn, 'explain', 'Explain Plan');
@@ -1386,7 +1406,16 @@ export function renderPostgresNotebookResult(
             if (viewGen !== lazyViewGeneration) {
               return;
             }
-            void mountExplainTab(explainWrapper, json.explainPlan);
+            void mountExplainTab(
+              explainWrapper,
+              json.explainPlan,
+              query,
+              {
+                sourceCellIndex,
+                performanceAnalysis: json.performanceAnalysis,
+              },
+              (msg) => context.postMessage?.(msg),
+            );
           });
         } else if (mode === 'analyst') {
           updateActionsVisibility();
@@ -1473,8 +1502,28 @@ export function renderPostgresNotebookResult(
         if (noticeItems.length > 0) {
           addItem(`Notices (${noticeItems.length})`, () => switchTab('notices'));
         }
-        if (json.explainPlan) {
+        if (isExplainQuery) {
           addItem('Explain Plan', () => switchTab('explain'));
+          if (json.explainPlan) {
+            addItem('Open Plan Studio', () =>
+              context.postMessage?.({
+                type: 'openPlanStudio',
+                plan: json.explainPlan,
+                query,
+                sourceCellIndex,
+                performanceAnalysis: json.performanceAnalysis,
+              }),
+            );
+          } else {
+            addItem('Open Plan Studio', () =>
+              context.postMessage?.({
+                type: 'convertExplainToJson',
+                query,
+                sourceCellIndex,
+                openInPlanStudio: true,
+              }),
+            );
+          }
         }
         if (breadcrumb?.connectionName) {
           addItem('Switch connection…', () =>

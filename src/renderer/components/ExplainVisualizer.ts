@@ -19,10 +19,38 @@ interface ExplainMeta {
   nodeCount: number;
 }
 
+/**
+ * Represents performance metrics for a single plan node.
+ * Used to identify and categorize hotspots.
+ */
+export interface HotspotMetrics {
+  node: ExplainNode;
+  costPercent: number;        // percentage of total plan cost (0-100)
+  timePercent: number;        // percentage of total execution time (0-100)
+  severity: 'critical' | 'high' | 'medium' | 'low';  // based on threshold
+  cost: number;
+  time: number;
+  reason: string;             // explanation of why this node is a hotspot
+}
+
+/**
+ * Configuration for hotspot detection.
+ */
+export interface HotspotConfig {
+  costThresholdPercent: number;   // nodes above this % of total cost are hotspots (default 10)
+  timeThresholdPercent: number;   // nodes above this % of total time are hotspots (default 10)
+}
+
 export class ExplainVisualizer {
   private container: HTMLElement;
   private root: ExplainNode | null = null;
   private maxCost: number = 0;
+  private totalExecutionTime: number = 0;
+  private hotspots: HotspotMetrics[] = [];
+  private hotspotConfig: HotspotConfig = {
+    costThresholdPercent: 10,
+    timeThresholdPercent: 10,
+  };
   private meta: ExplainMeta = {
     planningTime: null,
     executionTime: null,
@@ -30,12 +58,19 @@ export class ExplainVisualizer {
     nodeCount: 0,
   };
 
-  constructor(container: HTMLElement, planPayload: unknown) {
+  constructor(container: HTMLElement, planPayload: unknown, hotspotConfig?: Partial<HotspotConfig>) {
     this.container = container;
+    if (hotspotConfig) {
+      this.hotspotConfig = { ...this.hotspotConfig, ...hotspotConfig };
+    }
     const normalized = this.normalizePlanPayload(planPayload);
     this.root = normalized.root;
     this.meta = normalized.meta;
     this.maxCost = this.root ? this.findMaxCost(this.root) : 0;
+    this.totalExecutionTime = this.meta.executionTime ?? 0;
+    if (this.root) {
+      this.hotspots = this.detectHotspots(this.root);
+    }
   }
 
   private asFiniteNumber(value: unknown): number | null {
@@ -218,7 +253,106 @@ export class ExplainVisualizer {
     return /cond|filter|output|key|name/i.test(label);
   }
 
-  public render() {
+  /**
+   * Detects all hotspot nodes in the plan tree.
+   * A node is a hotspot if it exceeds the configured threshold for cost or time percentage.
+   */
+  private detectHotspots(root: ExplainNode): HotspotMetrics[] {
+    const hotspots: HotspotMetrics[] = [];
+    const visited = new Set<ExplainNode>();
+
+    const traverse = (node: ExplainNode) => {
+      if (visited.has(node)) return;
+      visited.add(node);
+
+      const cost = this.asFiniteNumber(node['Total Cost']) ?? 0;
+      const time = this.asFiniteNumber(node['Actual Total Time']) ?? 0;
+
+      const costPercent = this.maxCost > 0 ? (cost / this.maxCost) * 100 : 0;
+      const timePercent = this.totalExecutionTime > 0 ? (time / this.totalExecutionTime) * 100 : 0;
+
+      // Determine severity based on thresholds
+      const isHighCost = costPercent >= this.hotspotConfig.costThresholdPercent;
+      const isHighTime = timePercent >= this.hotspotConfig.timeThresholdPercent;
+
+      if (isHighCost || isHighTime) {
+        let severity: 'critical' | 'high' | 'medium' | 'low' = 'low';
+        if (costPercent >= 40 || timePercent >= 40) {
+          severity = 'critical';
+        } else if (costPercent >= 25 || timePercent >= 25) {
+          severity = 'high';
+        } else if (costPercent >= 15 || timePercent >= 15) {
+          severity = 'medium';
+        } else {
+          severity = 'low';
+        }
+
+        const reason = [];
+        if (isHighCost) reason.push(`${costPercent.toFixed(1)}% of plan cost`);
+        if (isHighTime) reason.push(`${timePercent.toFixed(1)}% of execution time`);
+
+        hotspots.push({
+          node,
+          costPercent,
+          timePercent,
+          severity,
+          cost,
+          time,
+          reason: reason.join('; '),
+        });
+      }
+
+      const children = Array.isArray(node.Plans) ? node.Plans : [];
+      children.forEach(traverse);
+    };
+
+    traverse(root);
+    return hotspots.sort((a, b) => b.costPercent - a.costPercent);
+  }
+
+  /**
+   * Checks if a given node is a hotspot.
+   */
+  private isHotspot(node: ExplainNode): boolean {
+    return this.hotspots.some(h => h.node === node);
+  }
+
+  /**
+   * Gets the hotspot metrics for a given node, or null if not a hotspot.
+   */
+  private getHotspotMetrics(node: ExplainNode): HotspotMetrics | null {
+    return this.hotspots.find(h => h.node === node) ?? null;
+  }
+
+  /**
+   * Returns the CSS class for a given hotspot severity.
+   */
+  private getSeverityClass(severity: 'critical' | 'high' | 'medium' | 'low'): string {
+    switch (severity) {
+      case 'critical': return 'hotspot-critical';
+      case 'high': return 'hotspot-high';
+      case 'medium': return 'hotspot-medium';
+      case 'low': return 'hotspot-low';
+      default: return '';
+    }
+  }
+
+  /**
+   * Public accessor: returns all detected hotspots.
+   * Useful for Phase 4 (recommendations engine) to analyze these nodes.
+   */
+  public getHotspots(): HotspotMetrics[] {
+    return [...this.hotspots];
+  }
+
+  /**
+   * Public accessor: returns the total execution time used in hotspot calculations.
+   */
+  public getTotalExecutionTime(): number {
+    return this.totalExecutionTime;
+  }
+
+  public render(): void {
     this.container.innerHTML = '';
     this.container.appendChild(this.buildStyles());
 
@@ -402,6 +536,63 @@ export class ExplainVisualizer {
       .explain-node.collapsed .toggle-icon {
         transform: rotate(-90deg);
       }
+      .hotspot-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .hotspot-critical {
+        background: rgba(220, 70, 70, 0.25);
+        color: #ff6b6b;
+        border: 1px solid #ff6b6b;
+      }
+      .hotspot-high {
+        background: rgba(255, 159, 64, 0.25);
+        color: #ff9f40;
+        border: 1px solid #ff9f40;
+      }
+      .hotspot-medium {
+        background: rgba(255, 206, 86, 0.25);
+        color: #ffd700;
+        border: 1px solid #ffd700;
+      }
+      .hotspot-low {
+        background: rgba(100, 200, 255, 0.15);
+        color: #64c8ff;
+        border: 1px solid #64c8ff;
+      }
+      .explain-node.is-hotspot {
+        border-color: var(--vscode-focusBorder);
+        background: color-mix(in srgb, var(--vscode-editor-background) 95%, var(--vscode-errorForeground) 5%);
+      }
+      .explain-node.is-hotspot.hotspot-high {
+        background: color-mix(in srgb, var(--vscode-editor-background) 96%, rgb(255, 159, 64) 4%);
+      }
+      .explain-node.is-hotspot.hotspot-medium {
+        background: color-mix(in srgb, var(--vscode-editor-background) 97%, rgb(255, 206, 86) 3%);
+      }
+      .hotspot-tooltip {
+        display: none;
+        position: absolute;
+        background: var(--vscode-tooltip-background);
+        color: var(--vscode-tooltip-foreground);
+        border: 1px solid var(--vscode-tooltip-border);
+        padding: 6px 10px;
+        border-radius: 3px;
+        font-size: 11px;
+        z-index: 1000;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      .hotspot-badge:hover .hotspot-tooltip {
+        display: block;
+      }
       .explain-empty {
         margin: 12px 16px;
         border: 1px solid var(--vscode-widget-border);
@@ -520,6 +711,13 @@ export class ExplainVisualizer {
       el.classList.add('hottest');
     }
 
+    // Add hotspot styling if this node is a hotspot
+    const hotspotMetrics = this.getHotspotMetrics(node);
+    if (hotspotMetrics) {
+      el.classList.add('is-hotspot');
+      el.classList.add(this.getSeverityClass(hotspotMetrics.severity));
+    }
+
     const children = Array.isArray(node.Plans) ? node.Plans : [];
     const hasChildren = children.length > 0;
 
@@ -542,6 +740,15 @@ export class ExplainVisualizer {
     typeName.className = 'explain-node-type';
     typeName.textContent = this.getNodeTypeLabel(node['Node Type']);
     left.appendChild(typeName);
+
+    // Add hotspot badge if applicable
+    if (hotspotMetrics) {
+      const badge = document.createElement('span');
+      badge.className = `hotspot-badge ${this.getSeverityClass(hotspotMetrics.severity)}`;
+      badge.title = hotspotMetrics.reason;
+      badge.textContent = `🔴 ${hotspotMetrics.severity}`;
+      left.appendChild(badge);
+    }
 
     header.appendChild(left);
 

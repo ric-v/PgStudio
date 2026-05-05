@@ -148,6 +148,8 @@ describe('QueryAnalyzer', () => {
           'Plan Rows': 100,
           'Actual Rows': 20,
           'Actual Total Time': 1500,
+          'Lossy Heap Blocks': 3,
+          'Temp Written Blocks': 12,
           Plans: [
             {
               'Node Type': 'Index Scan',
@@ -175,9 +177,59 @@ describe('QueryAnalyzer', () => {
     expect(metrics?.recommendations).to.include('Query planning cost is high; consider simplifying the query or analyzing table statistics');
     expect(metrics?.recommendations).to.include('Low buffer hit ratio; consider increasing work_mem or improving indexes');
     expect(metrics?.recommendations.some(entry => entry.startsWith('Review bottlenecks: '))).to.be.true;
+    expect(metrics?.lossyBitmapScans).to.equal(1);
+    expect(metrics?.spilledToDisk).to.equal(1);
+    expect(metrics?.estimateMismatchesOver10x).to.equal(1);
+    expect(metrics?.recommendations).to.include('Severe row estimate mismatch (>10x) detected. Run ANALYZE and review join/filter selectivity.');
+    expect(metrics?.recommendations).to.include('Lossy bitmap heap scan detected. Consider more selective indexes or reducing bitmap recheck cost.');
+    expect(metrics?.recommendations).to.include('Disk spill detected in execution plan. Review work_mem and sort/hash strategy.');
 
     expect(analyzer.extractPlanMetrics(null)).to.equal(null);
     expect(analyzer.extractPlanMetrics({})).to.equal(null);
+  });
+
+  it('tracks function, cte, and subquery scan metrics', () => {
+    const explainPlan = [{
+      Plan: {
+        'Node Type': 'Nested Loop',
+        'Total Cost': 300,
+        'Plan Rows': 20,
+        'Actual Rows': 100,
+        'Actual Total Time': 80,
+        Plans: [
+          {
+            'Node Type': 'Function Scan',
+            'Function Name': 'public.fn',
+            'Plan Rows': 10,
+            'Actual Rows': 80,
+            'Actual Total Time': 70,
+          },
+          {
+            'Node Type': 'CTE Scan',
+            'CTE Name': 'c1',
+            'Plan Rows': 5,
+            'Actual Rows': 40,
+            'Actual Total Time': 30,
+            Plans: [
+              {
+                'Node Type': 'Subquery Scan',
+                'Plan Rows': 2,
+                'Actual Rows': 20,
+                'Actual Total Time': 12,
+              },
+            ],
+          },
+        ],
+      },
+    }];
+
+    const metrics = analyzer.extractPlanMetrics(explainPlan);
+    expect(metrics?.functionScans).to.equal(1);
+    expect(metrics?.cteScans).to.equal(1);
+    expect(metrics?.subqueryScans).to.equal(1);
+    expect(metrics?.recommendations).to.include('Function Scan detected. Validate function cost and push filters before invoking set-returning functions.');
+    expect(metrics?.recommendations).to.include('CTE Scan detected. Review CTE materialization/reuse and reduce intermediate row width.');
+    expect(metrics?.recommendations).to.include('Subquery or subplan nodes detected. Consider flattening nested subqueries when cardinality is high.');
   });
 
   it('hashes normalized queries consistently and compares performance against baselines', () => {

@@ -140,12 +140,15 @@ describe('TemplateLoader', () => {
         .resolves(new TextEncoder().encode('body{}'));
       readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/panel/scripts.js'))
         .resolves(new TextEncoder().encode('void 0;'));
+      readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/shared/styles.css'))
+        .resolves(new TextEncoder().encode(':root{}'));
 
       const result = await loadCompleteTemplate(extensionUri, 'panel', { title: 'T' });
 
       expect(result).to.contain('<style>');
       expect(result).to.contain('<script>');
       expect(result).to.contain('body{}');
+      expect(result).to.contain(':root{}');
     });
   });
 

@@ -4,15 +4,11 @@
           --chat-radius-sm: 6px;
           --transition-fast: 0.15s ease;
           --transition-normal: 0.25s ease;
-          /* 4px spacing tokens */
-          --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
-          /* Notebook output toolbar language */
+          /* Chat-specific surface tuning (overrides shared --ui-* for this webview) */
           --ui-surface: color-mix(in srgb, var(--vscode-editor-background) 90%, transparent);
           --ui-surface-muted: color-mix(in srgb, var(--vscode-input-background) 90%, var(--vscode-editor-background) 10%);
           --ui-border: color-mix(in srgb, var(--vscode-widget-border) 60%, transparent);
           --ui-border-strong: color-mix(in srgb, var(--vscode-focusBorder) 30%, var(--vscode-widget-border));
-          --ui-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 55%, transparent);
-          --ui-text-muted: var(--vscode-descriptionForeground);
         }
 
         * {
@@ -2134,22 +2130,6 @@
           border-radius: 3px;
         }
 
-        /* ── Destructive button: always text-danger, never primary ── */
-        .btn-danger {
-          background: transparent;
-          color: var(--vscode-errorForeground);
-          border: 1px solid var(--vscode-errorForeground);
-          border-radius: 3px;
-          padding: 4px 12px;
-          font-size: 12px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.15s ease;
-        }
-        .btn-danger:hover:not(:disabled) {
-          background: color-mix(in srgb, var(--vscode-errorForeground) 12%, transparent);
-        }
-
         /* ── History empty state: 1-line prompt + CTA ── */
         .history-empty {
           display: flex;
@@ -2181,14 +2161,3 @@
         /* ── Tooltip affordance: all icon-only buttons must have title ── */
         button[title] { cursor: pointer; }
 
-        /* WCAG: respect system reduced-motion */
-        @media (prefers-reduced-motion: reduce) {
-          *,
-          *::before,
-          *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-            scroll-behavior: auto !important;
-          }
-        }

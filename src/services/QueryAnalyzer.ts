@@ -17,6 +17,12 @@ export interface PlanMetrics {
   };
   bottlenecks: string[];
   recommendations: string[];
+  lossyBitmapScans?: number;
+  spilledToDisk?: number;
+  estimateMismatchesOver10x?: number;
+  functionScans?: number;
+  cteScans?: number;
+  subqueryScans?: number;
 }
 
 /**
@@ -80,6 +86,15 @@ export interface QueryAnalysis {
   requiresConfirmation: boolean;
   warningMessage?: string;
 }
+
+  export interface PerformanceRecommendation {
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    category: 'index' | 'estimate' | 'scan' | 'memory' | 'cost' | 'join' | 'function' | 'cte' | 'subquery';
+    title: string;
+    description: string;
+    suggestion: string;
+    estimatedImprovement: string;
+  }
 
 /**
  * Service for analyzing SQL queries to detect potentially dangerous operations
@@ -469,6 +484,12 @@ export class QueryAnalyzer {
       indexScans: 0,
       bottlenecks: [],
       recommendations: [],
+      lossyBitmapScans: 0,
+      spilledToDisk: 0,
+      estimateMismatchesOver10x: 0,
+      functionScans: 0,
+      cteScans: 0,
+      subqueryScans: 0,
     };
 
     // Count scan types and identify bottlenecks
@@ -511,6 +532,20 @@ export class QueryAnalyzer {
     } else if (nodeType.includes('Index Scan')) {
       metrics.indexScans++;
     }
+    if (nodeType.includes('Function Scan')) {
+      metrics.functionScans = (metrics.functionScans || 0) + 1;
+      const functionName = node['Function Name'] ? ` ${String(node['Function Name'])}` : '';
+      metrics.bottlenecks.push(`Function scan${functionName} observed in plan`);
+    }
+    if (nodeType.includes('CTE Scan')) {
+      metrics.cteScans = (metrics.cteScans || 0) + 1;
+      const cteName = node['CTE Name'] ? ` ${String(node['CTE Name'])}` : '';
+      metrics.bottlenecks.push(`CTE scan${cteName} observed in plan`);
+    }
+    if (nodeType.includes('Subquery Scan') || nodeType.includes('SubPlan') || nodeType.includes('InitPlan')) {
+      metrics.subqueryScans = (metrics.subqueryScans || 0) + 1;
+      metrics.bottlenecks.push(`${nodeType} observed in plan`);
+    }
 
     // Identify planning vs. execution mismatches (bottleneck)
     if (planRows > 0 && actualRows > 0) {
@@ -520,6 +555,20 @@ export class QueryAnalyzer {
           `Row estimation mismatch in ${nodeType}: planned ${planRows}, actual ${actualRows}`
         );
       }
+      const ratio = Math.max(actualRows / Math.max(planRows, 1), planRows / Math.max(actualRows, 1));
+      if (ratio > 10) {
+        metrics.estimateMismatchesOver10x = (metrics.estimateMismatchesOver10x || 0) + 1;
+      }
+    }
+
+    if (nodeType.includes('Bitmap Heap Scan') && typeof node['Lossy Heap Blocks'] === 'number' && node['Lossy Heap Blocks'] > 0) {
+      metrics.lossyBitmapScans = (metrics.lossyBitmapScans || 0) + 1;
+      metrics.bottlenecks.push(`Lossy bitmap heap scan detected (${node['Lossy Heap Blocks']} lossy blocks)`);
+    }
+    const tempWrittenBlocks = Number(node['Temp Written Blocks'] || 0);
+    if (tempWrittenBlocks > 0) {
+      metrics.spilledToDisk = (metrics.spilledToDisk || 0) + 1;
+      metrics.bottlenecks.push(`${nodeType} spilled to disk (${tempWrittenBlocks} temp blocks written)`);
     }
 
     // Flag slow operations
@@ -557,6 +606,24 @@ export class QueryAnalyzer {
     // Bottleneck-based recommendations
     if (metrics.bottlenecks.length > 0) {
       metrics.recommendations.push('Review bottlenecks: ' + metrics.bottlenecks[0]);
+    }
+    if ((metrics.estimateMismatchesOver10x || 0) > 0) {
+      metrics.recommendations.push('Severe row estimate mismatch (>10x) detected. Run ANALYZE and review join/filter selectivity.');
+    }
+    if ((metrics.lossyBitmapScans || 0) > 0) {
+      metrics.recommendations.push('Lossy bitmap heap scan detected. Consider more selective indexes or reducing bitmap recheck cost.');
+    }
+    if ((metrics.spilledToDisk || 0) > 0) {
+      metrics.recommendations.push('Disk spill detected in execution plan. Review work_mem and sort/hash strategy.');
+    }
+    if ((metrics.functionScans || 0) > 0) {
+      metrics.recommendations.push('Function Scan detected. Validate function cost and push filters before invoking set-returning functions.');
+    }
+    if ((metrics.cteScans || 0) > 0) {
+      metrics.recommendations.push('CTE Scan detected. Review CTE materialization/reuse and reduce intermediate row width.');
+    }
+    if ((metrics.subqueryScans || 0) > 0) {
+      metrics.recommendations.push('Subquery or subplan nodes detected. Consider flattening nested subqueries when cardinality is high.');
     }
   }
 

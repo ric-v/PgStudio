@@ -29,8 +29,6 @@
     --button-secondary-bg: var(--vscode-button-secondaryBackground);
     --button-secondary-fg: var(--vscode-button-secondaryForeground);
     --button-secondary-hover: var(--vscode-button-secondaryHoverBackground);
-    /* 4px spacing tokens */
-    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
 }
 
 body {
@@ -307,24 +305,6 @@ button:disabled {
     transform: none !important;
 }
 
-.btn-primary {
-    background: var(--button-bg);
-    color: var(--button-fg);
-}
-
-.btn-primary:hover:not(:disabled) { background: var(--button-hover); }
-
-.btn-secondary {
-    background: transparent;
-    color: var(--button-secondary-fg);
-    border: 1px solid var(--border-color);
-}
-
-.btn-secondary:hover:not(:disabled) {
-    background: var(--hover-bg);
-    border-color: var(--vscode-focusBorder);
-}
-
 /* Destructive: always text-danger, never primary */
 .btn-danger {
     background: transparent;
@@ -341,42 +321,6 @@ button[title] { cursor: pointer; }
 .btn-icon { font-size: 14px; line-height: 1; }
 
 .hidden { display: none !important; }
-
-/* ── Skeleton loading shimmer ── */
-@keyframes skeleton-pulse {
-    0%   { opacity: 0.45; }
-    50%  { opacity: 0.9; }
-    100% { opacity: 0.45; }
-}
-.skeleton {
-    background: var(--border-color);
-    border-radius: 3px;
-    animation: skeleton-pulse 1.6s ease-in-out infinite;
-}
-
-/* ── Empty state ── */
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--sp-2);
-    padding: var(--sp-6) var(--sp-4);
-    color: var(--secondary-text);
-    font-size: 12px;
-    text-align: center;
-}
-.empty-state .empty-cta {
-    margin-top: var(--sp-2);
-    padding: var(--sp-1) var(--sp-3);
-    font-size: 12px;
-    font-weight: 500;
-    background: var(--button-bg);
-    color: var(--button-fg);
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-}
-.empty-state .empty-cta:hover { background: var(--button-hover); }
 
 .model-suggestions {
     margin-top: var(--sp-2);
@@ -412,37 +356,8 @@ button[title] { cursor: pointer; }
     text-decoration: underline;
 }
 
-.btn-link {
-    background: none;
-    border: none;
-    color: var(--vscode-textLink-foreground);
-    text-decoration: none;
-    cursor: pointer;
-    padding: 0;
-    font-size: 12px;
-    font-weight: 400;
-}
-
-.btn-link:hover { text-decoration: underline; }
-
-.btn-link:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
 .model-input-group {
     display: flex;
     gap: var(--sp-2);
     align-items: center;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-    }
 }

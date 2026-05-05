@@ -5,9 +5,10 @@ import type { Pool, PoolConfig } from 'pg';
 const PROGRESS_NOTIFICATION = 1;
 import { IMessageHandler } from '../MessageHandler';
 import { ChatViewProvider } from '../../providers/ChatViewProvider';
-import { ExplainProvider } from '../../providers/ExplainProvider';
 import { SecretStorageService } from '../../services/SecretStorageService';
 import { PostgresMetadata } from '../../common/types';
+import { PlanStoreWorkspace } from '../../features/planStudio/PlanStoreWorkspace';
+import { PlanStudioPanel } from '../../features/planStudio/PlanStudioPanel';
 
 export class ExplainErrorHandler implements IMessageHandler {
   constructor(private chatViewProvider: ChatViewProvider | undefined) { }
@@ -63,23 +64,37 @@ export class SendToChatHandler implements IMessageHandler {
 }
 
 export class ShowExplainPlanHandler implements IMessageHandler {
-  constructor(private extensionUri: vscode.Uri) { }
+  constructor(
+    private extensionUri: vscode.Uri,
+    private planStore: PlanStoreWorkspace
+  ) { }
 
-  async handle(message: any) {
-    ExplainProvider.show(this.extensionUri, message.plan, message.query);
+  async handle(message: any, context?: { editor?: vscode.NotebookEditor }) {
+    const metadata = context?.editor?.notebook?.metadata as PostgresMetadata | undefined;
+    PlanStudioPanel.show(this.extensionUri, this.planStore, {
+      plan: message.plan,
+      query: message.query,
+      connectionId: metadata?.connectionId,
+      databaseName: metadata?.databaseName,
+      source: 'notebook',
+      sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+      performanceAnalysis: message.performanceAnalysis,
+      notebookUri: context?.editor?.notebook?.uri?.toString(),
+    });
   }
 }
 
 export class ConvertExplainHandler implements IMessageHandler {
   constructor(
     private context: vscode.ExtensionContext,
+    private planStore: PlanStoreWorkspace,
     private createPool: (config: PoolConfig) => Pool = (config) => {
       const pg = require('pg') as typeof import('pg');
       return new pg.Pool(config);
     }
   ) { }
 
-  async handle(message: any, context: { editor: vscode.NotebookEditor }) {
+  async handle(message: any, context: { editor: vscode.NotebookEditor; postMessage?: (message: unknown) => Thenable<boolean> }) {
     if (!context.editor) return;
 
     // Convert text EXPLAIN to FORMAT JSON and show visual plan
@@ -218,7 +233,35 @@ export class ConvertExplainHandler implements IMessageHandler {
             const planCell = result.rows[0]['QUERY PLAN'] ?? result.rows[0]['query_plan'];
             if (planCell) {
               const explainPlan = typeof planCell === 'string' ? JSON.parse(planCell) : planCell;
-              ExplainProvider.show(this.context.extensionUri, explainPlan, innerQuery);
+              const saved = this.planStore.savePlan({
+                query: innerQuery,
+                connectionId: metadata.connectionId,
+                databaseName: metadata.databaseName,
+                plan: explainPlan,
+                source: 'converted',
+                notebookUri: context.editor.notebook.uri.toString(),
+                sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+              });
+              this.planStore.linkPlanToNotebook(context.editor.notebook.uri.toString(), saved.id);
+              await context.postMessage?.({
+                type: 'explainJsonConverted',
+                explainPlan,
+                query: innerQuery,
+                sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+                planId: saved.id,
+              });
+
+              if (message?.openInPlanStudio === true) {
+                PlanStudioPanel.show(this.context.extensionUri, this.planStore, {
+                plan: explainPlan,
+                query: innerQuery,
+                connectionId: metadata.connectionId,
+                databaseName: metadata.databaseName,
+                source: 'converted',
+                sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+                notebookUri: context.editor.notebook.uri.toString(),
+                });
+              }
             } else {
               vscode.window.showErrorMessage('No plan data returned from query');
             }
@@ -233,5 +276,47 @@ export class ConvertExplainHandler implements IMessageHandler {
       vscode.window.showErrorMessage(`Failed to convert EXPLAIN query: ${error.message}`);
       console.error('EXPLAIN conversion error:', error);
     }
+  }
+}
+
+export class OpenPlanStudioHandler implements IMessageHandler {
+  constructor(
+    private extensionUri: vscode.Uri,
+    private planStore: PlanStoreWorkspace
+  ) { }
+
+  async handle(message: any, context?: { editor?: vscode.NotebookEditor }) {
+    const metadata = context?.editor?.notebook?.metadata as PostgresMetadata | undefined;
+    PlanStudioPanel.show(this.extensionUri, this.planStore, {
+      plan: message.plan,
+      query: message.query,
+      connectionId: metadata?.connectionId,
+      databaseName: metadata?.databaseName,
+      source: 'notebook',
+      sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+      performanceAnalysis: message.performanceAnalysis,
+      notebookUri: context?.editor?.notebook?.uri?.toString(),
+    });
+  }
+}
+
+export class SyncPlanStudioFromRunHandler implements IMessageHandler {
+  constructor(
+    private extensionUri: vscode.Uri,
+    private planStore: PlanStoreWorkspace
+  ) { }
+
+  async handle(message: any, context?: { editor?: vscode.NotebookEditor }) {
+    const metadata = context?.editor?.notebook?.metadata as PostgresMetadata | undefined;
+    PlanStudioPanel.syncIfOpen(this.extensionUri, this.planStore, {
+      plan: message.plan,
+      query: message.query,
+      connectionId: metadata?.connectionId,
+      databaseName: metadata?.databaseName,
+      source: 'notebook',
+      sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+      performanceAnalysis: message.performanceAnalysis,
+      notebookUri: context?.editor?.notebook?.uri?.toString(),
+    });
   }
 }

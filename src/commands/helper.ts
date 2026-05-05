@@ -67,6 +67,61 @@ export class NotebookBuilder {
     return this;
   }
 
+    /**
+     * Add EXPLAIN report to notebook with plan and recommendations metadata
+     * Persists analysis results for future reference
+     */
+    addExplainReport(options: {
+      query: string;
+      explainPlan: any;
+      recommendations?: any[];
+      timestamp?: number;
+      title?: string;
+    }): NotebookBuilder {
+      const { query, explainPlan, recommendations = [], timestamp = Date.now(), title = 'EXPLAIN ANALYZE Report' } = options;
+    
+      // Add title markdown
+      this.cells.push(new vscode.NotebookCellData(
+        vscode.NotebookCellKind.Markup,
+        `## ${title}\n\n**Generated:** ${new Date(timestamp).toISOString()}\n\n**Status:** ✅ Analysis Complete`,
+        'markdown'
+      ));
+
+      // Add query cell with metadata
+      const queryCell = new vscode.NotebookCellData(
+        vscode.NotebookCellKind.Code,
+        `-- EXPLAIN ANALYZE\n${query}`,
+        'sql'
+      );
+      queryCell.metadata = {
+        explainReport: {
+          plan: explainPlan,
+          recommendations,
+          timestamp,
+          planningTime: explainPlan?.['Planning Time'],
+          executionTime: explainPlan?.['Execution Time'],
+          totalCost: explainPlan?.Plan?.['Total Cost'],
+          type: 'explain-report'
+        }
+      };
+      this.cells.push(queryCell);
+
+      // Add recommendations summary if available
+      if (recommendations.length > 0) {
+        const recSummary = recommendations
+          .map((rec, idx) => `${idx + 1}. **${rec.title}** (${rec.severity})\n   ${rec.description}`)
+          .join('\n\n');
+      
+        this.cells.push(new vscode.NotebookCellData(
+          vscode.NotebookCellKind.Markup,
+          `### Performance Recommendations\n\n${recSummary}`,
+          'markdown'
+        ));
+      }
+
+      return this;
+    }
+
   /** Human-readable tab title: "{connectionName}-{databaseName}" or just "{databaseName}" */
   private _scratchTitle(): string {
     const connName = (this.metadata?.name ?? this.metadata?.connectionName) as string | undefined;

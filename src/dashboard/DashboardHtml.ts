@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DashboardStats } from '../common/types';
 import { MODERN_WEBVIEW_BASE_CSS } from '../common/htmlStyles';
+import { readSharedTemplateCss } from '../lib/template-loader';
 
 export async function getHtmlForWebview(webview: vscode.Webview, extensionUri: vscode.Uri, stats: DashboardStats): Promise<string> {
   const nonce = getNonce();
@@ -8,15 +9,17 @@ export async function getHtmlForWebview(webview: vscode.Webview, extensionUri: v
 
   try {
     const templatesDir = vscode.Uri.joinPath(extensionUri, 'templates', 'dashboard');
-    const [htmlBuffer, cssBuffer, jsBuffer] = await Promise.all([
+    const [htmlBuffer, cssBuffer, jsBuffer, sharedCss] = await Promise.all([
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'index.html')),
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'styles.css')),
-      vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'scripts.js'))
+      vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'scripts.js')),
+      readSharedTemplateCss(extensionUri)
     ]);
 
     let html = new TextDecoder().decode(htmlBuffer);
     const css = new TextDecoder().decode(cssBuffer);
     const js = new TextDecoder().decode(jsBuffer);
+    const inlineStyles = `${MODERN_WEBVIEW_BASE_CSS}\n${sharedCss}\n${css}`;
 
     // Security: Content Security Policy
     const csp = `default-src 'none'; img-src ${cspSource} https:; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' https://cdn.jsdelivr.net;`;
@@ -30,7 +33,7 @@ export async function getHtmlForWebview(webview: vscode.Webview, extensionUri: v
 
     html = html.replace('{{CSP}}', () => csp);
     html = html.replace('{{STATS_JSON}}', () => statsJson);
-    html = html.replace('{{INLINE_STYLES}}', () => css);
+    html = html.replace('{{INLINE_STYLES}}', () => inlineStyles);
     html = html.replace('{{INLINE_SCRIPTS}}', () => js);
     html = html.replace('{{NONCE}}', () => nonce);
 

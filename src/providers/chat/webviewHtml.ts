@@ -3,6 +3,7 @@
  */
 import * as vscode from 'vscode';
 import { MODERN_WEBVIEW_BASE_CSS } from '../../common/htmlStyles';
+import { readSharedTemplateCss } from '../../lib/template-loader';
 
 export async function getWebviewHtml(
   webview: vscode.Webview,
@@ -18,11 +19,12 @@ export async function getWebviewHtml(
     // Load template files
     const templatesDir = vscode.Uri.joinPath(extensionUri, 'templates', 'chat');
 
-    const [htmlBuffer, cssBuffer, jsBuffer, themeBuffer] = await Promise.all([
+    const [htmlBuffer, cssBuffer, jsBuffer, themeBuffer, sharedCss] = await Promise.all([
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'index.html')),
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'styles.css')),
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'scripts.js')),
-      vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'theme-detection.js'))
+      vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'theme-detection.js')),
+      readSharedTemplateCss(extensionUri)
     ]);
 
     let html = new TextDecoder().decode(htmlBuffer);
@@ -38,7 +40,8 @@ export async function getWebviewHtml(
     html = html.replace('{{HIGHLIGHT_CSS_URI}}', highlightCssUri.toString());
     html = html.replace('{{MARKED_URI}}', markedUri.toString());
     html = html.replace('{{HIGHLIGHT_JS_URI}}', highlightJsUri.toString());
-    html = html.replace('{{INLINE_STYLES}}', () => css);
+    const inlineStyles = `${MODERN_WEBVIEW_BASE_CSS}\n${sharedCss}\n${css}`;
+    html = html.replace('{{INLINE_STYLES}}', () => inlineStyles);
     html = html.replace(/\{\{NONCE\}\}/g, nonce);
     html = html.replace('{{THEME_DETECTION_SCRIPT}}', () => themeDetection);
     html = html.replace('{{INLINE_SCRIPTS}}', () => js);

@@ -5,10 +5,6 @@
   --picker-list-max-h: 220px;
   --picker-list-min-h: 120px;
   --ms-panel-max-h: 280px;
-  --ui-surface: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
-  --ui-surface-raised: color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-editor-background) 12%);
-  --ui-border: color-mix(in srgb, var(--vscode-widget-border) 65%, transparent);
-  --ui-border-strong: color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-widget-border));
 }
 
 html, body {
@@ -223,30 +219,8 @@ body {
   margin-top: var(--sp-2);
 }
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 7px 14px;
-  font-size: 12px;
-  font-weight: 500;
   border-radius: var(--backup-r-sm);
-  border: none;
-  cursor: pointer;
   transition: filter 0.12s ease, background 0.12s ease;
-}
-.btn-primary {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-}
-.btn-primary:hover {
-  background: var(--vscode-button-hoverBackground);
-}
-.btn-secondary {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-}
-.btn-secondary:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
 }
 
 /* Output log: outer wrap height is user-resizable (see --backup-log-height) */
@@ -664,13 +638,4 @@ body {
   margin-top: 3px;
   flex-shrink: 0;
   accent-color: var(--vscode-focusBorder);
-}
-
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb {
-  background: var(--vscode-scrollbarSlider-background);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--vscode-scrollbarSlider-hoverBackground);
 }

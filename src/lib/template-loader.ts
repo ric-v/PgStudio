@@ -15,6 +15,8 @@ interface TemplateOptions {
   folder: string;
   /** CSS file to inline (optional) */
   cssFile?: string;
+  /** When true, prepend `templates/shared/styles.css` before folder CSS */
+  prependSharedTemplateCss?: boolean;
   /** JS file to inline (optional) */
   jsFile?: string;
   /** Variables to substitute in template */
@@ -38,7 +40,11 @@ export async function loadTemplate(
   // Load and inject CSS if specified
   if (options.cssFile) {
     const cssUri = vscode.Uri.joinPath(templatesDir, options.cssFile);
-    const css = await readFileContent(cssUri);
+    let css = await readFileContent(cssUri);
+    if (options.prependSharedTemplateCss) {
+      const shared = await readSharedTemplateCss(extensionUri);
+      css = `${shared}\n${css}`;
+    }
     html = html.replace('{{STYLES}}', `<style>\n${css}\n</style>`);
   }
 
@@ -73,8 +79,21 @@ export async function loadCompleteTemplate(
     folder,
     cssFile: 'styles.css',
     jsFile: 'scripts.js',
+    prependSharedTemplateCss: true,
     variables
   });
+}
+
+/** Shared design tokens + primitives for all `templates/*` webviews. */
+export async function readSharedTemplateCss(extensionUri: vscode.Uri): Promise<string> {
+  const uri = vscode.Uri.joinPath(extensionUri, 'templates', 'shared', 'styles.css');
+  try {
+    const buf = await vscode.workspace.fs.readFile(uri);
+    return new TextDecoder().decode(buf);
+  } catch (error) {
+    console.warn(`Shared template CSS not found: ${uri.fsPath}`);
+    return '';
+  }
 }
 
 /**

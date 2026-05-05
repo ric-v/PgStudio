@@ -46,6 +46,8 @@ describe('DashboardHtml', () => {
       .resolves(new TextEncoder().encode('body { color: red; }'));
     readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/dashboard/scripts.js'))
       .resolves(new TextEncoder().encode('console.log("ready");'));
+    readFileStub.withArgs(sinon.match.has('fsPath', '/ext/templates/shared/styles.css'))
+      .resolves(new TextEncoder().encode(':root { --x: 1; }'));
 
     const html = await getHtmlForWebview(webview, extensionUri, {
       dbName: 'demo',
@@ -88,6 +90,7 @@ describe('DashboardHtml', () => {
       longRunningQueries: 0
     });
 
+    expect(html).to.contain(':root { --x: 1; }');
     expect(html).to.contain('body { color: red; }');
     expect(html).to.contain('console.log("ready");');
     expect(html).to.contain('script-src \'nonce-');

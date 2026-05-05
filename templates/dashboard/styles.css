@@ -11,8 +11,6 @@
   --font-family: var(--vscode-font-family);
   --card-radius: 6px;
   --card-border: 1px solid var(--border-color);
-  /* 4px spacing tokens */
-  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
 }
 
 body {
@@ -67,10 +65,6 @@ h1, h2, h3 { margin: 0; font-weight: 500; }
 
 .delta-badge.down {
   color: var(--success-color);
-}
-
-.mono {
-  font-family: 'SF Mono', 'Segoe UI Mono', 'Roboto Mono', monospace;
 }
 
 /* --- Grid System --- */
@@ -383,60 +377,6 @@ tr.row-focus {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 35%, transparent);
 }
 
-/* --- Skeleton loading shimmer --- */
-@keyframes skeleton-pulse {
-  0%   { opacity: 0.45; }
-  50%  { opacity: 0.9; }
-  100% { opacity: 0.45; }
-}
-.skeleton-cell {
-  height: 12px;
-  background: var(--border-color);
-  border-radius: 2px;
-  animation: skeleton-pulse 1.6s ease-in-out infinite;
-  display: inline-block;
-}
-
-/* --- Empty state --- */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-6) var(--sp-4);
-  color: var(--muted-color);
-  font-size: 12px;
-  text-align: center;
-}
-.empty-state .empty-cta {
-  margin-top: var(--sp-2);
-  padding: var(--sp-1) var(--sp-3);
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-}
-.empty-state .empty-cta:hover { background: var(--vscode-button-hoverBackground); }
-
-/* --- Destructive button --- */
-.btn-danger {
-  background: transparent;
-  color: var(--danger-color);
-  border: 1px solid var(--danger-color);
-  border-radius: 3px;
-  padding: var(--sp-1) var(--sp-3);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.btn-danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger-color) 12%, transparent);
-}
-
 /* --- Lock Tree Visualizer --- */
 .lock-node {
   border: 1px solid var(--border-color);
@@ -625,17 +565,6 @@ tr.row-focus {
 
   .header-actions {
     flex-wrap: wrap;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }
 

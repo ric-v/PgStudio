@@ -13,6 +13,9 @@ import { WorkspaceStateService } from './services/WorkspaceStateService';
 import { MessageHandlerRegistry } from './services/MessageHandler';
 import { TelemetryService } from './services/TelemetryService';
 import { WEBVIEW_MESSAGE_TYPES } from './common/messageTypes';
+import { PlanStoreWorkspace } from './features/planStudio/PlanStoreWorkspace';
+import { PlanStudioPanel } from './features/planStudio/PlanStudioPanel';
+import { ConnectionConfig } from './common/types';
 
 export let outputChannel: vscode.OutputChannel;
 export let extensionContext: vscode.ExtensionContext;
@@ -65,7 +68,8 @@ async function ensureRendererMessageHandlers(
   registry: MessageHandlerRegistry,
   chatView: ChatViewProvider,
   statusBarInstance: NotebookStatusBar,
-  context: vscode.ExtensionContext
+  context: vscode.ExtensionContext,
+  planStore: PlanStoreWorkspace
 ): Promise<void> {
   const [
     explainHandlersModule,
@@ -85,8 +89,10 @@ async function ensureRendererMessageHandlers(
   registry.register('analyzeData', new explainHandlersModule.AnalyzeDataHandler(chatView));
   registry.register('optimizeQuery', new explainHandlersModule.OptimizeQueryHandler(chatView));
   registry.register('sendToChat', new explainHandlersModule.SendToChatHandler(chatView));
-  registry.register('showExplainPlan', new explainHandlersModule.ShowExplainPlanHandler(context.extensionUri));
-  registry.register('convertExplainToJson', new explainHandlersModule.ConvertExplainHandler(context));
+  registry.register('showExplainPlan', new explainHandlersModule.ShowExplainPlanHandler(context.extensionUri, planStore));
+  registry.register('convertExplainToJson', new explainHandlersModule.ConvertExplainHandler(context, planStore));
+  registry.register('openPlanStudio', new explainHandlersModule.OpenPlanStudioHandler(context.extensionUri, planStore));
+  registry.register('syncPlanStudioFromRun', new explainHandlersModule.SyncPlanStudioFromRunHandler(context.extensionUri, planStore));
 
   // Core Handlers
   registry.register('showConnectionSwitcher', new coreHandlersModule.ShowConnectionSwitcherHandler(statusBarInstance));
@@ -142,6 +148,204 @@ export async function activate(context: vscode.ExtensionContext) {
 
   WorkspaceStateService.getInstance().initialize(context);
   context.subscriptions.push({ dispose: () => WorkspaceStateService.getInstance().dispose() });
+  const planStore = new PlanStoreWorkspace(context);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('postgres-explorer.rerunPlanQuery', async (args?: { planId?: string; withAnalyze?: boolean }) => {
+      const planId = args?.planId;
+      if (!planId) {
+        vscode.window.showErrorMessage('Missing plan id for re-run.');
+        return;
+      }
+
+      const plan = planStore.getPlanById(planId);
+      if (!plan) {
+        vscode.window.showErrorMessage('Plan not found in workspace history.');
+        return;
+      }
+      if (!plan.query?.trim()) {
+        vscode.window.showErrorMessage('Plan has no query to re-run.');
+        return;
+      }
+
+      let resolvedConnectionId = plan.connectionId;
+      let resolvedDatabaseName = plan.databaseName;
+      if ((!resolvedConnectionId || !resolvedDatabaseName) && plan.notebookUri) {
+        try {
+          const notebookUri = vscode.Uri.parse(plan.notebookUri);
+          const notebook =
+            vscode.workspace.notebookDocuments.find((doc) => doc.uri.toString() === notebookUri.toString()) ??
+            await vscode.workspace.openNotebookDocument(notebookUri);
+          const metadata = notebook.metadata as {
+            connectionId?: string;
+            databaseName?: string;
+            database?: string;
+          };
+          resolvedConnectionId = resolvedConnectionId ?? metadata.connectionId;
+          resolvedDatabaseName = resolvedDatabaseName ?? metadata.databaseName ?? metadata.database;
+        } catch (error) {
+          outputChannel.appendLine(`[plan-studio] failed notebook context recovery for ${planId}: ${String(error)}`);
+        }
+      }
+      if (!resolvedConnectionId || !resolvedDatabaseName) {
+        vscode.window.showErrorMessage('Plan is missing connection/database context.');
+        return;
+      }
+
+      const configuredConnections = vscode.workspace.getConfiguration().get<any[]>('postgresExplorer.connections') || [];
+      const configuredConnection = configuredConnections.find((item) => item.id === resolvedConnectionId);
+      if (!configuredConnection) {
+        vscode.window.showErrorMessage('Connection not found in current settings.');
+        return;
+      }
+
+      const connection: ConnectionConfig = {
+        id: configuredConnection.id,
+        name: configuredConnection.name,
+        host: configuredConnection.host,
+        port: configuredConnection.port,
+        username: configuredConnection.username,
+        database: resolvedDatabaseName,
+        sslmode: configuredConnection.sslmode,
+        connectTimeout: configuredConnection.connectTimeout,
+      };
+
+      const extractInnerQuery = (sql: string): string => {
+        const src = sql.trim();
+        const explainPrefix = src.match(/^EXPLAIN\b/i);
+        if (!explainPrefix) {
+          return src;
+        }
+
+        let i = explainPrefix[0].length;
+        const len = src.length;
+        const skipWs = () => {
+          while (i < len && /\s/.test(src[i])) {
+            i++;
+          }
+        };
+
+        skipWs();
+        if (src[i] === '(') {
+          let depth = 0;
+          while (i < len) {
+            const ch = src[i];
+            if (ch === '(') {
+              depth++;
+            }
+            if (ch === ')') {
+              depth--;
+              if (depth === 0) {
+                i++;
+                break;
+              }
+            }
+            i++;
+          }
+        } else {
+          const optionTokens = new Set([
+            'ANALYZE',
+            'ANALYSE',
+            'VERBOSE',
+            'COSTS',
+            'SETTINGS',
+            'BUFFERS',
+            'WAL',
+            'TIMING',
+            'SUMMARY',
+            'FORMAT',
+            'TRUE',
+            'FALSE',
+            'TEXT',
+            'XML',
+            'JSON',
+            'YAML',
+            'ON',
+            'OFF',
+          ]);
+          while (i < len) {
+            skipWs();
+            const tokenMatch = src.slice(i).match(/^([A-Za-z_]+)/);
+            if (!tokenMatch) {
+              break;
+            }
+            const token = tokenMatch[1].toUpperCase();
+            if (!optionTokens.has(token)) {
+              break;
+            }
+            i += tokenMatch[1].length;
+          }
+        }
+
+        skipWs();
+        return src.slice(i).trim();
+      };
+
+      const innerQuery = extractInnerQuery(plan.query);
+      const withAnalyze = args?.withAnalyze === true;
+      const explainSql = withAnalyze
+        ? `EXPLAIN (FORMAT JSON, ANALYZE, BUFFERS, VERBOSE)\n${innerQuery}`
+        : `EXPLAIN (FORMAT JSON)\n${innerQuery}`;
+
+      let client: any;
+      try {
+        client = await ConnectionManager.getInstance().getPooledClient(connection);
+        const result = await client.query(explainSql);
+        const planCell = result.rows?.[0]?.['QUERY PLAN'] ?? result.rows?.[0]?.query_plan;
+        if (!planCell) {
+          vscode.window.showErrorMessage('Re-run succeeded but returned no plan payload.');
+          return;
+        }
+
+        const explainPlan = typeof planCell === 'string' ? JSON.parse(planCell) : planCell;
+        PlanStudioPanel.show(context.extensionUri, planStore, {
+          plan: explainPlan,
+          query: plan.query,
+          connectionId: resolvedConnectionId,
+          databaseName: resolvedDatabaseName,
+          source: plan.source,
+          sourceCellIndex: plan.sourceCellIndex,
+          performanceAnalysis: plan.performanceAnalysis,
+          notebookUri: plan.notebookUri,
+        });
+      } catch (error: any) {
+        const message = error?.message || String(error);
+        vscode.window.showErrorMessage(`Failed to re-run plan query: ${message}`);
+        outputChannel.appendLine(`[plan-studio] re-run failed for ${planId}: ${message}`);
+      } finally {
+        client?.release?.();
+      }
+    }),
+    vscode.commands.registerCommand('postgres-explorer.openPlanSourceCell', async (args?: { planId?: string }) => {
+      const planId = args?.planId;
+      if (!planId) {
+        vscode.window.showErrorMessage('Missing plan id.');
+        return;
+      }
+
+      const plan = planStore.getPlanById(planId);
+      if (!plan) {
+        vscode.window.showErrorMessage('Plan not found in workspace history.');
+        return;
+      }
+      if (!plan.notebookUri || typeof plan.sourceCellIndex !== 'number') {
+        vscode.window.showInformationMessage('This plan is not linked to a source notebook cell.');
+        return;
+      }
+
+      try {
+        const notebookUri = vscode.Uri.parse(plan.notebookUri);
+        const notebook = await vscode.workspace.openNotebookDocument(notebookUri);
+        const editor = await vscode.window.showNotebookDocument(notebook, { preserveFocus: false });
+        const index = Math.max(0, Math.min(plan.sourceCellIndex, notebook.cellCount - 1));
+        editor.selections = [new vscode.NotebookRange(index, index + 1)];
+        editor.revealRange(new vscode.NotebookRange(index, index + 1), vscode.NotebookEditorRevealType.AtTop);
+      } catch (error: any) {
+        const message = error?.message || String(error);
+        vscode.window.showErrorMessage(`Failed to open source cell: ${message}`);
+      }
+    })
+  );
 
   // Migration: Ensure all connections have an ID (legacy connections might not)
   const config = vscode.workspace.getConfiguration();
@@ -298,7 +502,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   rendererMessaging.onDidReceiveMessage(async (event) => {
     if (!handlersInitialized) {
-      await ensureRendererMessageHandlers(registry, chatView, statusBar!, context);
+      await ensureRendererMessageHandlers(registry, chatView, statusBar!, context, planStore);
       handlersInitialized = true;
     }
 

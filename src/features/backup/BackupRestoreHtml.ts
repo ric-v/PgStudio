@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { MODERN_WEBVIEW_BASE_CSS } from '../../common/htmlStyles';
+import { readSharedTemplateCss } from '../../lib/template-loader';
 
 /**
  * Loads `templates/backup-restore/` (index.html, styles.css, scripts.js), injects shared base CSS,
@@ -19,16 +20,17 @@ export async function getBackupRestoreHtml(
 
   try {
     const dir = vscode.Uri.joinPath(extensionUri, 'templates', 'backup-restore');
-    const [htmlBuf, cssBuf, jsBuf] = await Promise.all([
+    const [htmlBuf, cssBuf, jsBuf, sharedCss] = await Promise.all([
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, 'index.html')),
       vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, 'styles.css')),
-      vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, 'scripts.js'))
+      vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, 'scripts.js')),
+      readSharedTemplateCss(extensionUri)
     ]);
 
     let html = new TextDecoder().decode(htmlBuf);
     const backupCss = new TextDecoder().decode(cssBuf);
     const js = new TextDecoder().decode(jsBuf);
-    const inlineStyles = `${MODERN_WEBVIEW_BASE_CSS}\n${backupCss}`;
+    const inlineStyles = `${MODERN_WEBVIEW_BASE_CSS}\n${sharedCss}\n${backupCss}`;
 
     html = html.replace(/\{\{CSP\}\}/g, csp);
     html = html.replace(/\{\{INLINE_STYLES\}\}/g, inlineStyles);

@@ -1,0 +1,510 @@
+/**
+ * PgStudio shared webview template layer — tokens + primitives aligned with
+ * notebook output chrome (VS Code theme vars, color-mix surfaces) and
+ * backup-restore / chat / dashboard patterns.
+ * Compose after MODERN_WEBVIEW_BASE_CSS when that bundle is injected.
+ */
+
+/* ── Design tokens (theme-native) ── */
+:root {
+  --pg-brand-accent: var(--vscode-textLink-foreground);
+  --pg-brand-accent-muted: color-mix(in srgb, var(--vscode-textLink-foreground) 20%, transparent);
+  --pg-ui-surface: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+  --pg-ui-surface-raised: color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-editor-background) 12%);
+  --pg-ui-surface-muted: color-mix(in srgb, var(--vscode-input-background) 90%, var(--vscode-editor-background) 10%);
+  --pg-ui-border: color-mix(in srgb, var(--vscode-widget-border) 65%, transparent);
+  --pg-ui-border-strong: color-mix(in srgb, var(--vscode-focusBorder) 28%, var(--vscode-widget-border));
+  --pg-ui-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 55%, transparent);
+  --pg-ui-text-muted: var(--vscode-descriptionForeground);
+  --pg-text-muted: var(--pg-ui-text-muted);
+  /* Legacy alias names (backup-restore, chat, …) */
+  --ui-surface: var(--pg-ui-surface);
+  --ui-surface-raised: var(--pg-ui-surface-raised);
+  --ui-surface-muted: var(--pg-ui-surface-muted);
+  --ui-border: var(--pg-ui-border);
+  --ui-border-strong: var(--pg-ui-border-strong);
+  --ui-hover: var(--pg-ui-hover);
+  --ui-text-muted: var(--pg-ui-text-muted);
+  --pg-radius-sm: 6px;
+  --pg-radius-md: 8px;
+  --pg-radius-lg: 10px;
+  --pg-radius-pill: 999px;
+  --pg-transition-fast: 0.15s ease;
+  --pg-transition-normal: 0.25s ease;
+  /* Semantic fills (renderer InlineBanner parity — theme-safe mixes) */
+  --pg-semantic-info-bg: color-mix(in srgb, #3b82f6 10%, transparent);
+  --pg-semantic-info-border: color-mix(in srgb, #3b82f6 30%, transparent);
+  --pg-semantic-warn-bg: color-mix(in srgb, #f59e0b 12%, transparent);
+  --pg-semantic-warn-border: color-mix(in srgb, #f59e0b 35%, transparent);
+  --pg-semantic-error-bg: color-mix(in srgb, #ef4444 10%, transparent);
+  --pg-semantic-error-border: color-mix(in srgb, #ef4444 30%, transparent);
+}
+
+/* ── Scrollbar (webview) ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* ── Typography utilities ── */
+.pg-text-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--pg-text-muted);
+}
+.text-meta,
+.meta,
+.label-hint,
+.label-description {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--pg-text-muted);
+}
+.pg-text-section-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pg-text-muted);
+}
+.section-header-label,
+.section-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pg-text-muted);
+}
+.pg-mono,
+.mono {
+  font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+}
+
+/* ── Buttons ── */
+.pg-btn,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--pg-radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: filter var(--pg-transition-fast), background var(--pg-transition-fast), opacity var(--pg-transition-fast);
+}
+.btn-primary,
+.pg-btn--primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+.btn-primary:hover,
+.pg-btn--primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+.btn-secondary,
+.pg-btn--secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+.btn-secondary:hover,
+.pg-btn--secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+.pg-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--pg-ui-border);
+  color: var(--vscode-descriptionForeground);
+}
+.pg-btn--ghost:hover {
+  background: var(--pg-ui-hover);
+  color: var(--vscode-foreground);
+  border-color: var(--pg-ui-border-strong);
+}
+.pg-btn--link,
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+.pg-btn--link:hover,
+.btn-link:hover {
+  text-decoration: underline;
+}
+.pg-btn--link:disabled,
+.btn-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Form fields ── */
+.pg-field-label,
+.field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: var(--sp-1, 4px);
+}
+.field-hint,
+.pg-field-hint {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: var(--sp-1, 4px);
+  line-height: 1.35;
+}
+.field-control,
+.pg-field-control {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: var(--pg-radius-sm);
+  border: 1px solid var(--vscode-input-border);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  outline: none;
+}
+.field-control:focus,
+.pg-field-control:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+/* ── Tab strip (segmented) ── */
+.pg-tabs-segmented {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: var(--pg-radius-md);
+  background: var(--pg-ui-surface);
+  border: 1px solid var(--pg-ui-border);
+}
+.pg-tab-segmented {
+  flex: 1;
+  text-align: center;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--pg-radius-sm);
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+  transition: background var(--pg-transition-fast), color var(--pg-transition-fast);
+}
+.pg-tab-segmented:hover {
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 70%, transparent);
+}
+.pg-tab-segmented.is-active,
+.pg-tab-segmented.active {
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--vscode-editor-background) 75%, var(--vscode-list-activeSelectionBackground) 25%);
+  box-shadow: 0 0 0 1px var(--pg-ui-border-strong);
+}
+
+/* ── Chips ── */
+.pg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  border-radius: var(--pg-radius-pill);
+  border: 1px solid var(--pg-ui-border-strong);
+  background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground) 18%, var(--vscode-editor-background));
+  color: var(--vscode-foreground);
+}
+
+/* ── Dashboard layout helpers (from inline styles) ── */
+.dash-flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.dash-flex-between-center {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dash-h3 {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+  font-weight: 500;
+  margin-top: 0;
+}
+.dash-h3-spaced {
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+  font-weight: 500;
+  margin-top: 0;
+}
+/** Same as `.dash-h3-spaced` but tighter bottom margin (subsection under a note). */
+.dash-h3-spaced.dash-mb-4 {
+  margin-bottom: 4px;
+}
+.dash-section-mt {
+  margin-top: 20px;
+}
+.dash-header-links {
+  border-left: 1px solid var(--vscode-widget-border);
+  padding-left: 24px;
+}
+.dash-header-links a {
+  color: inherit;
+  text-decoration: none;
+  margin-right: 16px;
+}
+.dash-chart-label-row {
+  display: flex;
+  justify-content: space-between;
+}
+.dash-chart-label-meta {
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+  font-weight: normal;
+}
+.dash-mt-16 {
+  margin-top: 16px;
+}
+.dash-mb-12 {
+  margin-bottom: 12px;
+}
+.dash-mb-0 {
+  margin-bottom: 0;
+}
+.dash-mt-24-mb-4 {
+  margin-top: 24px;
+  margin-bottom: 4px;
+}
+.dash-h3-section {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 24px 0 4px 0;
+}
+.dash-recommended-action {
+  display: none;
+  font-size: 0.75rem;
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: rgba(248, 113, 113, 0.15);
+  border-radius: 4px;
+  color: var(--vscode-errorForeground, #f87171);
+}
+.dash-tps-delta {
+  font-size: 0.6em;
+  margin-left: 8px;
+  font-weight: normal;
+  color: var(--vscode-descriptionForeground);
+}
+.dash-chart-sparkline-wrap {
+  height: 20px;
+  width: 100%;
+}
+.dash-flex-gap-8 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.dash-signals-mb {
+  margin-bottom: 16px;
+}
+.dash-chart-full-width {
+  grid-column: 1 / -1;
+}
+.dash-note-mb {
+  margin-bottom: 12px;
+}
+.dash-schema-note {
+  margin-bottom: 12px;
+}
+.dash-wal-chips {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.dash-pre-wal {
+  margin: 0;
+  padding: 12px;
+  background: rgba(128, 128, 128, 0.08);
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.dash-locks-empty {
+  display: none;
+  text-align: center;
+  padding: 40px;
+  color: var(--vscode-descriptionForeground);
+}
+.dash-settings-tab {
+  margin-left: auto;
+  display: none;
+}
+.dash-perf-chart-note {
+  margin: 0;
+}
+.dash-ai-welcome-foot {
+  font-size: 0.8rem;
+  color: var(--vscode-descriptionForeground);
+}
+.dash-detail-title {
+  font-weight: 500;
+  font-size: 1.5em;
+  margin-bottom: 32px;
+}
+.dash-value-inline-flex {
+  display: flex;
+  align-items: center;
+}
+.dash-idle-tx-badge {
+  display: none;
+  margin-top: 6px;
+}
+.dash-chart-note-mb10 {
+  margin-bottom: 10px;
+}
+.dash-th-80-right {
+  width: 80px;
+  text-align: right;
+}
+.dash-th-100 {
+  width: 100px;
+}
+.dash-th-100-right {
+  width: 100px;
+  text-align: right;
+}
+.dash-th-120 {
+  width: 120px;
+}
+.dash-th-120-right {
+  width: 120px;
+  text-align: right;
+}
+.dash-th-80 {
+  width: 80px;
+}
+.dash-th-140 {
+  width: 140px;
+}
+.dash-th-180 {
+  width: 180px;
+}
+.dash-th-130 {
+  width: 130px;
+}
+.dash-th-90-right {
+  width: 90px;
+  text-align: right;
+}
+.dash-th-70 {
+  width: 70px;
+}
+.dash-th-70-right {
+  width: 70px;
+  text-align: right;
+}
+.dash-th-100-center {
+  width: 100px;
+  text-align: center;
+}
+.dash-activity-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  align-items: flex-end;
+}
+.dash-activity-h3 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+.dash-hidden {
+  display: none;
+}
+.dash-locks-padding {
+  padding: 20px;
+}
+.dash-perf-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dash-chart-note-link {
+  margin: 0;
+}
+
+/* ── Cross-template utilities ── */
+@keyframes skeleton-pulse {
+  0%   { opacity: 0.45; }
+  50%  { opacity: 0.9; }
+  100% { opacity: 0.45; }
+}
+.pg-skeleton,
+.skeleton {
+  background: var(--vscode-widget-border);
+  border-radius: 3px;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+.pg-empty-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-4);
+  color: var(--pg-text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+.pg-empty-state__cta,
+.empty-state .empty-cta {
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.pg-empty-state__cta:hover,
+.empty-state .empty-cta:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+/* ── Reduced motion ── */
+/* Dashboard / dynamic tables: compact skeleton cell (keyframes from MODERN_WEBVIEW_BASE_CSS) */
+.skeleton-cell {
+  height: 12px;
+  background: var(--vscode-widget-border);
+  border-radius: 2px;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

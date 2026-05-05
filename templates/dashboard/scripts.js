@@ -744,10 +744,11 @@ function updateHealth(stats) {
   if (idleBadge) {
     if (idleInTx > 0) {
       idleBadge.style.display = 'inline-block';
-      idleBadge.className = 'badge-pill badge-warn';
+      idleBadge.className = 'badge-pill badge-warn dash-idle-tx-badge';
       idleBadge.textContent = `Idle in transaction: ${idleInTx}`;
     } else {
       idleBadge.style.display = 'none';
+      idleBadge.className = 'badge-pill badge-muted dash-idle-tx-badge';
     }
   }
 

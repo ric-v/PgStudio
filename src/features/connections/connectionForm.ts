@@ -9,6 +9,8 @@ import {
 } from "../../utils/pgPassUtils";
 import type { CloudAuthContext } from "../../core/connection/cloudAuth/types";
 import { parseCloudAuth } from "../../core/connection/cloudAuth";
+import { MODERN_WEBVIEW_BASE_CSS } from "../../common/htmlStyles";
+import { readSharedTemplateCss } from "../../lib/template-loader";
 
 export interface ConnectionInfo {
   id: string;
@@ -653,7 +655,7 @@ export class ConnectionFormPanel {
         "connection-form",
       );
 
-      const [htmlBuffer, cssBuffer, jsBuffer] = await Promise.all([
+      const [htmlBuffer, cssBuffer, jsBuffer, sharedCss] = await Promise.all([
         vscode.workspace.fs.readFile(
           vscode.Uri.joinPath(templatesDir, "index.html"),
         ),
@@ -663,10 +665,12 @@ export class ConnectionFormPanel {
         vscode.workspace.fs.readFile(
           vscode.Uri.joinPath(templatesDir, "scripts.js"),
         ),
+        readSharedTemplateCss(this._extensionUri),
       ]);
 
       let html = new TextDecoder().decode(htmlBuffer);
       const css = new TextDecoder().decode(cssBuffer);
+      const inlineStyles = `${MODERN_WEBVIEW_BASE_CSS}\n${sharedCss}\n${css}`;
       let js = new TextDecoder().decode(jsBuffer);
 
       // Build CSP string
@@ -684,7 +688,7 @@ export class ConnectionFormPanel {
 
       // Replace HTML placeholders
       html = html.replace("{{CSP}}", csp);
-      html = html.replace("{{INLINE_STYLES}}", () => css);
+      html = html.replace("{{INLINE_STYLES}}", () => inlineStyles);
       html = html.replace("{{INLINE_SCRIPTS}}", () => js);
       html = html.replace(/\{\{NONCE\}\}/g, nonce);
       html = html.replace("{{LOGO_URI}}", logoPath.toString());

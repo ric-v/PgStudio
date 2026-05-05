@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as https from 'https';
 import * as http from 'http';
 import { getChatViewProvider } from '../../../extension';
+import { MODERN_WEBVIEW_BASE_CSS } from '../../../common/htmlStyles';
+import { readSharedTemplateCss } from '../../../lib/template-loader';
 
 export interface AiSettings {
   provider: string;
@@ -814,14 +816,16 @@ export class AiSettingsPanel {
       // Load template files
       const templatesDir = vscode.Uri.joinPath(this._extensionUri, 'templates', 'ai-settings');
 
-      const [htmlBuffer, cssBuffer, jsBuffer] = await Promise.all([
+      const [htmlBuffer, cssBuffer, jsBuffer, sharedCss] = await Promise.all([
         vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'index.html')),
         vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'styles.css')),
-        vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'scripts.js'))
+        vscode.workspace.fs.readFile(vscode.Uri.joinPath(templatesDir, 'scripts.js')),
+        readSharedTemplateCss(this._extensionUri)
       ]);
 
       let html = new TextDecoder().decode(htmlBuffer);
       const css = new TextDecoder().decode(cssBuffer);
+      const inlineStyles = `${MODERN_WEBVIEW_BASE_CSS}\n${sharedCss}\n${css}`;
       const js = new TextDecoder().decode(jsBuffer);
 
       // Build CSP string
@@ -829,7 +833,7 @@ export class AiSettingsPanel {
 
       // Replace placeholders
       html = html.replace('{{CSP}}', csp);
-      html = html.replace('{{INLINE_STYLES}}', () => css);
+      html = html.replace('{{INLINE_STYLES}}', () => inlineStyles);
       html = html.replace('{{INLINE_SCRIPTS}}', () => js);
       html = html.replace(/\{\{NONCE\}\}/g, nonce);
       html = html.replace('{{LOGO_URI}}', logoUri.toString());
