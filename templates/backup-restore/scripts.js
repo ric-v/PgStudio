@@ -322,24 +322,57 @@
         setSnPickerOpen(false);
         setTablePickerOpen(false);
         document.getElementById('d_db').value = state.databaseName || '';
-        document.getElementById('r_target').innerHTML = (state.databases || [])
-          .map(d => '<option value="' + d.replace(/"/g,'&quot;') + '">' + d + '</option>')
-          .join('');
+        const rTargetEl = document.getElementById('r_target');
+        if (rTargetEl) {
+          rTargetEl.innerHTML = '';
+          (state.databases || []).forEach(function(d) {
+            var opt = document.createElement('option');
+            opt.value = d;
+            opt.textContent = d;
+            rTargetEl.appendChild(opt);
+          });
+        }
         var sub = document.getElementById('backupSubtitle');
         if (sub) sub.textContent = state.databaseLabel ? ('Target · ' + state.databaseLabel) : '';
         const b = document.getElementById('banner');
-        let h = '';
-        if (state.versionMismatchDump || state.versionMismatchRestore) {
-          h += '<div class="pg-banner warn pg-banner--split" role="alert"><span class="pg-banner-msg">Client/server major version mismatch: pg_dump major ' + state.pgDumpMajor +
-            ', pg_restore major ' + state.pgRestoreMajor + ', server major ' + state.serverMajor +
-            '. Install PostgreSQL client tools matching the server major version.</span>' +
-            '<button type="button" class="btn btn-secondary" data-backup-assist="version_banner">Ask SQL Assistant…</button></div>';
+        if (b) {
+          // Build banner nodes safely using DOM APIs to avoid XSS risks
+          b.innerHTML = '';
+          if (state.versionMismatchDump || state.versionMismatchRestore) {
+            var warnDiv = document.createElement('div');
+            warnDiv.className = 'pg-banner warn pg-banner--split';
+            warnDiv.setAttribute('role', 'alert');
+            var spanMsg = document.createElement('span');
+            spanMsg.className = 'pg-banner-msg';
+            spanMsg.textContent = 'Client/server major version mismatch: pg_dump major ' + state.pgDumpMajor +
+              ', pg_restore major ' + state.pgRestoreMajor + ', server major ' + state.serverMajor +
+              '. Install PostgreSQL client tools matching the server major version.';
+            var verBtn = document.createElement('button');
+            verBtn.type = 'button';
+            verBtn.className = 'btn btn-secondary';
+            verBtn.setAttribute('data-backup-assist', 'version_banner');
+            verBtn.textContent = 'Ask SQL Assistant…';
+            warnDiv.appendChild(spanMsg);
+            warnDiv.appendChild(verBtn);
+            b.appendChild(warnDiv);
+          }
+          if (state.sshEnabled) {
+            var infoDiv = document.createElement('div');
+            infoDiv.className = 'pg-banner info pg-banner--split';
+            infoDiv.setAttribute('role', 'status');
+            var spanMsg2 = document.createElement('span');
+            spanMsg2.className = 'pg-banner-msg';
+            spanMsg2.textContent = 'SSH: CLI tools use the same tunnel as the SQL driver (local port forward).';
+            var sshBtn = document.createElement('button');
+            sshBtn.type = 'button';
+            sshBtn.className = 'btn btn-secondary';
+            sshBtn.setAttribute('data-backup-assist', 'ssh_banner');
+            sshBtn.textContent = 'Ask SQL Assistant…';
+            infoDiv.appendChild(spanMsg2);
+            infoDiv.appendChild(sshBtn);
+            b.appendChild(infoDiv);
+          }
         }
-        if (state.sshEnabled) {
-          h += '<div class="pg-banner info pg-banner--split" role="status"><span class="pg-banner-msg">SSH: CLI tools use the same tunnel as the SQL driver (local port forward).</span>' +
-            '<button type="button" class="btn btn-secondary" data-backup-assist="ssh_banner">Ask SQL Assistant…</button></div>';
-        }
-        b.innerHTML = h;
         renderSchemaFilterPanel();
         renderSchemaNsPickerList();
         renderTablePickerList();
