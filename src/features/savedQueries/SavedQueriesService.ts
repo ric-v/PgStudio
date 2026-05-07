@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { TelemetryService } from '../../services/TelemetryService';
 
 /**
  * Saved query with metadata for quick access and reuse
@@ -169,10 +170,30 @@ export class SavedQueriesService {
   async recordUsage(queryId: string): Promise<void> {
     const query = this.queries.get(queryId);
     if (query) {
-      query.lastUsed = Date.now();
+      const now = Date.now();
+      query.lastUsed = now;
       query.usageCount = (query.usageCount || 0) + 1;
       await this.saveQueries();
+
+      // Track saved query usage
+      const ageBucket = this.bucketQueryAge(now - query.createdAt);
+      const querySize = query.query.length;
+      TelemetryService.getInstance().trackSavedQueryUsed(ageBucket, querySize);
     }
+  }
+
+  /**
+   * Bucket query age in milliseconds
+   */
+  private bucketQueryAge(ageMs: number): string {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const weekMs = 7 * dayMs;
+    const monthMs = 30 * dayMs;
+
+    if (ageMs < dayMs) return 'new';
+    if (ageMs < weekMs) return 'lt_1w';
+    if (ageMs < monthMs) return 'lt_1m';
+    return 'gte_1m';
   }
 
   /**

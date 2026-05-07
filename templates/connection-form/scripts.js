@@ -134,6 +134,16 @@ function updateSSLCertFields() {
 
 document.getElementById('sslmode').addEventListener('change', updateSSLCertFields);
 
+document.getElementById('cloudAuthKind').addEventListener('change', (event) => {
+  vscode.postMessage({
+    command: 'trackTelemetry',
+    event: 'cloud_auth_selected',
+    properties: {
+      authKind: event.target.value || 'none'
+    }
+  });
+});
+
 // ── Message helpers ───────────────────────────────────────────────────────────
 function showMessage(text, type = 'info') {
   const icons = { success: '✓', error: '✗', info: 'ℹ' };

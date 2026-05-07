@@ -7,6 +7,7 @@ import { ConnectionConfig } from '../common/types';
 import { createMetadata, createAndShowNotebook } from '../commands/connection';
 import { AiService } from '../providers/chat/AiService';
 import { ChatMessage } from '../providers/chat/types';
+import { TelemetryService } from '../services/TelemetryService';
 
 export class DashboardPanel {
   private static panels: Map<string, DashboardPanel> = new Map();
@@ -96,6 +97,9 @@ export class DashboardPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
+
+    // Track dashboard opened
+    TelemetryService.getInstance().trackDashboardOpened();
 
     // Create unique key for this dashboard (connection + database)
     // Use timestamp to allow multiple dashboards for the same database

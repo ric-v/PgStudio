@@ -363,181 +363,29 @@ export class SaveQueryPanel {
     <title>Save Query</title>
     <link rel="stylesheet" href="${styleUri}">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            padding: 20px;
-            line-height: 1.6;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            font-size: 24px;
-            margin-bottom: 8px;
-            color: var(--vscode-foreground);
-        }
-
-        .subtitle {
-            color: var(--vscode-descriptionForeground);
-            margin-bottom: 24px;
-            font-size: 13px;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 6px;
-            color: var(--vscode-foreground);
-            font-size: 13px;
-        }
-
-        label .required {
-            color: var(--vscode-errorForeground);
-        }
-
-        input[type="text"],
-        textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid var(--vscode-input-border);
-            background: var(--vscode-input-background);
-            color: var(--vscode-input-foreground);
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-            font-size: 13px;
-            border-radius: 4px;
-            resize: vertical;
-        }
-
-        input[type="text"]:focus,
-        textarea:focus {
-            outline: none;
-            border-color: var(--vscode-focusBorder);
-            background: var(--vscode-input-background);
-        }
-
-        textarea {
-            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-            min-height: 200px;
-            max-height: 400px;
-            white-space: pre;
-        }
-
-        .form-group small {
-            display: block;
-            margin-top: 4px;
-            color: var(--vscode-descriptionForeground);
-            font-size: 12px;
-        }
-
-        .btn-ai-all {
-            background: linear-gradient(135deg, var(--vscode-button-background) 0%, var(--vscode-focusBorder) 100%);
-            padding: 12px 24px;
-            font-size: 14px;
-            margin-bottom: 20px;
-            width: 100%;
-            justify-content: center;
-        }
-
-        .btn-ai-all:hover {
-            opacity: 0.9;
-        }
-
-        .ai-loading {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid var(--vscode-button-foreground);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .buttons {
-            display: flex;
-            gap: 12px;
-            margin-top: 30px;
-            justify-content: flex-end;
-        }
-
-        button {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn-save {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-        }
-
-        .btn-save:hover {
-            background: var(--vscode-button-hoverBackground);
-        }
-
-        .btn-cancel {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-
-        .btn-cancel:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
-        }
-
-        .query-preview {
-            background: var(--vscode-editor-background);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 4px;
-            padding: 16px;
-            margin-top: 6px;
-            font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-            color: var(--vscode-editor-foreground);
-            max-height: 200px;
-            overflow-y: auto;
-            white-space: pre;
-            overflow-x: auto;
-        }
-
-        /* SQL Syntax Highlighting */
-        .query-preview .sql-keyword { color: var(--vscode-symbolIcon-keywordForeground, #569cd6); font-weight: 600; }
-        .query-preview .sql-string { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
-        .query-preview .sql-number { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
-        .query-preview .sql-comment { color: var(--vscode-symbolIcon-colorForeground, #6a9955); font-style: italic; }
-        .query-preview .sql-function { color: var(--vscode-symbolIcon-functionForeground, #dcdcaa); }
-
-        .info-box {
-            background: var(--vscode-infoBackground);
-            border-left: 3px solid var(--vscode-infoForeground);
-            padding: 12px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            color: var(--vscode-infoForeground);
-            font-size: 13px;
-        }
+      :root { --pg-container-max: 760px; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: var(--vscode-editor-background); color: var(--vscode-foreground); padding: 20px; }
+      .container { max-width: var(--pg-container-max); margin: 0 auto; background: var(--pg-ui-surface-raised, color-mix(in srgb, var(--vscode-input-background) 88%, var(--vscode-editor-background) 12%)); border: 1px solid var(--pg-ui-border, color-mix(in srgb, var(--vscode-widget-border) 65%, transparent)); border-radius: 10px; padding: 20px; box-shadow: 0 6px 18px rgba(0,0,0,0.04); }
+      h1 { font-size: 20px; margin-bottom: 6px; }
+      .subtitle { color: var(--pg-text-muted, var(--vscode-descriptionForeground)); margin-bottom: 16px; font-size: 13px; }
+      .section { margin-bottom: 16px; }
+      .pg-field-label { display:block; margin-bottom:6px; font-size:12px; font-weight:600; color:var(--vscode-foreground); }
+      .pg-field-hint { font-size:12px; color:var(--pg-text-muted); margin-top:6px; }
+      .pg-field-control { width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); font-size:13px; }
+      .pg-field-control:focus { outline:none; border-color:var(--vscode-focusBorder); }
+      .btn-row { display:flex; gap:12px; margin-top:18px; justify-content:flex-end; }
+      .pg-btn { display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; }
+      .pg-btn--primary { background:var(--vscode-button-background); color:var(--vscode-button-foreground); }
+      .pg-btn--primary:hover { background:var(--vscode-button-hoverBackground); }
+      .pg-btn--secondary { background:var(--vscode-button-secondaryBackground); color:var(--vscode-button-secondaryForeground); }
+      .pg-btn--ghost { background:transparent; border:1px solid var(--pg-ui-border); color:var(--vscode-descriptionForeground); }
+      .ai-row { margin-bottom:12px; display:flex; }
+      .btn-ai-all { width:100%; justify-content:center; }
+      .ai-loading { display:inline-block; width:14px; height:14px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite; }
+      @keyframes spin { to { transform:rotate(360deg); } }
+      .query-preview { font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); font-size:13px; border-radius:8px; padding:12px; background:var(--pg-ui-surface); border:1px solid var(--vscode-input-border); max-height:260px; overflow:auto; white-space:pre; }
+      .info-box { padding:10px 12px; border-radius:8px; background:var(--pg-semantic-info-bg); border:1px solid var(--pg-semantic-info-border); color:var(--vscode-foreground); margin-bottom:12px; }
+      @media (max-width:720px) { .container { padding:12px; } }
     </style>
 </head>
 <body>
@@ -549,42 +397,47 @@ export class SaveQueryPanel {
             📌 Make your queries discoverable by adding meaningful titles, descriptions, and tags
         </div>
 
-        <button type="button" class="btn-ai btn-ai-all" onclick="generateAll()" id="btnAiAll">
+        <div class="ai-row">
+          <button type="button" class="pg-btn pg-btn--primary btn-ai-all" onclick="generateAll()" id="btnAiAll">
             ✨ Auto-Generate All Fields with AI
-        </button>
+          </button>
+        </div>
 
         <form id="saveForm">
-            <div class="form-group">
-                <label>
-                    Query Title <span class="required">*</span>
-                </label>
-                <input 
-                    type="text" 
-                    id="title" 
-                    placeholder="e.g., Active Users by Department"
-                    required
-                />
-                <small>A memorable name for this query</small>
+            <div class="form-group section">
+              <label class="pg-field-label">
+                Query Title <span class="required">*</span>
+              </label>
+              <input 
+                class="pg-field-control"
+                type="text" 
+                id="title" 
+                placeholder="e.g., Active Users by Department"
+                required
+              />
+              <div class="pg-field-hint">A memorable name for this query</div>
             </div>
 
-            <div class="form-group">
-                <label>Description</label>
-                <input 
-                    type="text" 
-                    id="description" 
-                    placeholder="What does this query do? e.g., Returns all active users grouped by department with their activity counts"
-                />
-                <small>Optional: Help your team understand the purpose of this query</small>
+            <div class="form-group section">
+              <label class="pg-field-label">Description</label>
+              <input 
+                class="pg-field-control"
+                type="text" 
+                id="description" 
+                placeholder="What does this query do? e.g., Returns all active users grouped by department with their activity counts"
+              />
+              <div class="pg-field-hint">Optional: Help your team understand the purpose of this query</div>
             </div>
 
-            <div class="form-group">
-                <label>Tags</label>
-                <input 
-                    type="text" 
-                    id="tags" 
-                    placeholder="e.g., users, active, department, reports"
-                />
-                <small>Comma-separated tags for easy filtering and discovery</small>
+            <div class="form-group section">
+              <label class="pg-field-label">Tags</label>
+              <input 
+                class="pg-field-control"
+                type="text" 
+                id="tags" 
+                placeholder="e.g., users, active, department, reports"
+              />
+              <div class="pg-field-hint">Comma-separated tags for easy filtering and discovery</div>
             </div>
 
             <div class="form-group">
@@ -592,9 +445,9 @@ export class SaveQueryPanel {
                 <div class="query-preview">${highlightedQuery}</div>
             </div>
 
-            <div class="buttons">
-                <button type="button" class="btn-cancel" onclick="cancel()">Cancel</button>
-                <button type="submit" class="btn-save">💾 Save Query</button>
+            <div class="btn-row">
+              <button type="button" class="pg-btn pg-btn--secondary" onclick="cancel()">Cancel</button>
+              <button type="submit" class="pg-btn pg-btn--primary">💾 Save Query</button>
             </div>
         </form>
     </div>

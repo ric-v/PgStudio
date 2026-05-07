@@ -139,7 +139,9 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine('Activating PgStudio extension');
   const telemetry = TelemetryService.getInstance();
   telemetry.initialize(context);
-  telemetry.trackEvent('extension_activated', { version: context.extension.packageJSON.version });
+  const version = context.extension.packageJSON.version;
+  telemetry.trackEvent('extension_activated', { version });
+  telemetry.trackDailyActiveUser(version);
 
   SecretStorageService.getInstance(context);
   ConnectionManager.getInstance();

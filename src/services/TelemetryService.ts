@@ -18,13 +18,21 @@ const EVENT_SCHEMA: Record<string, { kind: TelemetryEventKind; allowedProps: Set
   extension_activated: { kind: 'usage', allowedProps: new Set(['version']) },
   extension_deactivated: { kind: 'usage', allowedProps: new Set(['durationBucket']) },
   command_invoked: { kind: 'usage', allowedProps: new Set(['group']) },
+  command_repeat_rate: { kind: 'usage', allowedProps: new Set(['command', 'repeatCountBucket']) },
   feature_used: { kind: 'usage', allowedProps: new Set(['feature']) },
   connection_opened: { kind: 'usage', allowedProps: new Set(['connectionKind']) },
   connection_closed: { kind: 'usage', allowedProps: new Set(['reason']) },
   connection_error: { kind: 'usage', allowedProps: new Set(['errorCategory']) },
+  error_captured: { kind: 'usage', allowedProps: new Set(['errorType', 'errorMessage', 'errorContext']) },
+  cloud_auth_selected: { kind: 'usage', allowedProps: new Set(['authKind']) },
   query_executed: { kind: 'performance', allowedProps: new Set(['success', 'durationBucket', 'resultSizeBucket']) },
-  ai_request: { kind: 'usage', allowedProps: new Set(['provider', 'success']) },
+  ai_request: { kind: 'usage', allowedProps: new Set(['provider', 'success', 'providerUsageCount']) },
+  ai_settings_error: { kind: 'usage', allowedProps: new Set(['errorType', 'errorMessage']) },
   notebook_executed: { kind: 'usage', allowedProps: new Set(['cellCountBucket']) },
+  saved_query_used: { kind: 'usage', allowedProps: new Set(['queryAgeBucket', 'querySize']) },
+  schema_diff_generated: { kind: 'usage', allowedProps: new Set(['tableCountBucket', 'diffSizeBucket']) },
+  dashboard_opened: { kind: 'usage', allowedProps: new Set([]) },
+  daily_active_user: { kind: 'usage', allowedProps: new Set(['version']) },
   span_completed: { kind: 'performance', allowedProps: new Set(['spanName', 'durationBucket', 'success']) },
 };
 
@@ -132,6 +140,10 @@ export class TelemetryService {
   private sinks: TelemetrySink[] = [];
   private installId = '';
   private sessionStartMs = Date.now();
+  private lastCommand = '';
+  private commandRepeatCount = 0;
+  private lastDailyActiveDate = '';
+  private aiProviderUsageMap: Map<string, number> = new Map();
   private config: TelemetryConfig = {
     mode: 'off',
     allowUsage: true,
@@ -307,6 +319,120 @@ export class TelemetryService {
       activeSpans: this.spans.size,
       spanNames: Array.from(this.spans.values()).map((s) => s.name),
     };
+  }
+
+  /**
+   * Track command repeat - captures if same command invoked consecutively
+   */
+  public trackCommandRepeat(commandName: string): void {
+    if (commandName === this.lastCommand) {
+      this.commandRepeatCount++;
+    } else {
+      if (this.lastCommand && this.commandRepeatCount > 0) {
+        const bucket = this.bucketCommandRepeatCount(this.commandRepeatCount);
+        this.trackEvent('command_repeat_rate', {
+          command: this.lastCommand,
+          repeatCountBucket: bucket,
+        });
+      }
+      this.lastCommand = commandName;
+      this.commandRepeatCount = 0;
+    }
+  }
+
+  /**
+   * Track generic errors with type, message, and context
+   */
+  public trackError(errorType: string, errorMessage: string, errorContext?: string): void {
+    this.trackEvent('error_captured', {
+      errorType,
+      errorMessage: this.truncateString(errorMessage, 100),
+      ...(errorContext && { errorContext: this.truncateString(errorContext, 100) }),
+    });
+  }
+
+  /**
+   * Track saved query usage with age and size info
+   */
+  public trackSavedQueryUsed(queryAgeBucket: string, querySize?: number): void {
+    this.trackEvent('saved_query_used', {
+      queryAgeBucket,
+      ...(querySize !== undefined && { querySize: this.bucketQuerySize(querySize) }),
+    });
+  }
+
+  /**
+   * Track schema diff generation with table count and diff size
+   */
+  public trackSchemaDiffGenerated(tableCountBucket: string, diffSizeBucket?: string): void {
+    this.trackEvent('schema_diff_generated', {
+      tableCountBucket,
+      ...(diffSizeBucket && { diffSizeBucket }),
+    });
+  }
+
+  /**
+   * Track dashboard open event
+   */
+  public trackDashboardOpened(): void {
+    this.trackEvent('dashboard_opened', {});
+  }
+
+  /**
+   * Track daily active user - fires once per calendar day
+   */
+  public trackDailyActiveUser(version: string): void {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    if (today !== this.lastDailyActiveDate) {
+      this.lastDailyActiveDate = today;
+      this.trackEvent('daily_active_user', { version });
+    }
+  }
+
+  /**
+   * Track AI settings panel error
+   */
+  public trackAiSettingsError(errorType: string, errorMessage: string): void {
+    this.trackEvent('ai_settings_error', {
+      errorType,
+      errorMessage: this.truncateString(errorMessage, 100),
+    });
+  }
+
+  /**
+   * Track AI provider usage and increment counter
+   */
+  public trackAiProviderUsage(provider: string): number {
+    const count = (this.aiProviderUsageMap.get(provider) ?? 0) + 1;
+    this.aiProviderUsageMap.set(provider, count);
+    return count;
+  }
+
+  /**
+   * Get AI provider usage count for tracking
+   */
+  public getAiProviderUsageCount(provider: string): number {
+    return this.aiProviderUsageMap.get(provider) ?? 0;
+  }
+
+  private bucketCommandRepeatCount(count: number): string {
+    if (count === 1) return 'once';
+    if (count < 5) return 'lt_5';
+    if (count < 10) return '5_10';
+    if (count < 20) return '10_20';
+    return 'gte_20';
+  }
+
+  private bucketQuerySize(sizeBytes: number): string {
+    if (sizeBytes < 1024) return 'lt_1kb';
+    if (sizeBytes < 10 * 1024) return '1_10kb';
+    if (sizeBytes < 100 * 1024) return '10_100kb';
+    if (sizeBytes < 1024 * 1024) return '100kb_1mb';
+    return 'gte_1mb';
+  }
+
+  private truncateString(str: string, maxLen: number): string {
+    return str.length > maxLen ? str.slice(0, maxLen) : str;
   }
 
   private loadSettings(): void {

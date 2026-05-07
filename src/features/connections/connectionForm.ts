@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import * as fs from "fs";
 import { SSHService } from "../../services/SSHService";
 import { ConnectionManager } from "../../services/ConnectionManager";
+import { TelemetryService } from "../../services/TelemetryService";
 import {
   resolvePgPassPasswordAsync,
   pgPassFileDescription,
@@ -463,6 +464,14 @@ export class ConnectionFormPanel {
         };
 
         switch (message.command) {
+          case "trackTelemetry":
+            if (message.event === "cloud_auth_selected") {
+              TelemetryService.getInstance().trackEvent("cloud_auth_selected", {
+                authKind: message.properties?.authKind || "none",
+              });
+            }
+            break;
+
           case "testConnection":
             try {
               const version = await runTest(message.connection, false);
@@ -471,6 +480,9 @@ export class ConnectionFormPanel {
                 version: version,
               });
             } catch (err: any) {
+              TelemetryService.getInstance().trackEvent("connection_error", {
+                errorCategory: "connection_form_test",
+              });
               this._panel.webview.postMessage({
                 type: "testError",
                 error: err.message,
@@ -551,6 +563,9 @@ export class ConnectionFormPanel {
               );
               this._panel.dispose();
             } catch (err: any) {
+              TelemetryService.getInstance().trackEvent("connection_error", {
+                errorCategory: "connection_form_save",
+              });
               const errorMessage = err?.message || "Unknown error occurred";
               vscode.window.showErrorMessage(
                 `Failed to connect: ${errorMessage}`,

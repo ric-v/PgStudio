@@ -4,6 +4,7 @@ import { DatabaseTreeItem } from '../providers/DatabaseTreeProvider';
 import { resolveTreeItemConnection } from './connectionHelper';
 import { ConnectionManager } from '../services/ConnectionManager';
 import { SecretStorageService } from '../services/SecretStorageService';
+import { TelemetryService } from '../services/TelemetryService';
 import { buildMigrationStatements, computeSchemaDiff } from '../features/schemaDiff/SchemaDiffEngine';
 import type { ColumnDiff, DiffStatus, SchemaSnapshot, TableDiff, TableSnapshot } from '../features/schemaDiff/schemaDiffTypes';
 

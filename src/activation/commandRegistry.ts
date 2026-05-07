@@ -40,6 +40,7 @@ export function registerAllCommands(
           const telemetry = TelemetryService.getInstance();
           const group = command.split('.')[1] ?? 'unknown';
           telemetry.trackEvent('command_invoked', { group });
+          telemetry.trackCommandRepeat(command);
           await Promise.resolve(callback(...args));
         }),
       );
