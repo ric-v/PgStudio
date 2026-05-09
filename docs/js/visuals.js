@@ -17,47 +17,48 @@ function animateCountUp(el, target, suffix, durationMs) {
 }
 
 // ── Marketplace stats ─────────────────────────────────────
-function formatCompactNumber(value) {
-  if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-  return `${value}`;
-}
+const MARKETPLACE_STATS_GUARD = { started: false };
 
 async function hydrateMarketplaceStats() {
+  if (MARKETPLACE_STATS_GUARD.started) return;
+  MARKETPLACE_STATS_GUARD.started = true;
+
   try {
     const res = await fetch("https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json;api-version=3.0-preview.1" },
       body: JSON.stringify({ filters: [{ criteria: [{ filterType: 7, value: "ric-v.postgres-explorer" }] }], flags: 914 })
     });
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
     const ext = data?.results?.[0]?.extensions?.[0];
-    if (!ext) throw new Error("missing");
+    if (!ext) throw new Error("missing extension");
     const installs = ext.statistics?.find((s) => s.statisticName === "install")?.value ?? 0;
     const rating = ext.statistics?.find((s) => s.statisticName === "weightedRating")?.value ?? 0;
     const version = ext.versions?.[0]?.version ?? "0.0.0";
 
     const dlEl = document.getElementById("stat-downloads");
     const rtEl = document.getElementById("stat-rating");
+    const landingDlEl = document.getElementById("landing-stat-downloads");
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set("stat-version", `v${version}`);
     set("badge-version", `v${version}`);
-    set("min-overview-version", version);
+    set("min-overview-version", `v${version}`);
 
-    document.querySelectorAll('[itemprop="softwareVersion"]').forEach((el) => {
-      if (el.tagName === "META") {
-        el.setAttribute("content", version);
-      } else {
-        el.textContent = version;
-      }
-    });
+    const landingVerMeta = document.getElementById("landing-software-version-meta");
+    if (landingVerMeta?.tagName === "META") {
+      landingVerMeta.setAttribute("content", version);
+    }
 
     window.setTimeout(() => {
       animateCountUp(dlEl, installs >= 1e3 ? installs / 1e3 : installs, installs >= 1e3 ? "K" : "", 1200);
       animateCountUp(rtEl, rating, "", 800);
+      animateCountUp(landingDlEl, installs >= 1e3 ? installs / 1e3 : installs, installs >= 1e3 ? "K" : "", 1200);
     }, 600);
-  } catch (e) { console.error("Marketplace stats failed", e); }
+  } catch (e) {
+    console.error("Marketplace stats failed", e);
+    MARKETPLACE_STATS_GUARD.started = false;
+  }
 }
 
 // ── Revenue bar chart (Chart.js) ──────────────────────────
@@ -65,11 +66,17 @@ function renderRevenueChart() {
   const canvas = document.getElementById("revenue-chart");
   if (!canvas || typeof Chart === "undefined") return;
 
-  const isDark = document.body.getAttribute("data-theme") === "dark";
-  const gridColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(77,94,252,0.08)";
-  const textColor = isDark ? "#9ca6d4" : "#667096";
-  const barColor = isDark ? "rgba(24,214,255,0.55)" : "rgba(77,94,252,0.62)";
-  const barBorder = isDark ? "rgba(24,214,255,0.85)" : "#4d5efc";
+  const stack = document.getElementById("query-output-stack");
+  if (stack?.classList.contains("query-output-stack--pending")) return;
+
+  const existing = Chart.getChart(canvas);
+  if (existing) existing.destroy();
+
+  // Dark-only tokens — aligned with the immersive palette
+  const gridColor = "rgba(148,163,184,0.1)";
+  const textColor = "#9fb0cc";
+  const barColor = "rgba(34,211,238,0.55)";
+  const barBorder = "#22d3ee";
 
   new Chart(canvas, {
     type: "bar",
@@ -90,11 +97,11 @@ function renderRevenueChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: isDark ? "#1c1d4f" : "#ffffff",
-          borderColor: isDark ? "rgba(24,214,255,0.3)" : "rgba(77,94,252,0.3)",
+          backgroundColor: "#0d1728",
+          borderColor: "rgba(34,211,238,0.28)",
           borderWidth: 1,
-          titleColor: isDark ? "#eff3ff" : "#14162b",
-          bodyColor: isDark ? "#9ca6d4" : "#667096",
+          titleColor: "#f8fbff",
+          bodyColor: "#9fb0cc",
           cornerRadius: 6,
           callbacks: {
             label: (ctx) => `$${ctx.parsed.y.toLocaleString()}`
