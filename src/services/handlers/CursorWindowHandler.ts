@@ -67,6 +67,7 @@ export class CursorWindowHandler implements IMessageHandler {
             windowSize: page.windowSize,
             hasMoreBefore: page.hasMoreBefore,
             hasMoreAfter: page.hasMoreAfter,
+            totalRows: (page as any).totalRows,
           },
         },
         { contextLabel: 'Cursor window', notifyOnFailure: false },

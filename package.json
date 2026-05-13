@@ -1,7 +1,7 @@
 {
   "name": "postgres-explorer",
   "displayName": "PgStudio (PostgreSQL Explorer)",
-  "version": "1.2.5",
+  "version": "1.3.8",
   "description": "PostgreSQL database explorer for VS Code with notebook support [Nightly]",
   "publisher": "ric-v",
   "private": false,
@@ -579,6 +579,11 @@
       {
         "command": "postgres-explorer.editRole",
         "title": "Edit Role",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "postgres-explorer.openRoleDesigner",
+        "title": "Role Designer (Visual)",
         "icon": "$(edit)"
       },
       {
@@ -2152,6 +2157,11 @@
           "command": "postgres-explorer.showTableProperties",
           "when": "view == postgresExplorer && viewItem == table",
           "group": "inline@2"
+        },
+        {
+          "command": "postgres-explorer.openRoleDesigner",
+          "when": "view == postgresExplorer && viewItem == role",
+          "group": "1_actions@1"
         },
         {
           "command": "postgres-explorer.newNotebook",

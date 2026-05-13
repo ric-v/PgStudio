@@ -12,6 +12,7 @@ export interface SlidingWindowPayload {
   windowSize: number;
   hasMoreBefore: boolean;
   hasMoreAfter: boolean;
+  totalRows?: number;
 }
 
 interface SessionRecord {
@@ -20,6 +21,7 @@ interface SessionRecord {
   windowSize: number;
   notebookUri: string;
   cellUri: string;
+  totalRows?: number;
   idleTimer?: NodeJS.Timeout;
 }
 
@@ -156,14 +158,29 @@ export class ResultCursorService {
         beganOwnReadOnlyTx = false;
       }
 
+      // store session early so refreshIdleTimer can work if count/fetch takes long
       ResultCursorService.sessions.set(sessionId, {
         cursorQuoted,
         client,
         windowSize,
         notebookUri: options.notebookUri,
         cellUri: options.cellUri,
+        totalRows: undefined,
       });
       ResultCursorService.refreshIdleTimer(sessionId);
+
+      // Attempt to estimate total rows for UI (best-effort; errors ignored)
+      try {
+        const countSql = `SELECT COUNT(*) AS cnt FROM (${innerSql}) AS pgstudio_count`;
+        const cres = await client.query(countSql);
+        const cntVal = cres?.rows?.[0]?.cnt ?? cres?.rows?.[0]?.count;
+        const n = cntVal !== undefined && cntVal !== null ? Number(cntVal) : undefined;
+        const srec = ResultCursorService.sessions.get(sessionId);
+        if (srec) srec.totalRows = Number.isFinite(n) ? n : undefined;
+      } catch (e) {
+        // counting can be expensive or unsupported for some queries; ignore failures
+        console.warn('[ResultCursorService] total row count attempt failed:', e);
+      }
 
       let page: { rows: any[]; fields: Array<{ name: string; dataTypeID: number }> } | null;
       try {
@@ -181,6 +198,9 @@ export class ResultCursorService {
       const hasMoreBefore = false;
       const hasMoreAfter = page.rows.length === windowSize;
 
+      const srec = ResultCursorService.sessions.get(sessionId);
+      const totalRows = srec?.totalRows;
+
       return {
         sessionId,
         rows: page.rows,
@@ -191,6 +211,7 @@ export class ResultCursorService {
           windowSize,
           hasMoreBefore,
           hasMoreAfter,
+          totalRows,
         },
       };
     } catch (e) {
@@ -259,6 +280,7 @@ export class ResultCursorService {
         windowSize: s.windowSize,
         hasMoreBefore,
         hasMoreAfter,
+        totalRows: s.totalRows,
       };
     } catch (e) {
       console.error('[ResultCursorService] fetchPage failed:', e);

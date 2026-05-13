@@ -19,6 +19,11 @@ import { getTransactionManager } from '../../services/TransactionManager';
 import { QueryAnalyzer } from '../../services/QueryAnalyzer';
 import { QueryPerformanceService } from '../../services/QueryPerformanceService';
 import { extensionContext } from '../../extension';
+import {
+  clearNotebookParameterValues,
+  getNotebookParameterValues,
+  rememberNotebookParameterValue,
+} from '../../services/NotebookParameterBank';
 import { QueryCodeLensProvider } from '../QueryCodeLensProvider';
 import { updateNotebookTitle } from '../../utils/notebookTitle';
 import { ResultCursorService } from '../../services/ResultCursorService';
@@ -45,14 +50,14 @@ interface StatementResult {
 /** Failure strategy for multi-statement execution */
 type FailureStrategy = 'continue-on-error' | 'fail-on-error' | 'prompt-on-error';
 
+interface NotebookParameterQuickPickItem extends vscode.QuickPickItem {
+  value: string;
+}
+
 export class SqlExecutor {
   private static readonly REVIEW_COUNT_KEY = 'postgresExplorer.reviewPrompt.successCount';
   private static readonly REVIEW_SHOWN_KEY = 'postgresExplorer.reviewPrompt.shown';
   private static readonly REVIEW_THRESHOLD = 3;
-  /** Workspace memento: last-used values for `:name` SQL parameters (keyed by parameter name). */
-  private static readonly NAMED_PARAM_DEFAULTS_KEY = 'pgstudio.namedParamDefaults.v1';
-  /** Workspace memento: last-used values for `$N` SQL parameters (keyed by sqlHash -> parameter index). */
-  private static readonly POSITIONAL_PARAM_DEFAULTS_KEY = 'pgstudio.positionalParamDefaults.v1';
 
   constructor(private readonly _controller: vscode.NotebookController) { }
 
@@ -134,41 +139,106 @@ export class SqlExecutor {
   }
 
   /**
-   * Prompts for each `:name` value in order; persists last-used values per workspace.
+   * Prompts for each `:name` value in order; persists last-used values per notebook.
    * Returns `undefined` if the user cancels any prompt.
    */
-  private async promptForNamedParameterValues(paramNames: string[]): Promise<unknown[] | undefined> {
+  private async promptForNotebookParameterValue(options: {
+    notebookUri: string;
+    parameterKey: string;
+    title: string;
+    prompt: string;
+    placeHolder?: string;
+    initialValue?: string;
+    allowNullChoice?: boolean;
+  }): Promise<string | null | undefined> {
     const paramsConfig = vscode.workspace.getConfiguration('postgresExplorer.parameters');
     const cacheLastValues = paramsConfig.get<boolean>('cacheLastValues', true);
     const nullSentinel = paramsConfig.get<string>('nullSentinel', 'NULL');
-    const cache =
-      cacheLastValues
-        ? extensionContext?.workspaceState.get<Record<string, string>>(SqlExecutor.NAMED_PARAM_DEFAULTS_KEY, {}) ?? {}
-        : {};
-    const next: Record<string, string> = { ...cache };
-    const values: unknown[] = [];
+    const workspaceState = extensionContext?.workspaceState;
+    const rememberedValues = cacheLastValues && workspaceState
+      ? getNotebookParameterValues(workspaceState, options.notebookUri, options.parameterKey)
+      : [];
 
-    for (const name of paramNames) {
-      const existing = next[name] ?? '';
-      const input = await vscode.window.showInputBox({
-        title: `SQL parameter :${name}`,
-        prompt: `Value for :${name} (${nullSentinel ? `type ${nullSentinel} to send SQL NULL` : 'sent to PostgreSQL as text; casts in SQL still apply'})`,
-        value: existing,
-        ignoreFocusOut: true
+    const chooseExistingValue = async (): Promise<string | null | undefined> => {
+      const quickPickItems: NotebookParameterQuickPickItem[] = rememberedValues.map((value) => ({
+        label: this.formatNotebookParameterValueLabel(value),
+        description: 'Previous value in this notebook',
+        value,
+      }));
+
+      quickPickItems.push({
+        label: '$(edit) Enter new value...',
+        description: options.initialValue ? `Current default: ${this.formatNotebookParameterValueLabel(options.initialValue)}` : undefined,
+        value: '__new__',
       });
-      if (input === undefined) {
+
+      if (options.allowNullChoice && nullSentinel) {
+        quickPickItems.push({
+          label: `$(dash) Use ${nullSentinel}`,
+          description: 'Send SQL NULL for this parameter',
+          value: '__null__',
+        });
+      }
+
+      quickPickItems.push({
+        label: '$(trash) Clear saved values for this notebook parameter',
+        description: 'Remove the notebook-local value bank for this parameter',
+        value: '__clear__',
+      });
+
+      const selection = await vscode.window.showQuickPick(quickPickItems, {
+        title: options.title,
+        placeHolder: options.prompt,
+        ignoreFocusOut: true,
+      });
+
+      if (!selection) {
         return undefined;
       }
-      values.push(nullSentinel && input === nullSentinel ? null : input);
-      if (cacheLastValues) {
-        next[name] = input;
+
+      if (selection.value === '__clear__') {
+        await clearNotebookParameterValues(workspaceState, options.notebookUri, options.parameterKey);
+        return undefined;
+      }
+
+      if (selection.value === '__null__') {
+        return null;
+      }
+
+      if (selection.value !== '__new__') {
+        if (cacheLastValues && workspaceState) {
+          await rememberNotebookParameterValue(workspaceState, options.notebookUri, options.parameterKey, selection.value);
+        }
+        return selection.value;
+      }
+
+      return undefined;
+    };
+
+    if (rememberedValues.length > 0) {
+      const selection = await chooseExistingValue();
+      if (selection !== undefined) {
+        return selection;
       }
     }
 
-    if (cacheLastValues && extensionContext) {
-      await extensionContext.workspaceState.update(SqlExecutor.NAMED_PARAM_DEFAULTS_KEY, next);
+    const input = await vscode.window.showInputBox({
+      title: options.title,
+      prompt: options.prompt,
+      placeHolder: options.placeHolder,
+      value: options.initialValue ?? rememberedValues[0] ?? '',
+      ignoreFocusOut: true,
+    });
+
+    if (input === undefined) {
+      return undefined;
     }
-    return values;
+
+    if (cacheLastValues && workspaceState && input !== nullSentinel) {
+      await rememberNotebookParameterValue(workspaceState, options.notebookUri, options.parameterKey, input);
+    }
+
+    return nullSentinel && input === nullSentinel ? null : input;
   }
 
   private getSqlParameterContextSnippet(sql: string, parameterIndex: number): string | undefined {
@@ -186,61 +256,49 @@ export class SqlExecutor {
     return snippet || undefined;
   }
 
+  private formatNotebookParameterValueLabel(value: string): string {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return '(empty string)';
+    }
+    return normalized.length > 60 ? `${normalized.slice(0, 57)}...` : normalized;
+  }
+
+  private makeNotebookParameterKey(kind: 'named' | 'positional' | 'quoted', value: string): string {
+    return `${kind}:${value}`;
+  }
+
   private async promptForPositionalParameterValues(
+    notebookUri: string,
     indices: number[],
-    sqlHash: string,
     sql: string
   ): Promise<unknown[] | undefined> {
-    const paramsConfig = vscode.workspace.getConfiguration('postgresExplorer.parameters');
-    const cacheLastValues = paramsConfig.get<boolean>('cacheLastValues', true);
-    const nullSentinel = paramsConfig.get<string>('nullSentinel', 'NULL');
-    const cache =
-      cacheLastValues
-        ? extensionContext?.workspaceState.get<Record<string, Record<string, string>>>(
-          SqlExecutor.POSITIONAL_PARAM_DEFAULTS_KEY,
-          {}
-        ) ?? {}
-        : {};
-
-    const statementDefaults = { ...(cache[sqlHash] ?? {}) };
     const values: unknown[] = [];
 
     for (const parameterIndex of indices) {
-      const key = String(parameterIndex);
       const contextSnippet = this.getSqlParameterContextSnippet(sql, parameterIndex);
-      const input = await vscode.window.showInputBox({
+      const input = await this.promptForNotebookParameterValue({
+        notebookUri,
+        parameterKey: this.makeNotebookParameterKey('positional', String(parameterIndex)),
         title: `SQL parameter $${parameterIndex}`,
-        prompt: `Value for $${parameterIndex}${nullSentinel ? `  (type ${nullSentinel} to send SQL NULL)` : ''}`,
+        prompt: `Enter the raw value for $${parameterIndex}${contextSnippet ? ` - ${contextSnippet}` : ''} (do not add quotes; PgStudio sends the parameter value directly)`,
         placeHolder: contextSnippet,
-        value: statementDefaults[key] ?? '',
-        ignoreFocusOut: true
+        allowNullChoice: true,
       });
       if (input === undefined) {
         return undefined;
       }
 
-      values.push(nullSentinel && input === nullSentinel ? null : input);
-      if (cacheLastValues) {
-        statementDefaults[key] = input;
-      }
-    }
-
-    if (cacheLastValues && extensionContext) {
-      await extensionContext.workspaceState.update(SqlExecutor.POSITIONAL_PARAM_DEFAULTS_KEY, {
-        ...cache,
-        [sqlHash]: statementDefaults
-      });
+      values.push(input);
     }
 
     return values;
   }
 
   private async promptForQuotedPsqlValues(
+    notebookUri: string,
     tokens: { name: string; kind: 'literal' | 'identifier' }[]
   ): Promise<Record<string, string> | undefined> {
-    const cache =
-      extensionContext?.workspaceState.get<Record<string, string>>(SqlExecutor.NAMED_PARAM_DEFAULTS_KEY, {}) ?? {};
-    const next: Record<string, string> = { ...cache };
     const values: Record<string, string> = {};
 
     for (const token of tokens) {
@@ -248,22 +306,47 @@ export class SqlExecutor {
         continue;
       }
       const tokenLabel = token.kind === 'literal' ? `:'${token.name}'` : `:"${token.name}"`;
-      const input = await vscode.window.showInputBox({
+      const input = await this.promptForNotebookParameterValue({
+        notebookUri,
+        parameterKey: this.makeNotebookParameterKey('quoted', `${token.kind}:${token.name}`),
         title: `SQL variable ${tokenLabel}`,
         prompt: `Value for ${tokenLabel}`,
-        value: next[token.name] ?? '',
-        ignoreFocusOut: true
+        allowNullChoice: false,
       });
       if (input === undefined) {
         return undefined;
       }
 
-      values[token.name] = input;
-      next[token.name] = input;
+      values[token.name] = input ?? '';
     }
 
-    if (extensionContext) {
-      await extensionContext.workspaceState.update(SqlExecutor.NAMED_PARAM_DEFAULTS_KEY, next);
+    return values;
+  }
+
+  /**
+   * Prompts for each `:name` value in order; persists last-used values per notebook.
+   * Returns `undefined` if the user cancels any prompt.
+   */
+  private async promptForNamedParameterValues(
+    notebookUri: string,
+    paramNames: string[]
+  ): Promise<unknown[] | undefined> {
+    const values: unknown[] = [];
+
+    for (const name of paramNames) {
+      const input = await this.promptForNotebookParameterValue({
+        notebookUri,
+        parameterKey: this.makeNotebookParameterKey('named', name),
+        title: `SQL parameter :${name}`,
+        prompt: `Enter the raw value for :${name} (do not add quotes; PgStudio sends the parameter value directly)`,
+        allowNullChoice: true,
+      });
+
+      if (input === undefined) {
+        return undefined;
+      }
+
+      values.push(input);
     }
 
     return values;
@@ -582,6 +665,7 @@ export class SqlExecutor {
         liveNoticesActive = false;
         let query = statements[stmtIndex];
         const stmtStartTime = Date.now();
+        const notebookUri = cell.notebook.uri.toString();
 
         const params = SqlParser.detectParameters(query);
         const hasPositional = params.positional.length > 0;
@@ -594,7 +678,7 @@ export class SqlExecutor {
         let pgParamValues: unknown[] | undefined;
 
         if (params.quoted.length > 0) {
-          const quotedVals = await this.promptForQuotedPsqlValues(params.quoted);
+          const quotedVals = await this.promptForQuotedPsqlValues(notebookUri, params.quoted);
           if (!quotedVals) {
             client.removeListener('notice', noticeListener);
             execution.end(false, Date.now());
@@ -605,7 +689,7 @@ export class SqlExecutor {
 
         if (hasNamed) {
           const named = SqlParser.substituteNamedParametersWithPgPlaceholders(query);
-          const vals = await this.promptForNamedParameterValues(named.paramNames);
+          const vals = await this.promptForNamedParameterValues(notebookUri, named.paramNames);
           if (vals === undefined) {
             client.removeListener('notice', noticeListener);
             execution.end(false, Date.now());
@@ -616,8 +700,8 @@ export class SqlExecutor {
         } else if (hasPositional) {
           const maxN = Math.max(...params.positional);
           const vals = await this.promptForPositionalParameterValues(
+            notebookUri,
             Array.from({ length: maxN }, (_, i) => i + 1),
-            QueryAnalyzer.getInstance().getQueryHash(query),
             query
           );
           if (vals === undefined) {
