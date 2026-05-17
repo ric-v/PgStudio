@@ -346,6 +346,14 @@ export function renderPostgresNotebookResult(
             text = `${slideMeta.windowStartRow.toLocaleString()}–${lastRow.toLocaleString()} of ${slideMeta.totalRows.toLocaleString()} · window ${slideMeta.windowSize.toLocaleString()} · streaming`;
           } else {
             text = `${slideMeta.windowStartRow.toLocaleString()}–${lastRow.toLocaleString()} · window ${slideMeta.windowSize.toLocaleString()} · streaming`;
+            // Add diagnostic info for why total is unknown
+            if ((slideMeta as any).countAttempted) {
+              if ((slideMeta as any).countError) {
+                text += ` (total count failed: ${(slideMeta as any).countError.substring(0, 50)})`;
+              } else {
+                text += ' (total row count in progress)';
+              }
+            }
           }
           if (executionTime !== undefined) {
             const ms = Math.round(executionTime * 1000);
@@ -372,6 +380,14 @@ export function renderPostgresNotebookResult(
                   t = `${slideMeta.windowStartRow.toLocaleString()}–${lastRow.toLocaleString()} of ${slideMeta.totalRows.toLocaleString()} · window ${slideMeta.windowSize.toLocaleString()} · streaming`;
                 } else {
                   t = `${slideMeta.windowStartRow.toLocaleString()}–${lastRow.toLocaleString()} · window ${slideMeta.windowSize.toLocaleString()} · streaming`;
+                  // Add diagnostic info for why total is unknown
+                  if ((slideMeta as any).countAttempted) {
+                    if ((slideMeta as any).countError) {
+                      t += ` (total count failed: ${(slideMeta as any).countError.substring(0, 50)})`;
+                    } else {
+                      t += ' (total row count in progress)';
+                    }
+                  }
                 }
                 if (executionTime !== undefined) {
                   const ms = Math.round(executionTime * 1000);

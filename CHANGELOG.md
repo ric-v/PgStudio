@@ -5,6 +5,20 @@ All notable changes to the PostgreSQL Explorer extension will be documented in t
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-05-13
+> Nightly releases - v1.3.9
+
+### Added
+
+- **Role Designer** — Added a new visual role-management editor from the role context menu, with live SQL preview, notebook handoff, and membership controls for Inherit / Admin Option grants.
+- **Notebook parameter bank** — SQL parameter prompts now remember values per notebook, offer quick-pick reuse, and let you clear saved values without affecting other notebooks.
+- **Streaming row counts** — Sliding-window result rendering now shows the total row count when it is available, so streamed results read as `start–end of total` instead of only a range.
+
+### Changed
+
+- **SQL completion catalog** — Column completion warm-cache queries now read from PostgreSQL catalogs directly, which improves coverage for views and materialized views.
+- **Result cursor metadata** — Cursor window messages now carry optional total-row metadata through the renderer path.
+
 ## [1.2.5] - 2026-05-07
 > Nightly releases - v1.3.6 • v1.3.7 
 
