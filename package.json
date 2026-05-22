@@ -1505,6 +1505,21 @@
         "title": "Search Schema Objects",
         "icon": "$(search)",
         "category": "PgStudio"
+      },
+      {
+        "command": "postgres-explorer.license.activate",
+        "title": "Activate License",
+        "category": "PgStudio"
+      },
+      {
+        "command": "postgres-explorer.license.manage",
+        "title": "Manage License",
+        "category": "PgStudio"
+      },
+      {
+        "command": "postgres-explorer.license.openUpgrade",
+        "title": "Upgrade to Pro",
+        "category": "PgStudio"
       }
     ],
     "submenus": [
@@ -1948,6 +1963,21 @@
           "type": "boolean",
           "default": true,
           "description": "Enable SQL Preview (Definition Viewer) features and actions."
+        },
+        "postgresExplorer.license.status": {
+          "type": "string",
+          "default": "free",
+          "enum": [
+            "free",
+            "pro",
+            "grace"
+          ],
+          "markdownDescription": "Current PgStudio license tier.\n\n- **free**: Core features only\n- **pro**: All Pro features unlocked\n- **grace**: Pro features available (offline grace period)\n\nManage your license via the `PgStudio: Activate License` or `PgStudio: Manage License` commands.",
+          "enumDescriptions": {
+            "free": "Free tier — core database explorer, notebooks, and basic SQL editing.",
+            "pro": "Pro tier — AI Assistant, Schema Diff, ERD Designer, Dashboard, Visual EXPLAIN, unlimited saved queries.",
+            "grace": "Pro features remain available while temporarily offline."
+          }
         }
       }
     },

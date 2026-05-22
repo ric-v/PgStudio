@@ -14,6 +14,7 @@ import {
   MaintenanceTemplates,
   validateCategoryItem
 } from './helper';
+import { requirePro, ProFeature } from '../services/FeatureGates';
 import { openOrCreateNotebookWithPicker } from './notebook';
 import { BackupRestorePanel } from '../features/backup/BackupRestorePanel';
 
@@ -36,12 +37,17 @@ import { BackupRestorePanel } from '../features/backup/BackupRestorePanel';
  * // Dashboard notebook is now displayed
  */
 export async function cmdDatabaseDashboard(item: DatabaseTreeItem, context: vscode.ExtensionContext): Promise<void> {
+  const commit = await requirePro(ProFeature.RealtimeDashboard, 'Realtime Dashboard');
+  if (!commit) {
+    return;
+  }
   try {
     const { connection, release } = await getDatabaseConnection(item, validateCategoryItem);
     // Release the client used for validation/setup immediately
     release();
 
     await DashboardPanel.show(context.extensionUri, connection, item.databaseName!, connection.id);
+    await commit();
   } catch (err: any) {
     await ErrorHandlers.handleCommandError(err, 'show dashboard');
   }
@@ -53,6 +59,10 @@ export async function cmdDatabaseDashboard(item: DatabaseTreeItem, context: vsco
 export async function cmdDatabaseDashboardFromPalette(
   context: vscode.ExtensionContext,
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.RealtimeDashboard, 'Realtime Dashboard');
+  if (!commit) {
+    return;
+  }
   const connections =
     vscode.workspace
       .getConfiguration()
@@ -126,6 +136,7 @@ export async function cmdDatabaseDashboardFromPalette(
       dbName,
       connection.id,
     );
+    await commit();
   } catch (err: unknown) {
     await ErrorHandlers.handleCommandError(err, 'show dashboard');
   }

@@ -8,6 +8,7 @@ import { ImportDataPanel } from '../schemaDesigner/ImportDataPanel';
 import { ConnectionManager } from '../services/ConnectionManager';
 import { resolveTreeItemConnection } from '../schemaDesigner/connectionHelper';
 import { ErrorHandlers } from './helper';
+import { requirePro, ProFeature } from '../services/FeatureGates';
 
 /**
  * Open the Visual Table Designer for an existing table (Edit mode)
@@ -16,6 +17,10 @@ export async function cmdOpenTableDesigner(
   item: DatabaseTreeItem,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDesigner, 'Table Designer');
+  if (!commit) {
+    return;
+  }
   console.log('[SchemaDesigner] cmdOpenTableDesigner called with item:', JSON.stringify({
     label: item?.label,
     type: item?.type,
@@ -26,6 +31,7 @@ export async function cmdOpenTableDesigner(
     contextValue: item?.contextValue,
   }));
   await TableDesignerPanel.openForTable(item, context);
+  await commit();
 }
 
 /**
@@ -35,7 +41,12 @@ export async function cmdCreateTableVisual(
   item: DatabaseTreeItem,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDesigner, 'Table Designer');
+  if (!commit) {
+    return;
+  }
   await TableDesignerPanel.openForCreate(item, context);
+  await commit();
 }
 
 /**
@@ -45,7 +56,12 @@ export async function cmdOpenRoleDesigner(
   item: DatabaseTreeItem,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDesigner, 'Role Designer');
+  if (!commit) {
+    return;
+  }
   await RoleDesignerPanel.openForRole(item, context);
+  await commit();
 }
 
 /**
@@ -55,6 +71,10 @@ export async function cmdOpenSchemaDiff(
   item: DatabaseTreeItem,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDiff, 'Schema Diff');
+  if (!commit) {
+    return;
+  }
   console.log('[SchemaDesigner] cmdOpenSchemaDiff called with item:', JSON.stringify({
     label: item?.label,
     type: item?.type,
@@ -65,6 +85,7 @@ export async function cmdOpenSchemaDiff(
     contextValue: item?.contextValue,
   }));
   await SchemaDiffPanel.open(item, context);
+  await commit();
 }
 
 /**
@@ -74,6 +95,10 @@ export async function cmdOpenSchemaDiff(
 export async function cmdOpenSchemaDiffFromPalette(
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDiff, 'Schema Diff');
+  if (!commit) {
+    return;
+  }
   const connections =
     vscode.workspace.getConfiguration().get<Array<Record<string, unknown>>>('postgresExplorer.connections') ||
     [];
@@ -180,6 +205,7 @@ export async function cmdOpenSchemaDiffFromPalette(
   );
 
   await SchemaDiffPanel.open(synthetic, context);
+  await commit();
 }
 
 /**
@@ -189,7 +215,12 @@ export async function cmdOpenErd(
   item: DatabaseTreeItem,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDesigner, 'ERD Designer');
+  if (!commit) {
+    return;
+  }
   await ErdPanel.open(item, context);
+  await commit();
 }
 
 /**
@@ -199,6 +230,10 @@ export async function cmdOpenErdMultiFromDatabase(
   item: DatabaseTreeItem,
   context: vscode.ExtensionContext
 ): Promise<void> {
+  const commit = await requirePro(ProFeature.SchemaDesigner, 'ERD Designer');
+  if (!commit) {
+    return;
+  }
   const conn = await resolveTreeItemConnection(item);
   if (!conn) {
     return;
@@ -224,6 +259,7 @@ export async function cmdOpenErdMultiFromDatabase(
       item,
       picked.map((p) => p.label)
     );
+    await commit();
   } catch (err: unknown) {
     await ErrorHandlers.handleCommandError(err, 'open multi-schema ERD');
   } finally {

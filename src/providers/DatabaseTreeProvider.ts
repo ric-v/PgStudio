@@ -2,6 +2,7 @@ import { Client, PoolClient } from 'pg';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ConnectionManager } from '../services/ConnectionManager';
+import { LicenseService } from '../services/LicenseService';
 import { getSchemaCache, SchemaCache } from '../lib/schema-cache';
 import { Debouncer } from '../lib/debounce';
 import { AutoRefreshService } from '../services/AutoRefreshService';
@@ -43,6 +44,10 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
     this.initializeDisconnectedState();
     // Load persisted favorites and recent items
     this.loadPersistedData();
+    // Refresh tree when license status changes
+    LicenseService.getInstance().onDidChangeStatus(() => {
+      this._onDidChangeTreeData.fire();
+    });
   }
 
   /**
@@ -50,6 +55,49 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
    */
   public setTreeView(treeView: vscode.TreeView<DatabaseTreeItem>): void {
     this.treeView = treeView;
+  }
+
+  private createLicenseBadge(): DatabaseTreeItem {
+    const status = LicenseService.getInstance().getStatus();
+    const isPro = LicenseService.getInstance().isPro();
+
+    if (status === 'free') {
+      const item = new DatabaseTreeItem(
+        'Upgrade to Pro',
+        vscode.TreeItemCollapsibleState.None,
+        'category',
+      );
+      item.description = 'Free tier';
+      item.tooltip = 'Click to upgrade to PgStudio Pro — unlock AI Assistant, Schema Diff, ERD, Dashboard, and more.';
+      item.command = { command: 'postgres-explorer.license.openUpgrade', title: 'Upgrade to Pro' };
+      item.iconPath = new vscode.ThemeIcon('star-empty', new vscode.ThemeColor('charts.yellow'));
+      return item;
+    }
+
+    if (status === 'pro') {
+      const item = new DatabaseTreeItem(
+        'PgStudio Pro',
+        vscode.TreeItemCollapsibleState.None,
+        'category',
+      );
+      item.description = 'Licensed';
+      item.tooltip = 'PgStudio Pro — all features unlocked. Click to manage license.';
+      item.command = { command: 'postgres-explorer.license.manage', title: 'Manage License' };
+      item.iconPath = new vscode.ThemeIcon('star-full', new vscode.ThemeColor('charts.yellow'));
+      return item;
+    }
+
+    // grace
+    const item = new DatabaseTreeItem(
+      'Pro (offline)',
+      vscode.TreeItemCollapsibleState.None,
+      'category',
+    );
+    item.description = 'Grace period';
+    item.tooltip = 'Pro license offline — grace period active. Click to manage license.';
+    item.command = { command: 'postgres-explorer.license.manage', title: 'Manage License' };
+    item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow'));
+    return item;
   }
 
   setAutoRefreshService(service: AutoRefreshService): void {
@@ -403,8 +451,12 @@ export class DatabaseTreeProvider implements vscode.TreeDataProvider<DatabaseTre
     const connections = vscode.workspace.getConfiguration().get<any[]>('postgresExplorer.connections') || [];
 
     if (!element) {
-      // Root level - show connections (grouped if configured)
+      // Root level - show license badge + connections
       const rootItems: DatabaseTreeItem[] = [];
+
+      // License badge at top of explorer
+      rootItems.push(this.createLicenseBadge());
+
       const groupedConnections: { [key: string]: any[] } = {};
       const ungroupedConnections: any[] = [];
 

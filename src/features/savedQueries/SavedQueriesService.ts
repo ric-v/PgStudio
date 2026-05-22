@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { TelemetryService } from '../../services/TelemetryService';
+import { LicenseService } from '../../services/LicenseService';
+import { FREE_SAVED_QUERIES_LIMIT, ProFeature, requirePro } from '../../services/FeatureGates';
 
 /**
  * Saved query with metadata for quick access and reuse
@@ -102,6 +104,14 @@ export class SavedQueriesService {
     if (!query.createdAt) {
       query.createdAt = Date.now();
     }
+
+    if (!LicenseService.getInstance().isPro() && this.queries.size >= FREE_SAVED_QUERIES_LIMIT) {
+      const commit = await requirePro(ProFeature.SavedQueriesUnlimited, `Saved Queries (${FREE_SAVED_QUERIES_LIMIT} limit)`);
+      if (!commit) {
+        return;
+      }
+    }
+
     this.queries.set(query.id, query);
     await this.saveQueries();
   }

@@ -422,7 +422,9 @@ function applyChartWindows() {
 function startAutoRefresh(interval) {
   if (refreshIntervalId) clearInterval(refreshIntervalId);
   if (interval > 0) {
-    refreshIntervalId = setInterval(() => manualRefresh(), interval);
+    refreshIntervalId = setInterval(() => {
+      vscode.postMessage({ command: 'refresh', isManual: false });
+    }, interval);
   }
 }
 
@@ -1578,7 +1580,7 @@ function renderDetailsView(type, data, columns) {
   window.scrollTo(0, 0);
 }
 
-function manualRefresh() { vscode.postMessage({ command: 'refresh' }); }
+function manualRefresh() { vscode.postMessage({ command: 'refresh', isManual: true }); }
 function explainQuery(b64Query) { vscode.postMessage({ command: 'explainQuery', query: decodeURIComponent(escape(atob(b64Query))) }); }
 function cancelQuery(pid) {
   const numericPid = Number(pid);
@@ -1671,8 +1673,55 @@ window.addEventListener('message', event => {
     case 'queryForAIResult':
       _handleQueryResult(message);
       break;
+    case 'pauseAutoRefresh':
+      if (refreshIntervalId) clearInterval(refreshIntervalId);
+      const selector = document.getElementById('refresh-interval');
+      if (selector) {
+        selector.value = '0';
+        refreshIntervalMs = 0;
+      }
+      showWarningBanner('Continuous auto-refresh paused (PgStudio Free 60s limit reached). Manual updates are still fully available, or upgrade to Pro for continuous monitoring.');
+      break;
   }
 });
+
+function showWarningBanner(msg) {
+  let banner = document.getElementById('freemium-warning-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'freemium-warning-banner';
+    banner.style.background = 'rgba(250, 204, 21, 0.1)';
+    banner.style.border = '1px solid rgba(250, 204, 21, 0.3)';
+    banner.style.borderLeft = '4px solid var(--warning-color)';
+    banner.style.color = 'var(--warning-color)';
+    banner.style.padding = '12px 16px';
+    banner.style.margin = '0 0 16px 0';
+    banner.style.borderRadius = '6px';
+    banner.style.fontSize = '0.9rem';
+    banner.style.display = 'flex';
+    banner.style.alignItems = 'center';
+    banner.style.justifyContent = 'space-between';
+    banner.style.gap = '12px';
+    banner.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+    
+    const mainView = document.getElementById('main-view');
+    if (mainView) {
+      mainView.insertBefore(banner, mainView.firstChild);
+    }
+  }
+  
+  banner.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 1.15rem;">⚠️</span>
+      <span>${msg}</span>
+    </div>
+    <button onclick="vscode.postMessage({ command: 'askAI', question: 'How can I upgrade to Pro or get a license?' })" 
+            style="background: var(--warning-color); color: #000; border: none; padding: 4px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.8rem; white-space: nowrap; transition: opacity 0.2s;"
+            onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">
+      Upgrade to Pro
+    </button>
+  `;
+}
 
 document.querySelectorAll('.tab').forEach(t => {
   t.onclick = () => {

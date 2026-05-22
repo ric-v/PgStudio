@@ -24,6 +24,8 @@ import {
 import type { ConnectionConfig, NoticeLogEntry } from '../common/types';
 import { buildBackupToolsSystemPrompt, buildBackupToolsUserMessage } from './chat/backupToolsAssistantPrompt';
 import { ErrorService } from '../services/ErrorService';
+import { isProFeatureEnabled, ProFeature } from '../services/FeatureGates';
+import { LicenseService, UPGRADE_URL } from '../services/LicenseService';
 
 /** Params for {@link ChatViewProvider.openBackupToolsAssistant} (Backup & Restore panel). */
 export interface OpenBackupToolsAssistantParams {
@@ -444,6 +446,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
     this._activeWebview = webviewView.webview;
 
+    // if (!isProFeatureEnabled(ProFeature.AiAssistant)) {
+    //   webviewView.webview.html = this._getUpgradeHtml();
+    //   LicenseService.getInstance().onDidChangeStatus(() => {
+    //     if (isProFeatureEnabled(ProFeature.AiAssistant)) {
+    //       void this.resolveWebviewView(webviewView, context, _token);
+    //     }
+    //   });
+    //   return;
+    // }
+
     await this._initializeWebview(webviewView.webview);
     this._registerWebviewMessageHandler(webviewView.webview);
 
@@ -709,6 +721,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async _handleUserMessage(message: string, attachments?: FileAttachment[], mentions?: DbMention[]) {
+    // TODO: In a future update, restrict the upcoming agentic mode (currently in the pipeline)
+    // for free tier users (e.g., limit daily runs or restrict access) since this is currently
+    // a BYOK model where standard chat requests are unlimited.
     if (this._isProcessing) {
       return;
     }
@@ -1277,5 +1292,69 @@ Why is this query running slower than its historical baseline? What could have c
     }
 
     await this._handleUserMessage(prompt);
+  }
+
+  private _getUpgradeHtml(): string {
+    const upgradeUrl = UPGRADE_URL;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PgStudio Pro</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: var(--vscode-font-family, -apple-system, sans-serif);
+      background: var(--vscode-sideBar-background, #1e1e1e);
+      color: var(--vscode-foreground, #ccc);
+      display: flex; align-items: center; justify-content: center;
+      height: 100vh; padding: 2rem;
+    }
+    .card {
+      text-align: center; max-width: 360px;
+    }
+    .icon { font-size: 3rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--vscode-textLink-foreground, #3794ff); }
+    p { font-size: 0.9rem; margin-bottom: 1.5rem; opacity: 0.8; line-height: 1.5; }
+    .features {
+      text-align: left; margin-bottom: 1.5rem; font-size: 0.85rem; opacity: 0.7;
+    }
+    .features li { margin-bottom: 0.4rem; }
+    button {
+      background: var(--vscode-button-background, #0078d4);
+      color: var(--vscode-button-foreground, #fff);
+      border: none; padding: 0.6rem 1.5rem; border-radius: 3px;
+      cursor: pointer; font-size: 0.9rem; margin: 0.3rem;
+    }
+    button:hover { background: var(--vscode-button-hoverBackground, #026ec1); }
+    button.secondary {
+      background: transparent;
+      color: var(--vscode-textLink-foreground, #3794ff);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🤖</div>
+    <h1>AI SQL Assistant — Pro</h1>
+    <p>Generate, explain, and optimize SQL with AI. Available on the Pro tier.</p>
+    <ul class="features">
+      <li>✅ Natural language to SQL</li>
+      <li>✅ Query explanation & optimization</li>
+      <li>✅ Schema-aware context</li>
+      <li>✅ Multi-provider (OpenAI, Anthropic, Gemini)</li>
+    </ul>
+    <button onclick="upgrade()">Upgrade to Pro</button>
+    <button class="secondary" onclick="activate()">Enter License Key</button>
+  </div>
+  <script>
+    const vscode = acquireVsCodeApi();
+    function upgrade() { vscode.postMessage({ command: 'openUrl', url: '${upgradeUrl}' }); }
+    function activate() { vscode.postMessage({ command: 'licenseActivate' }); }
+  </script>
+</body>
+</html>`;
   }
 }

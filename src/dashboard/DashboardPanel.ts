@@ -8,12 +8,15 @@ import { createMetadata, createAndShowNotebook } from '../commands/connection';
 import { AiService } from '../providers/chat/AiService';
 import { ChatMessage } from '../providers/chat/types';
 import { TelemetryService } from '../services/TelemetryService';
+import { LicenseService } from '../services/LicenseService';
+import { FreemiumService } from '../services/FreemiumService';
 
 export class DashboardPanel {
   private static panels: Map<string, DashboardPanel> = new Map();
   private readonly _panel: vscode.WebviewPanel;
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _panelKey: string;
+  private readonly _creationTime: number = Date.now();
   private _aiService: AiService | null = null;
   private _lastStats: DashboardStats | null = null;
   private _autoNotifyEnabled = false;
@@ -33,7 +36,7 @@ export class DashboardPanel {
       async message => {
         switch (message.command) {
           case 'refresh':
-            await this._update();
+            await this._update(message.isManual === false ? false : true);
             break;
           case 'showDetails':
             await this._showDetails(message.type);
@@ -167,6 +170,21 @@ export class DashboardPanel {
 
 
   private async _handleAskAI(question: string, context: string) {
+    const freemium = FreemiumService.getInstance();
+    const isFreeTier = !LicenseService.getInstance().isPro();
+
+    if (isFreeTier) {
+      const remaining = freemium.getRemainingUses('dashboardAi');
+      const limit = freemium.getLimit('dashboardAi');
+      if (remaining <= 0) {
+        this._panel.webview.postMessage({
+          command: 'aiResponse',
+          text: `You have reached your daily free limit of ${limit} requests for the Dashboard AI Assistant. Upgrade to Pro for unlimited access!`,
+        });
+        return;
+      }
+    }
+
     if (!this._aiService) {
       this._aiService = new AiService();
     }
@@ -189,6 +207,11 @@ export class DashboardPanel {
       // Cap history at 20 messages (10 turns) to avoid token bloat
       if (this._conversationMessages.length > 20) {
         this._conversationMessages = this._conversationMessages.slice(-20);
+      }
+
+      // Count the use only after a successful AI response
+      if (isFreeTier) {
+        await freemium.incrementUsage('dashboardAi');
       }
 
       this._panel.webview.postMessage({ command: 'aiResponse', text: result.text });
@@ -489,7 +512,15 @@ IMPORTANT: When the user sends a bare number (1, 2, or 3), treat it as selecting
       hasSevereSchemaPressure;
   }
 
-  private async _update() {
+  private async _update(isManual: boolean = true) {
+    if (!LicenseService.getInstance().isPro() && Date.now() - this._creationTime > 60_000) {
+      if (!isManual) {
+        vscode.window.showWarningMessage('Realtime dashboard updates paused in Free tier. Upgrade to Pro for continuous monitoring.');
+        this._panel.webview.postMessage({ command: 'pauseAutoRefresh', reason: '60s limit reached' });
+        return;
+      }
+    }
+
     let client;
     try {
       client = await this.getClient();

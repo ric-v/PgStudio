@@ -5,6 +5,7 @@ import { ProfileManager } from '../features/connections/ProfileManager';
 import { getTransactionManager } from '../services/TransactionManager';
 import { ConnectionUtils } from '../utils/connectionUtils';
 import { WorkspaceStateService } from '../services/WorkspaceStateService';
+import { LicenseService } from '../services/LicenseService';
 
 /**
  * Manages the notebook status bar items that display connection and database info.
@@ -18,9 +19,14 @@ export class NotebookStatusBar implements vscode.Disposable {
   private readonly transactionItem: vscode.StatusBarItem;
   /** Shown when no PostgreSQL notebook is active: workspace default connection (per-folder state). */
   private readonly workspaceDefaultItem: vscode.StatusBarItem;
+  private readonly licenseItem: vscode.StatusBarItem;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor() {
+    this.licenseItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 94);
+    this.licenseItem.tooltip = 'Click to manage PgStudio license';
+    this.updateLicenseItem();
+
     this.connectionItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     this.connectionItem.command = 'postgres-explorer.switchConnection';
     this.connectionItem.tooltip = 'Click to switch PostgreSQL connection';
@@ -44,12 +50,14 @@ export class NotebookStatusBar implements vscode.Disposable {
     this.workspaceDefaultItem.command = 'postgres-explorer.switchWorkspaceDefaultConnection';
 
     this.disposables.push(
+      this.licenseItem,
       this.connectionItem,
       this.databaseItem,
       this.riskIndicatorItem,
       this.profileItem,
       this.transactionItem,
       this.workspaceDefaultItem,
+      LicenseService.getInstance().onDidChangeStatus(() => this.updateLicenseItem()),
       vscode.window.onDidChangeActiveNotebookEditor(() => this.update()),
       vscode.workspace.onDidChangeNotebookDocument((e) => {
         if (vscode.window.activeNotebookEditor?.notebook === e.notebook) {
@@ -266,6 +274,28 @@ export class NotebookStatusBar implements vscode.Disposable {
     } else {
       this.transactionItem.hide();
     }
+  }
+
+  private updateLicenseItem(): void {
+    const status = LicenseService.getInstance().getStatus();
+    switch (status) {
+      case 'pro':
+        this.licenseItem.text = '$(verified) PgStudio Pro';
+        this.licenseItem.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
+        this.licenseItem.command = 'postgres-explorer.license.manage';
+        break;
+      case 'grace':
+        this.licenseItem.text = '$(warning) Pro (offline)';
+        this.licenseItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        this.licenseItem.command = 'postgres-explorer.license.manage';
+        break;
+      default:
+        this.licenseItem.text = '$(cloud) PgStudio Free';
+        this.licenseItem.backgroundColor = undefined;
+        this.licenseItem.command = 'postgres-explorer.license.activate';
+        break;
+    }
+    this.licenseItem.show();
   }
 
   dispose(): void {

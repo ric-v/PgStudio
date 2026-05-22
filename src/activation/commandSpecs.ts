@@ -91,6 +91,7 @@ import { cmdListPublications, cmdCreatePublication, cmdDropPublication, cmdShowP
 import { cmdDropPolicy } from '../commands/rlsPolicies';
 import { cmdOpenListenNotify, cmdOpenListenNotifyFromPalette } from '../commands/listenNotify';
 import { cmdSearchSchema } from '../commands/schemaSearch';
+import { runLicenseActivateCommand, runLicenseManageCommand, runOpenUpgradeCommand } from '../commands/license';
 import { WorkspaceStateService } from '../services/WorkspaceStateService';
 import { switchWorkspaceDefaultConnection } from '../commands/workspaceConnection';
 import { WhatsNewManager } from './WhatsNewManager';
@@ -1514,6 +1515,11 @@ export function getCommandSpecs(
 
     // Phase 2: Schema Search
     { command: 'postgres-explorer.searchSchema', callback: async () => await cmdSearchSchema() },
+
+    // Licensing
+    { command: 'postgres-explorer.license.activate', callback: () => runLicenseActivateCommand() },
+    { command: 'postgres-explorer.license.manage', callback: () => runLicenseManageCommand() },
+    { command: 'postgres-explorer.license.openUpgrade', callback: () => runOpenUpgradeCommand() },
   ];
 
   return commands;

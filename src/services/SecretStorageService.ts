@@ -62,6 +62,18 @@ export class SecretStorageService {
   public async deleteGithubGistToken(): Promise<void> {
     await this.context.secrets.delete('postgresExplorer.githubGistToken');
   }
+
+  public async getLicenseCache(): Promise<string | undefined> {
+    return await this.context.secrets.get('postgresExplorer.licenseCache');
+  }
+
+  public async setLicenseCache(json: string): Promise<void> {
+    await this.context.secrets.store('postgresExplorer.licenseCache', json);
+  }
+
+  public async deleteLicenseCache(): Promise<void> {
+    await this.context.secrets.delete('postgresExplorer.licenseCache');
+  }
 }
 
 /**

@@ -9,6 +9,7 @@ import { SecretStorageService } from '../../services/SecretStorageService';
 import { PostgresMetadata } from '../../common/types';
 import { PlanStoreWorkspace } from '../../features/planStudio/PlanStoreWorkspace';
 import { PlanStudioPanel } from '../../features/planStudio/PlanStudioPanel';
+import { requirePro, ProFeature } from '../../services/FeatureGates';
 
 export class ExplainErrorHandler implements IMessageHandler {
   constructor(private chatViewProvider: ChatViewProvider | undefined) { }
@@ -70,6 +71,10 @@ export class ShowExplainPlanHandler implements IMessageHandler {
   ) { }
 
   async handle(message: any, context?: { editor?: vscode.NotebookEditor }) {
+    const commit = await requirePro(ProFeature.ExplainAnalyzer, 'Visual EXPLAIN Analyzer');
+    if (!commit) {
+      return;
+    }
     const metadata = context?.editor?.notebook?.metadata as PostgresMetadata | undefined;
     PlanStudioPanel.show(this.extensionUri, this.planStore, {
       plan: message.plan,
@@ -81,6 +86,7 @@ export class ShowExplainPlanHandler implements IMessageHandler {
       performanceAnalysis: message.performanceAnalysis,
       notebookUri: context?.editor?.notebook?.uri?.toString(),
     });
+    await commit();
   }
 }
 
@@ -252,15 +258,20 @@ export class ConvertExplainHandler implements IMessageHandler {
               });
 
               if (message?.openInPlanStudio === true) {
+                const commit = await requirePro(ProFeature.ExplainAnalyzer, 'Visual EXPLAIN Analyzer');
+                if (!commit) {
+                  return;
+                }
                 PlanStudioPanel.show(this.context.extensionUri, this.planStore, {
-                plan: explainPlan,
-                query: innerQuery,
-                connectionId: metadata.connectionId,
-                databaseName: metadata.databaseName,
-                source: 'converted',
-                sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
-                notebookUri: context.editor.notebook.uri.toString(),
+                  plan: explainPlan,
+                  query: innerQuery,
+                  connectionId: metadata.connectionId,
+                  databaseName: metadata.databaseName,
+                  source: 'converted',
+                  sourceCellIndex: typeof message.sourceCellIndex === 'number' ? message.sourceCellIndex : undefined,
+                  notebookUri: context.editor.notebook.uri.toString(),
                 });
+                await commit();
               }
             } else {
               vscode.window.showErrorMessage('No plan data returned from query');
@@ -286,6 +297,10 @@ export class OpenPlanStudioHandler implements IMessageHandler {
   ) { }
 
   async handle(message: any, context?: { editor?: vscode.NotebookEditor }) {
+    const commit = await requirePro(ProFeature.ExplainAnalyzer, 'Visual EXPLAIN Analyzer');
+    if (!commit) {
+      return;
+    }
     const metadata = context?.editor?.notebook?.metadata as PostgresMetadata | undefined;
     PlanStudioPanel.show(this.extensionUri, this.planStore, {
       plan: message.plan,
@@ -297,6 +312,7 @@ export class OpenPlanStudioHandler implements IMessageHandler {
       performanceAnalysis: message.performanceAnalysis,
       notebookUri: context?.editor?.notebook?.uri?.toString(),
     });
+    await commit();
   }
 }
 

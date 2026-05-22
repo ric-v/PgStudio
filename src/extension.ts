@@ -15,6 +15,8 @@ import { TelemetryService } from './services/TelemetryService';
 import { WEBVIEW_MESSAGE_TYPES } from './common/messageTypes';
 import { PlanStoreWorkspace } from './features/planStudio/PlanStoreWorkspace';
 import { PlanStudioPanel } from './features/planStudio/PlanStudioPanel';
+import { LicenseService } from './services/LicenseService';
+import { FreemiumService } from './services/FreemiumService';
 import { ConnectionConfig } from './common/types';
 
 export let outputChannel: vscode.OutputChannel;
@@ -144,6 +146,8 @@ export async function activate(context: vscode.ExtensionContext) {
   telemetry.trackDailyActiveUser(version);
 
   SecretStorageService.getInstance(context);
+  LicenseService.getInstance(context).initialize(); // non-blocking
+  FreemiumService.getInstance().initialize(context);
   ConnectionManager.getInstance();
   QueryHistoryService.initialize(context.workspaceState);
   QueryPerformanceService.initialize(context.globalState);

@@ -33,9 +33,11 @@ FIXES_APPLIED.md
 skills-lock.json
 graphify-out/
 .superpowers/
-docs/roadmap/
-docs/plans/
-docs/specs/
-docs/plan/
+# docs/roadmap/
+# docs/plans/
+# docs/specs/
+# docs/plan/
 .commandcode/
 test/
+docs/roadmap/
+docs/plan/
