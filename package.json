@@ -3302,6 +3302,7 @@
   "main": "./dist/extension.js",
   "scripts": {
     "dev:site": "node scripts/dev-server.js",
+    "build:site": "mkdir -p dist && cp -r docs/* dist/",
     "vscode:prepublish": "npm run esbuild-base -- --minify && npm run esbuild-renderer -- --minify && npm run esbuild-erd-webview -- --minify",
     "prepare:nightly:manifests": "node ./scripts/prepare-nightly-manifests.js",
     "package:prerelease": "npx @vscode/vsce package --pre-release",
