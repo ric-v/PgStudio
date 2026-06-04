@@ -1,6 +1,6 @@
 # Docs Website Context
 
-Last updated: 2026-05-31
+Last updated: 2026-06-02
 Primary entry: docs/index.html
 Hosting: Vercel (migrated from GitHub Pages)
 Design reference: nexql.html (palette/copy only — **not** the inline IDE demo)
@@ -58,7 +58,18 @@ Top nav: **Features · AI · Compare · FAQ · Pricing · GitHub · Install — 
 | Sponsor | `sponsor` | Individual pro | Razorpay subscription |
 | Singularity | `singularity` | Teams / org | Razorpay subscription, flat org license |
 
-Pricing UI: monthly/annual + INR/USD toggles (`docs/js/pricing.js`); checkout uses `data-tier="sponsor"` / `"singularity"`.
+**Full Razorpay setup, price matrix, dashboard steps, API, and troubleshooting:** [RAZORPAY.md](./RAZORPAY.md)
+
+### Price matrix (defaults)
+
+| Tier | Monthly INR | Annual INR | Monthly USD | Annual USD |
+|------|-------------|------------|-------------|------------|
+| Sponsor | ₹199 | ₹1,990 (~17% off) | $2 | $20 |
+| Singularity | ₹899 | ₹8,990 | $9 | $90 |
+
+Source of truth: `api/plan-config.js` (`DEFAULT_DISPLAY`); overridable via `RAZORPAY_DISPLAY_*`. Razorpay Plan **billing amounts** must match these figures.
+
+Pricing UI: monthly/annual + INR/USD toggles (`docs/js/pricing.js`); checkout uses `data-tier="sponsor"` / `"singularity"`. Pay buttons enable only when the matching `RAZORPAY_PLAN_*` env var is a real `plan_…` id.
 
 ## Runtime behavior
 
@@ -83,29 +94,19 @@ Aggregator: `docs/styles.css`
 - API: `api/config`, `api/create-subscription`, `api/verify-payment`
 - Plan config: `api/plan-config.js`
 
-Environment (see `.env.example`):
-- `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
-- `RAZORPAY_PLAN_{SPONSOR|SINGULARITY}_{MONTHLY|ANNUAL}_{INR|USD}` — eight plan IDs
-- Optional `RAZORPAY_DISPLAY_*` overrides
+Razorpay credentials, eight Plan IDs, local dev, dashboard checklist, and API details: **[RAZORPAY.md](./RAZORPAY.md)** (canonical).
 
-Local dev:
+Quick local dev:
 
 ```bash
-cp .env.example .env
-cd api && npm install
-npm run dev:site   # http://localhost:3000
+cp .env.example .env   # fill RAZORPAY_KEY_* and all RAZORPAY_PLAN_*
+cd api && npm install && cd ..
+npm run dev:site       # http://localhost:3000
 ```
 
-**Post-rebrand deploy:** Recreate or rename Razorpay Plans and update Vercel env vars. Old `RAZORPAY_PLAN_STUDIO_*` / `TEAM_*` keys will not resolve until migrated.
+**Post-rebrand:** Use `RAZORPAY_PLAN_SPONSOR_*` / `SINGULARITY_*` only; old `STUDIO_*` / `TEAM_*` env keys are obsolete.
 
-## Razorpay dashboard (manual)
-
-1. Create **8 Plans**: Sponsor + Singularity × monthly/annual × INR/USD.
-2. Paste `plan_...` IDs into env.
-3. Enable international payments for USD plans.
-4. Test mode cards for INR/USD.
-
-License activation / webhooks remain follow-up (`docs/roadmap/license-implementation.md`).
+Extension license delivery after payment is **not** implemented yet — see `docs/roadmap/license-implementation.md`.
 
 ## Maintenance rules
 
