@@ -28,17 +28,19 @@ module.exports = async (req, res) => {
     if (generated_signature === razorpay_signature) {
       return res.status(200).json({
         success: true,
-        message: 'Payment signature verified successfully.'
+        message: 'Payment signature verified successfully.',
       });
     } else {
       // Signature mismatch: return 400, do NOT mark as paid
       return res.status(400).json({
         success: false,
-        error: 'Signature verification failed. Potential tampering detected.'
+        error: 'Signature verification failed. Potential tampering detected.',
       });
     }
   } catch (error) {
     console.error('Error verifying payment signature:', error);
-    return res.status(500).json({ error: error.message || 'Internal Server Error during verification' });
+    return res
+      .status(500)
+      .json({ error: error.message || 'Internal Server Error during verification' });
   }
 };

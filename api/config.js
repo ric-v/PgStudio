@@ -1,4 +1,4 @@
-const { SUPPORTED_CURRENCIES, buildTierCatalog } = require('./plan-config');
+const { SUPPORTED_CURRENCIES, buildTierCatalog } = require('./_lib/plan-config');
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {

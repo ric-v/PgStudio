@@ -3,7 +3,7 @@
 // Returns read-only entitlement status for the Manage Subscription panel.
 // Does NOT bind a device (unlike /api/license/validate).
 
-const store = require('../lib/store');
+const store = require('../_lib/store');
 
 function maskEmail(email) {
   if (!email || !email.includes('@')) return null;

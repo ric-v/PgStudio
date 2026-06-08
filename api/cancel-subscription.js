@@ -10,7 +10,7 @@
 // UI reflects it without waiting for the webhook.
 
 const Razorpay = require('razorpay');
-const store = require('./lib/store');
+const store = require('./_lib/store');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -62,11 +62,14 @@ module.exports = async (req, res) => {
       status: sub.status,
       cancelAtCycleEnd,
       // When cancelling at cycle end, access remains until this date.
-      accessUntil: cancelAtCycleEnd ? ent.expiresAt || (sub.current_end ? sub.current_end * 1000 : null) : null,
+      accessUntil: cancelAtCycleEnd
+        ? ent.expiresAt || (sub.current_end ? sub.current_end * 1000 : null)
+        : null,
     });
   } catch (error) {
     console.error('Razorpay cancel error:', error);
-    const description = error.description || (error.error && error.error.description) || error.message;
+    const description =
+      error.description || (error.error && error.error.description) || error.message;
     if (error.statusCode === 401) {
       return res.status(401).json({ error: 'Authentication failed with Razorpay API' });
     }

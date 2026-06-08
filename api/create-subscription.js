@@ -1,5 +1,5 @@
 const Razorpay = require('razorpay');
-const { resolvePlan } = require('./plan-config');
+const { resolvePlan } = require('./_lib/plan-config');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
