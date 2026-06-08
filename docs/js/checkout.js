@@ -108,6 +108,9 @@
     .license-btn-danger { background:#ef4444; color:#fff; width:100%; }
     .license-error { color:#f87171; font-size:13px; margin-bottom:12px; }
     a.manage-subscription-link { color: var(--accent, #8b7cf6); cursor:pointer; text-decoration: underline; }
+    .license-recover { margin: 4px 0 14px; }
+    .license-recover .manage-subscription-link { font-size: 13px; }
+    .license-recover-note { color:#b8b8c8; font-size:13px; margin-top:10px; line-height:1.4; }
   `;
   document.head.appendChild(style);
 
@@ -142,6 +145,7 @@
   }
 
   const ACTIVATE_URI_BASE = 'vscode://ric-v.postgres-explorer/activate?key=';
+  const LICENSE_STORAGE_KEY = 'pgstudio_license';
 
   // Poll the lookup endpoint until the webhook has issued a license key.
   async function pollLicenseKey(subscriptionId, attempts = 6) {
@@ -233,14 +237,25 @@
       setTimeout(() => overlay.remove(), 300);
     };
 
+    let savedKey = '';
+    try { savedKey = localStorage.getItem(LICENSE_STORAGE_KEY) || ''; } catch {}
+
     overlay.innerHTML = `
       <div class="license-modal" role="dialog" aria-modal="true">
         <h3>Manage subscription</h3>
         <p>Enter your license key to view status or cancel.</p>
         <div class="license-error" id="mng-error" style="display:none"></div>
-        <input class="license-input" id="mng-key" placeholder="PGST-XXXX-XXXX-XXXX-XXXX" autocomplete="off" />
+        <input class="license-input" id="mng-key" placeholder="PGST-XXXX-XXXX-XXXX-XXXX" autocomplete="off" value="${savedKey}" />
         <div id="mng-result"></div>
         <button class="license-btn license-btn-primary" id="mng-check">Check status</button>
+        <div class="license-recover">
+          <a class="manage-subscription-link" id="mng-recover-toggle">Lost your key? Email it to me</a>
+          <div id="mng-recover-form" style="display:none;margin-top:12px">
+            <input class="license-input" id="mng-email" type="email" placeholder="you@example.com" autocomplete="email" />
+            <button class="license-btn license-btn-copy" id="mng-recover-send" style="width:100%">Email my license key</button>
+            <div class="license-recover-note" id="mng-recover-note" style="display:none"></div>
+          </div>
+        </div>
         <button class="license-btn license-btn-secondary" id="mng-close">Close</button>
       </div>`;
 
@@ -253,6 +268,44 @@
     const resultEl = overlay.querySelector('#mng-result');
     const keyEl = overlay.querySelector('#mng-key');
     const checkBtn = overlay.querySelector('#mng-check');
+
+    // --- Email recovery (cross-device) ---
+    const recoverToggle = overlay.querySelector('#mng-recover-toggle');
+    const recoverForm = overlay.querySelector('#mng-recover-form');
+    const emailEl = overlay.querySelector('#mng-email');
+    const recoverSend = overlay.querySelector('#mng-recover-send');
+    const recoverNote = overlay.querySelector('#mng-recover-note');
+
+    recoverToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      recoverForm.style.display = recoverForm.style.display === 'none' ? 'block' : 'none';
+    });
+
+    recoverSend.addEventListener('click', async () => {
+      const email = (emailEl.value || '').trim();
+      recoverNote.style.display = 'none';
+      if (!email || !email.includes('@')) {
+        recoverNote.textContent = 'Enter a valid email.';
+        recoverNote.style.display = 'block';
+        return;
+      }
+      recoverSend.disabled = true;
+      recoverSend.textContent = 'Sending…';
+      try {
+        await fetch('/api/license/recover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        recoverNote.textContent = "If that email has a subscription, we've sent the license key to it.";
+      } catch {
+        recoverNote.textContent = 'Network error. Try again.';
+      } finally {
+        recoverNote.style.display = 'block';
+        recoverSend.disabled = false;
+        recoverSend.textContent = 'Email my license key';
+      }
+    });
 
     const showError = (msg) => {
       errorEl.textContent = msg;
@@ -282,6 +335,7 @@
           return;
         }
         const data = await res.json();
+        try { localStorage.setItem(LICENSE_STORAGE_KEY, key); } catch {}
         renderStatus(key, data);
       } catch {
         showError('Network error. Try again.');
@@ -436,8 +490,8 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_subscription_id: response.razorpay_subscription_id,
                 razorpay_signature: response.razorpay_signature,
               }),
             });
@@ -448,6 +502,9 @@
               resetButton();
               showLicenseModal(tierLabel, null); // optimistic: modal opens immediately
               const licenseKey = await pollLicenseKey(subData.subscription_id);
+              if (licenseKey) {
+                try { localStorage.setItem(LICENSE_STORAGE_KEY, licenseKey); } catch {}
+              }
               const open = document.querySelector('.license-modal-overlay');
               if (open) open.remove(); // replace pending modal with final state
               showLicenseModal(tierLabel, licenseKey);
