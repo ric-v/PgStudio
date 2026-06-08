@@ -257,9 +257,17 @@ Errors: `400` invalid tier/period/currency or missing plan config; `401` bad Raz
 
 ### `POST /api/verify-payment`
 
-Body: `{ "razorpay_order_id", "razorpay_payment_id", "razorpay_signature" }` (from Checkout `handler`).
+Body (subscription checkout): `{ "razorpay_payment_id", "razorpay_subscription_id", "razorpay_signature" }` (from Checkout `handler`). Signature = `HMAC_SHA256(razorpay_payment_id + "|" + razorpay_subscription_id, KEY_SECRET)`.
 
-Success: `{ "success": true }`. Signature mismatch → `400` (do not treat as paid).
+Body (one-time order, legacy): `{ "razorpay_order_id", "razorpay_payment_id", "razorpay_signature" }`. Signature = `HMAC_SHA256(razorpay_order_id + "|" + razorpay_payment_id, KEY_SECRET)`.
+
+Mode is auto-detected: if `razorpay_subscription_id` is present, the subscription formula is used.
+
+Success: `{ "success": true }`. Signature mismatch → `400` (do not treat as paid). Note: this endpoint only drives the success UI — the `subscription.*` webhook is the authoritative source of entitlement.
+
+### `POST /api/license/recover`
+
+Body: `{ "email" }`. Emails the license key to the address on file. Always returns `200 { "ok": true }` regardless of match (prevents email enumeration). Requires `RESEND_API_KEY` to actually deliver.
 
 ---
 
